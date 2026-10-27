@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v3.124';
+const APP_VERSION = 'v3.125';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2745,7 +2745,7 @@ const WLG_SEL_ICON_ZIP = `<svg width="16" height="16" viewBox="0 0 20 20" fill="
 // it's wanted back.
 const GERK_SELECTION_ACTIONS = [
   { id: 'export',     label: 'Izvozi',      tooltip: 'Izvozi izbrane GERKE v Excel',                 icon: WLG_SEL_ICON_DOWNLOAD, variant: 'default', onClick: exportSelectedGerksToExcel },
-  { id: 'export-shp', label: 'Vzorčenje',   tooltip: 'Izvozi cone vzorčenja izbranih GERKOV (shapefile/NextFarm)', icon: WLG_SEL_ICON_ZIP, variant: 'default', onClick: exportSelectedGerksToShapefile },
+  { id: 'export-shp', label: 'ZIP',          tooltip: 'Izvozi cone vzorčenja izbranih GERKOV (shapefile/NextFarm)', icon: WLG_SEL_ICON_ZIP, variant: 'default', onClick: exportSelectedGerksToShapefile },
   { id: 'delete',     label: 'Briši',       tooltip: 'Izbriši izbrane GERKE iz naloga',              icon: WLG_SEL_ICON_TRASH,    variant: 'danger',  onClick: bulkDeleteSelectedGerks },
 ];
 
