@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v3.120';
+const APP_VERSION = 'v3.121';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -3842,8 +3842,20 @@ async function confirmKmlImport(btn) {
           .filter(label => !existingSegmentNos.has(label))
           .map(label => ({ delovni_nalog_gerk_id: gerk.id, sample_no: label, sampling_depth_cm: globina }));
         if (newSegmentRows.length) {
-          const { error: segError } = await supabase.from('delovni_nalogi_vzorci').insert(newSegmentRows);
-          if (segError) console.warn('Napaka pri dodajanju segmentov iz uvoženih con:', segError);
+          const { data: insertedSegs, error: segError } = await supabase
+            .from('delovni_nalogi_vzorci')
+            .insert(newSegmentRows)
+            .select('id, sample_no, sampling_date, sending_date, sampling_note, sending_note, sampling_depth_cm, area_ha, comment');
+          if (segError) {
+            console.warn('Napaka pri dodajanju segmentov iz uvoženih con:', segError);
+          } else {
+            // Without this, the segments existed in the DB but the
+            // post-import re-render (loadDetailForDate(), below) read
+            // from this same stale in-memory array — not a fresh fetch
+            // — so newly imported segments stayed invisible until the
+            // order was closed and reopened.
+            gerk.delovni_nalogi_vzorci = [...(gerk.delovni_nalogi_vzorci || []), ...(insertedSegs || [])];
+          }
         }
 
         importedFiles++;

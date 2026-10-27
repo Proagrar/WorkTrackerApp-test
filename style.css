@@ -2027,7 +2027,11 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   cursor: pointer;
 }
 .wo-map-close-btn:hover { background: #fff; }
-.wo-map-layers-btn--detail { top: 44px; }
+/* 44px (36px below the expand button's own top:8px) was too tight —
+   the two pills' actual rendered height left them touching/overlapping,
+   shadows merging into one blob. A few px more margin fixes it for
+   real instead of relying on a razor-thin calculated gap. */
+.wo-map-layers-btn--detail { top: 50px; }
 
 /* Expanded map mode — the button toggles this class on .wo-detail-layout.
    Width only, never height — height stays whatever the normal (non-
