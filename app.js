@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v3.126';
+const APP_VERSION = 'v3.127';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2324,6 +2324,10 @@ function closeModal() {
   hideModalAnimated(formModal);
   document.body.style.overflow = '';
   stopWatchingMyLocationOnWoMap();
+  // Without this, a GERK selection left checked when the order was closed
+  // kept wlgSelectionBar floating over the main list afterward — stacked
+  // on top of woSelectionBar if a row was also selected there.
+  clearGerkSelection();
   // Time logged via the live Start/Stop timers writes straight to Supabase
   // without updating the in-memory `logs` array — refresh it so Evidenca
   // dela reflects what was just logged.
