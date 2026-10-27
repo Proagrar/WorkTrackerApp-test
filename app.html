@@ -236,6 +236,11 @@
             <span class="wo-ha-chip wo-ha-chip--time" id="reportsChipTotal"></span>
             <span class="wo-ha-chip wo-ha-chip--cost" id="reportsChipCost"></span>
           </div>
+          <!-- Exports selected rows if any are checked, otherwise every
+               currently filtered row — same scope as the chips above and
+               the chart below. One row per GERK segment (or per GERK, if
+               it has none), not per work order — see exportReportsToExcel(). -->
+          <button type="button" class="btn btn-secondary btn-sm" id="reportsExportExcelBtn">📊 Izvozi v Excel</button>
         </div>
 
         <!-- All filters in a single row, above the chart + table they

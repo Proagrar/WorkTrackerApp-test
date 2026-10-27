@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v3.121';
+const APP_VERSION = 'v3.122';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -242,6 +242,7 @@ const reportsChipTracked      = document.getElementById('reportsChipTracked');
 const reportsChipGap          = document.getElementById('reportsChipGap');
 const reportsChipTotal        = document.getElementById('reportsChipTotal');
 const reportsChipCost         = document.getElementById('reportsChipCost');
+const reportsExportExcelBtn   = document.getElementById('reportsExportExcelBtn');
 
 // ── Operators (Izvajalci) modal refs ────────────────────────────
 const operatorsModal      = document.getElementById('operatorsModal');
@@ -4333,6 +4334,81 @@ function updateReportsSummary(filteredRows) {
   reportsChipTotal.textContent = `Skupaj čas: ${fmtHM(tracked + gap)}`;
   reportsChipCost.textContent = `Strošek: ${cost.toFixed(2)} €`;
 }
+
+// CSV, not a real .xlsx — Excel opens it directly and it needs no binary
+// format or library to build (same "no build step" constraint the
+// shapefile export already works around, just a much simpler case here).
+// Semicolon separator + UTF-8 BOM: Slovenian-locale Excel treats comma as
+// the decimal separator, so a comma-delimited CSV mis-splits columns, and
+// without the BOM č/š/ž render as mojibake when Excel opens it.
+function csvField(value) {
+  const s = value == null ? '' : String(value);
+  return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+// One row per GERK segment (or per GERK, if it has none) — not per work
+// order — since the point of the export is the field/segment-level detail
+// the report table itself doesn't show. Scope matches the chips/chart
+// above: selected rows if any are checked, otherwise every filtered row
+// (reportsEffectiveRows(), same function both already use).
+async function exportReportsToExcel(btn) {
+  const rows = reportsEffectiveRows(filteredReportsRows());
+  if (!rows.length) {
+    reportsError.textContent = 'Ni vrstic za izvoz.';
+    reportsError.hidden = false;
+    return;
+  }
+
+  btn.disabled = true;
+  reportsError.hidden = true;
+  try {
+    const workOrderIds = rows.map(r => r.work_order_id);
+    const { data: gerkRows, error } = await supabase
+      .from('delovni_nalogi_gerki')
+      .select('delovni_nalog_id, gerk_code, kolicina_ha, delovni_nalogi_vzorci(sample_no)')
+      .in('delovni_nalog_id', workOrderIds);
+    if (error) throw error;
+
+    const gerksByOrder = new Map();
+    for (const g of (gerkRows || [])) {
+      if (!gerksByOrder.has(g.delovni_nalog_id)) gerksByOrder.set(g.delovni_nalog_id, []);
+      gerksByOrder.get(g.delovni_nalog_id).push(g);
+    }
+
+    const header = ['Št. naloga', 'Datum', 'Stranka', 'Status', 'Izvajalec', 'GERK', 'Segment', 'Ha'];
+    const lines = [header.map(csvField).join(';')];
+
+    for (const r of rows) {
+      const datum = r.ustvarjen ? fmtSampleDate(r.ustvarjen.slice(0, 10)) : '';
+      const base = [r.stevilka || '', datum, r.customer_name || '', r.status || '', r.izvajalec_name || ''];
+      const gerks = gerksByOrder.get(r.work_order_id) || [];
+      if (!gerks.length) {
+        lines.push([...base, '', '', ''].map(csvField).join(';'));
+        continue;
+      }
+      for (const g of gerks) {
+        const ha = g.kolicina_ha != null ? Number(g.kolicina_ha).toFixed(2) : '';
+        const segments = g.delovni_nalogi_vzorci || [];
+        if (!segments.length) {
+          lines.push([...base, g.gerk_code || '', '', ha].map(csvField).join(';'));
+        } else {
+          for (const s of segments) {
+            lines.push([...base, g.gerk_code || '', s.sample_no || '', ha].map(csvField).join(';'));
+          }
+        }
+      }
+    }
+
+    const csv = '﻿' + lines.join('\r\n');
+    downloadTextFile(`porocilo_${todayISO()}.csv`, csv, 'text/csv;charset=utf-8');
+  } catch (e) {
+    reportsError.textContent = e.message || 'Napaka pri izvozu.';
+    reportsError.hidden = false;
+  } finally {
+    btn.disabled = false;
+  }
+}
+reportsExportExcelBtn.addEventListener('click', () => exportReportsToExcel(reportsExportExcelBtn));
 
 function syncReportsSelectAllCheckbox(visibleIds) {
   const headCb = reportsListWrap.querySelector('#reportsSelectAllCb');
