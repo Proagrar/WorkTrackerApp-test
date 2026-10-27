@@ -827,6 +827,15 @@ input, select, textarea { font-family: inherit; }
   visibility: visible;
   transition: opacity var(--duration-base) var(--ease-standard), visibility 0s linear 0s;
 }
+/* The main list's selection bar sits at the same fixed position as the
+   GERK-level one inside the work-order detail modal — when a row stayed
+   selected on the list behind an open order, both rendered stacked on top
+   of each other. The list is covered by the modal anyway, so its bar has
+   no reason to show while the modal is open. */
+#formModal:not([hidden]) ~ #woSelectionBar {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
 
 .wlg-sel-summary {
   font-size: .8125rem;

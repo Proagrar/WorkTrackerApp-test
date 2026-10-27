@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v3.123';
+const APP_VERSION = 'v3.124';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -88,16 +88,6 @@ const woRestoreBtn = document.getElementById('woRestoreBtn');
 const woAddExistingGerkWrap = document.getElementById('woAddExistingGerkWrap');
 const woAddExistingGerkPaste = document.getElementById('woAddExistingGerkPaste');
 const woAddExistingGerkBtn = document.getElementById('woAddExistingGerkBtn');
-const woExportSamplingWrap      = document.getElementById('woExportSamplingWrap');
-const woExportSamplingBtn       = document.getElementById('woExportSamplingBtn');
-const exportSamplingModal       = document.getElementById('exportSamplingModal');
-const exportSamplingModalClose  = document.getElementById('exportSamplingModalClose');
-const exportSamplingList        = document.getElementById('exportSamplingList');
-const exportSamplingSelectAllCb = document.getElementById('exportSamplingSelectAllCb');
-const exportSamplingNote        = document.getElementById('exportSamplingNote');
-const exportSamplingErrorEl     = document.getElementById('exportSamplingError');
-const exportSamplingCancelBtn   = document.getElementById('exportSamplingCancelBtn');
-const exportSamplingConfirmBtn  = document.getElementById('exportSamplingConfirmBtn');
 const woImportZonesWrap = document.getElementById('woImportZonesWrap');
 const woKmlInput = document.getElementById('woKmlInput');
 const woImportZonesPickBtn = document.getElementById('woImportZonesPickBtn');
@@ -1514,7 +1504,6 @@ function updateOrderHeader() {
   // adding a GERK to an "Izvedeno" order now correctly drops it back to
   // "V delu".
   woAddExistingGerkWrap.hidden = !isAdmin;
-  woExportSamplingWrap.hidden  = !isAdmin;
 
   // Delete (archive) / restore — mutually exclusive on deleted_at, admin-only.
   const isDeleted = !!wo.deleted_at;
@@ -2749,10 +2738,15 @@ async function removeGerkFromOrder(btn) {
 const WLG_SEL_ICON_CLOSE = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><line x1="4" y1="4" x2="16" y2="16" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/><line x1="16" y1="4" x2="4" y2="16" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>`;
 const WLG_SEL_ICON_TRASH = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m-6 0v9a1.5 1.5 0 0 0 1.5 1.5h5A1.5 1.5 0 0 0 14 15V6M7.5 9v4M12.5 9v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const WLG_SEL_ICON_DOWNLOAD = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v9m0 0-3.5-3.5M10 12l3.5-3.5M4 14v1.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const WLG_SEL_ICON_ZIP = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="4" y="4" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M10 4v2m0 2v2m0 2v2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
 
+// KML export (exportSelectedGerksToKml) intentionally not wired into this
+// bar for now — not needed currently, kept in code (not deleted) in case
+// it's wanted back.
 const GERK_SELECTION_ACTIONS = [
-  { id: 'export', label: 'Izvozi',  tooltip: 'Izvozi izbrane GERKE v KML',       icon: WLG_SEL_ICON_DOWNLOAD, variant: 'default', onClick: exportSelectedGerksToKml },
-  { id: 'delete', label: 'Briši',   tooltip: 'Izbriši izbrane GERKE iz naloga',  icon: WLG_SEL_ICON_TRASH,    variant: 'danger',  onClick: bulkDeleteSelectedGerks },
+  { id: 'export',     label: 'Izvozi',      tooltip: 'Izvozi izbrane GERKE v Excel',                 icon: WLG_SEL_ICON_DOWNLOAD, variant: 'default', onClick: exportSelectedGerksToExcel },
+  { id: 'export-shp', label: 'Vzorčenje',   tooltip: 'Izvozi cone vzorčenja izbranih GERKOV (shapefile/NextFarm)', icon: WLG_SEL_ICON_ZIP, variant: 'default', onClick: exportSelectedGerksToShapefile },
+  { id: 'delete',     label: 'Briši',       tooltip: 'Izbriši izbrane GERKE iz naloga',              icon: WLG_SEL_ICON_TRASH,    variant: 'danger',  onClick: bulkDeleteSelectedGerks },
 ];
 
 function buildSelectionBar() {
@@ -2942,6 +2936,34 @@ function exportSelectedGerksToKml(btn) {
   const filename = `${(currentDetailWorkOrder?.stevilka || 'gerki').replace(/[^\w.-]+/g, '_')}_export.kml`;
   downloadTextFile(filename, kml, 'application/vnd.google-earth.kml+xml');
   showFormSuccess(`✓ Izvoženih ${features.length} ${features.length === 1 ? 'oblika' : 'oblik'} v KML.` + (skipped.length ? ` Brez geometrije: ${skipped.join(', ')}.` : ''));
+}
+
+// Same CSV shape as the work-orders list's export (one row per segment,
+// Ha = the segment's own area_ha, comma-decimal for Excel) — just scoped
+// to the selected GERKs of this one order instead of a set of orders.
+function exportSelectedGerksToExcel(btn) {
+  const codes = [...selectedGerkCodes];
+  if (!codes.length) return;
+
+  const wo = currentDetailWorkOrder;
+  const gerks = (wo?.delovni_nalogi_gerki || []).filter(g => codes.includes(g.gerk_code));
+  if (!gerks.length) return;
+
+  const header = ['Št. naloga', 'GERK', 'Segment', 'Ha'];
+  const lines = [header.map(csvField).join(';')];
+  for (const g of gerks) {
+    const segments = g.delovni_nalogi_vzorci || [];
+    if (!segments.length) {
+      lines.push([wo.stevilka || '', g.gerk_code || '', '', csvHa(g.kolicina_ha)].map(csvField).join(';'));
+    } else {
+      for (const s of segments) {
+        lines.push([wo.stevilka || '', g.gerk_code || '', s.sample_no || '', csvHa(s.area_ha)].map(csvField).join(';'));
+      }
+    }
+  }
+
+  const csv = '﻿' + lines.join('\r\n');
+  downloadTextFile(`${(wo?.stevilka || 'gerki').replace(/[^\w.-]+/g, '_')}_export.csv`, csv, 'text/csv;charset=utf-8');
 }
 
 // ── Export sampling zones to a NextFarm-compatible shapefile ─────
@@ -3218,75 +3240,14 @@ function zoneAreaHa(seg, projectedRings) {
   return nfPolygonAreaHa(rings);
 }
 
-function openExportSamplingModal() {
+// Same shapefile build as before, now driven directly by the GERK
+// selection bar's selectedGerkCodes instead of its own picker modal —
+// GERKs with no imported sampling zone geometry are silently skipped
+// (reported in the result message) rather than never shown at all.
+function exportSelectedGerksToShapefile(btn) {
   if (!currentDetailWorkOrder) return;
-  exportSamplingErrorEl.hidden = true;
-  exportSamplingNote.hidden = true;
-
-  const byCode = new Map();
-  for (const seg of currentGerkSegments) {
-    if (!seg.segment_geojson) continue;
-    if (!byCode.has(seg.gerk_code)) byCode.set(seg.gerk_code, []);
-    byCode.get(seg.gerk_code).push(seg);
-  }
-
-  const gerkLines = currentDetailWorkOrder.delovni_nalogi_gerki || [];
-  // get_work_order_gerk_segments tags every zone with the order LINE's own
-  // gerk_code (sg.full_code in that RPC — even for a compound "A+B+C" line,
-  // it doesn't expose which real sub-GERK a zone belongs to), so this
-  // already matches delovni_nalogi_gerki.gerk_code / work_log_gerks.gerk_code
-  // directly — no split/rejoin needed, unlike the per-real-sub-GERK
-  // treatment used for ARKOD shapes and the KML export elsewhere.
-  const rows = [...byCode.entries()].map(([code, zones]) => {
-    const completed = currentAllGerkEntries.some(e => e.gerk_code === code && e.completed);
-    const ha = zones.reduce((s, z) => s + zoneAreaHa(z), 0);
-    return { code, zones, completed, ha };
-  }).sort((a, b) => a.code.localeCompare(b.code, 'sl'));
-
-  const skippedCodes = gerkLines.map(g => g.gerk_code).filter(code => !byCode.has(code));
-
-  exportSamplingList.innerHTML = rows.map(r => `
-    <label class="wo-gerk-check-item">
-      <input type="checkbox" class="export-sampling-cb" value="${escHtml(r.code)}">
-      <span class="wo-gerk-check-code">${escHtml(r.code)}</span>
-      <span class="wo-gerk-check-name">${r.zones.length} ${r.zones.length === 1 ? 'cona' : 'con'} · ${r.ha.toFixed(2)} ha</span>
-      <span class="wo-status-badge ${r.completed ? 'wo-status--izvedeno' : 'wo-status--plan'}">${r.completed ? 'Izvedeno' : 'Ni izvedeno'}</span>
-    </label>`).join('');
-
-  exportSamplingList.querySelectorAll('.export-sampling-cb').forEach(cb => cb.addEventListener('change', syncExportSamplingSelectAllCb));
-  syncExportSamplingSelectAllCb();
-
-  if (!rows.length) {
-    exportSamplingNote.textContent = 'Noben GERK na tem nalogu nima uvoženih con vzorčenja.';
-    exportSamplingNote.hidden = false;
-  } else if (skippedCodes.length) {
-    exportSamplingNote.textContent = `Brez con (ni v seznamu): ${skippedCodes.join(', ')}.`;
-    exportSamplingNote.hidden = false;
-  }
-
-  showModalAnimated(exportSamplingModal);
-}
-
-function closeExportSamplingModal() {
-  hideModalAnimated(exportSamplingModal);
-}
-
-function syncExportSamplingSelectAllCb() {
-  const cbs = [...exportSamplingList.querySelectorAll('.export-sampling-cb')];
-  const checked = cbs.filter(cb => cb.checked).length;
-  exportSamplingSelectAllCb.checked = cbs.length > 0 && checked === cbs.length;
-  exportSamplingSelectAllCb.indeterminate = checked > 0 && checked < cbs.length;
-}
-
-function showExportSamplingError(msg) {
-  exportSamplingErrorEl.textContent = msg;
-  exportSamplingErrorEl.hidden = false;
-}
-
-function confirmExportSampling() {
-  const codes = [...exportSamplingList.querySelectorAll('.export-sampling-cb:checked')].map(cb => cb.value);
-  if (!codes.length) { showExportSamplingError('Izberite vsaj en GERK.'); return; }
-  exportSamplingErrorEl.hidden = true;
+  const codes = [...selectedGerkCodes];
+  if (!codes.length) return;
 
   const customerName = (currentDetailWorkOrder.customers?.naziv || currentDetailWorkOrder.customers?.company_name || '').trim();
   const zones = currentGerkSegments
@@ -3311,7 +3272,7 @@ function confirmExportSampling() {
     });
   }
 
-  if (!features.length) { showExportSamplingError('Izbrani GERK-i nimajo geometrije za izvoz.'); return; }
+  if (!features.length) { showFormError('Noben izbran GERK nima uvožene cone vzorčenja za izvoz.'); return; }
 
   const { shp, shx } = nfBuildShpShx(features);
   const dbf = nfBuildDbf(NF_DBF_FIELDS, rows);
@@ -3325,19 +3286,10 @@ function confirmExportSampling() {
   ]);
 
   downloadTextFile(`${baseName}.zip`, zip, 'application/zip');
-  closeExportSamplingModal();
-  showFormSuccess(`✓ Izvoženih ${features.length} ${features.length === 1 ? 'cona' : 'con'} vzorčenja.`);
+  const exportedCodes = new Set(zones.map(z => z.gerk_code));
+  const skipped = codes.filter(c => !exportedCodes.has(c));
+  showFormSuccess(`✓ Izvoženih ${features.length} ${features.length === 1 ? 'cona' : 'con'} vzorčenja.` + (skipped.length ? ` Brez con: ${skipped.join(', ')}.` : ''));
 }
-
-woExportSamplingBtn.addEventListener('click', openExportSamplingModal);
-exportSamplingModalClose.addEventListener('click', closeExportSamplingModal);
-exportSamplingCancelBtn.addEventListener('click', closeExportSamplingModal);
-exportSamplingModal.addEventListener('click', e => { if (e.target === exportSamplingModal) closeExportSamplingModal(); });
-exportSamplingSelectAllCb.addEventListener('change', () => {
-  exportSamplingList.querySelectorAll('.export-sampling-cb').forEach(cb => { cb.checked = exportSamplingSelectAllCb.checked; });
-  exportSamplingSelectAllCb.indeterminate = false;
-});
-exportSamplingConfirmBtn.addEventListener('click', confirmExportSampling);
 
 async function updateSampleNo(inputEl) {
   const sampleId = inputEl.dataset.sampleId;

@@ -503,13 +503,6 @@
             <textarea class="field-input field-textarea" id="woAddExistingGerkPaste" rows="3" placeholder="npr. 830635, 1367184, 1319486&#10;ali prilepite stolpec/vrstice iz Excela"></textarea>
             <button type="button" class="btn btn-secondary btn-sm" id="woAddExistingGerkBtn">+ Dodaj GERK-e</button>
           </div>
-          <!-- Admin only: export selected GERKs' sampling zones to a
-               NextFarm-compatible shapefile (zone geometry + sample
-               numbers; lab-analysis columns ship blank, filled in later
-               by NextFarm/the lab once results come back). -->
-          <div class="gerk-wrap" id="woExportSamplingWrap" hidden>
-            <button type="button" class="btn btn-secondary btn-sm" id="woExportSamplingBtn">📦 Izvoz vzorčenja</button>
-          </div>
         </div>
 
         <!-- Tractor — temporarily hidden per request 2026-08-22, JS wiring
@@ -844,39 +837,6 @@
           </button>
         </div>
       </form>
-    </div>
-  </div>
-
-  <!-- ── Export sampling zones (NextFarm shapefile) — admin only ───── -->
-  <div id="exportSamplingModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="exportSamplingModalTitle">
-    <div class="modal-sheet modal-sheet-compact">
-      <div class="modal-handle" aria-hidden="true"></div>
-      <div class="modal-head">
-        <h3 id="exportSamplingModalTitle" class="modal-title">Izvoz vzorčenja</h3>
-        <button id="exportSamplingModalClose" class="btn btn-icon" aria-label="Zapri">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </button>
-      </div>
-      <div class="work-form">
-        <p class="field-hint">Izberite GERK-e, katerih cone vzorčenja želite izvoziti v shapefile za NextFarm. Prikazani so samo GERK-i z uvoženimi conami.</p>
-        <label class="wo-gerk-check-item">
-          <input type="checkbox" id="exportSamplingSelectAllCb">
-          <span class="wo-gerk-check-code">Izberi vse</span>
-        </label>
-        <div id="exportSamplingList" class="wo-gerk-checklist"></div>
-        <p class="field-hint" id="exportSamplingNote" hidden></p>
-        <div id="exportSamplingError" class="alert alert-error" hidden role="alert"></div>
-        <div class="form-actions">
-          <button type="button" id="exportSamplingCancelBtn" class="btn btn-secondary btn-flex">Prekliči</button>
-          <button type="button" id="exportSamplingConfirmBtn" class="btn btn-primary btn-flex">
-            <span class="btn-label">Izvozi</span>
-            <span class="btn-spinner" hidden aria-hidden="true"></span>
-          </button>
-        </div>
-      </div>
     </div>
   </div>
 
