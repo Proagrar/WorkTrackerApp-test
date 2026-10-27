@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v3.122';
+const APP_VERSION = 'v3.123';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -242,7 +242,6 @@ const reportsChipTracked      = document.getElementById('reportsChipTracked');
 const reportsChipGap          = document.getElementById('reportsChipGap');
 const reportsChipTotal        = document.getElementById('reportsChipTotal');
 const reportsChipCost         = document.getElementById('reportsChipCost');
-const reportsExportExcelBtn   = document.getElementById('reportsExportExcelBtn');
 
 // ── Operators (Izvajalci) modal refs ────────────────────────────
 const operatorsModal      = document.getElementById('operatorsModal');
@@ -723,10 +722,15 @@ function addGerkRow(container = woGerksListEl, code = '', hectares = '', lokacij
 // edited by hand. Vzorčenje is per-segment (unlike Globina, which is
 // bulk-applied to the whole order at save time) since a paste can
 // genuinely mix "ne pobereš"/"združi_1"/etc. across different segments.
-function addGerkSegmentRow(row, fms = '', sampleNo = '', vzorcenje = '') {
+function addGerkSegmentRow(row, fms = '', sampleNo = '', vzorcenje = '', areaHa = null) {
   const list = row.querySelector('.gerk-segments-list');
   const segRow = document.createElement('div');
   segRow.className = 'gerk-segment-row';
+  // areaHa (a KML-imported zone's own polygon area) has no visible input —
+  // the form only shows FMS/Sample no/Vzorčenje — but needs to survive
+  // through to the final insert so export can report it per segment, so
+  // it's carried as a dataset value instead.
+  segRow.dataset.areaHa = areaHa != null ? areaHa : '';
   const vzorcenjeOpts = ['<option value="">Vzorčenje…</option>']
     .concat(SAMPLE_ACTIONS.map(a => `<option value="${escHtml(a)}">${escHtml(a)}</option>`))
     .join('');
@@ -760,9 +764,9 @@ function addGerkSegments(row, segments) {
   const existing = new Set(
     Array.from(row.querySelectorAll('.gerk-segment-sample')).map(el => el.value.trim())
   );
-  for (const { fms, sampleNo, vzorcenje } of segments) {
+  for (const { fms, sampleNo, vzorcenje, areaHa } of segments) {
     if (!sampleNo || existing.has(sampleNo)) continue;
-    addGerkSegmentRow(row, fms, sampleNo, vzorcenje);
+    addGerkSegmentRow(row, fms, sampleNo, vzorcenje, areaHa ?? null);
     existing.add(sampleNo);
   }
   updateGerkSegmentsCount(row);
@@ -858,6 +862,7 @@ function getFormGerks(container = woGerksListEl) {
       fms:       sr.querySelector('.gerk-segment-fms').value.trim() || null,
       sampleNo:  sr.querySelector('.gerk-segment-sample').value.trim(),
       vzorcenje: sr.querySelector('.gerk-segment-vzorcenje').value || null,
+      areaHa:    sr.dataset.areaHa ? parseFloat(sr.dataset.areaHa) : null,
     })).filter(s => s.sampleNo),
   })).filter(g => g.code);
 }
@@ -3823,8 +3828,9 @@ async function confirmKmlImport(btn) {
         // custom/sub-divided codes with no registry match at all (e.g. a
         // large field split into "1526437_CH1", "1526437_MO7"...), which
         // otherwise show no Ha despite the zone geometry being right there.
+        const { data: segRows } = await supabase.from('gerk_segment').select('label, area_ha').eq('segmentation_id', segmentationId);
+        const areaByLabel = new Map((segRows || []).map(r => [r.label, Number(r.area_ha) || null]));
         if (!gerk.kolicina_ha) {
-          const { data: segRows } = await supabase.from('gerk_segment').select('area_ha').eq('segmentation_id', segmentationId);
           const importedHa = (segRows || []).reduce((s, r) => s + (Number(r.area_ha) || 0), 0);
           if (importedHa > 0) {
             const { error: haError } = await supabase.from('delovni_nalogi_gerki').update({ kolicina_ha: importedHa }).eq('id', gerk.id);
@@ -3833,15 +3839,18 @@ async function confirmKmlImport(btn) {
         }
 
         // Each imported zone also becomes its own segment (delovni_nalogi_vzorci
-        // row) on this GERK — its label (e.g. "10734") as the segment number —
-        // so it shows up in the same segment list as manually/pasted-in ones,
-        // not only as a shape on the map. Skips any label already present
-        // (re-importing the same file, or one already added by hand).
+        // row) on this GERK — its label (e.g. "10734") as the segment number,
+        // and the zone's own polygon area as that segment's area_ha (export
+        // granularity is per segment, so this needs to be set per row, not
+        // just summed into the GERK's kolicina_ha above) — so it shows up in
+        // the same segment list as manually/pasted-in ones, not only as a
+        // shape on the map. Skips any label already present (re-importing the
+        // same file, or one already added by hand).
         const existingSegmentNos = new Set((gerk.delovni_nalogi_vzorci || []).map(s => s.sample_no));
         const newSegmentRows = imp.segments
           .map(s => s.label)
           .filter(label => !existingSegmentNos.has(label))
-          .map(label => ({ delovni_nalog_gerk_id: gerk.id, sample_no: label, sampling_depth_cm: globina }));
+          .map(label => ({ delovni_nalog_gerk_id: gerk.id, sample_no: label, sampling_depth_cm: globina, area_ha: areaByLabel.get(label) ?? null }));
         if (newSegmentRows.length) {
           const { data: insertedSegs, error: segError } = await supabase
             .from('delovni_nalogi_vzorci')
@@ -4334,81 +4343,6 @@ function updateReportsSummary(filteredRows) {
   reportsChipTotal.textContent = `Skupaj čas: ${fmtHM(tracked + gap)}`;
   reportsChipCost.textContent = `Strošek: ${cost.toFixed(2)} €`;
 }
-
-// CSV, not a real .xlsx — Excel opens it directly and it needs no binary
-// format or library to build (same "no build step" constraint the
-// shapefile export already works around, just a much simpler case here).
-// Semicolon separator + UTF-8 BOM: Slovenian-locale Excel treats comma as
-// the decimal separator, so a comma-delimited CSV mis-splits columns, and
-// without the BOM č/š/ž render as mojibake when Excel opens it.
-function csvField(value) {
-  const s = value == null ? '' : String(value);
-  return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-// One row per GERK segment (or per GERK, if it has none) — not per work
-// order — since the point of the export is the field/segment-level detail
-// the report table itself doesn't show. Scope matches the chips/chart
-// above: selected rows if any are checked, otherwise every filtered row
-// (reportsEffectiveRows(), same function both already use).
-async function exportReportsToExcel(btn) {
-  const rows = reportsEffectiveRows(filteredReportsRows());
-  if (!rows.length) {
-    reportsError.textContent = 'Ni vrstic za izvoz.';
-    reportsError.hidden = false;
-    return;
-  }
-
-  btn.disabled = true;
-  reportsError.hidden = true;
-  try {
-    const workOrderIds = rows.map(r => r.work_order_id);
-    const { data: gerkRows, error } = await supabase
-      .from('delovni_nalogi_gerki')
-      .select('delovni_nalog_id, gerk_code, kolicina_ha, delovni_nalogi_vzorci(sample_no)')
-      .in('delovni_nalog_id', workOrderIds);
-    if (error) throw error;
-
-    const gerksByOrder = new Map();
-    for (const g of (gerkRows || [])) {
-      if (!gerksByOrder.has(g.delovni_nalog_id)) gerksByOrder.set(g.delovni_nalog_id, []);
-      gerksByOrder.get(g.delovni_nalog_id).push(g);
-    }
-
-    const header = ['Št. naloga', 'Datum', 'Stranka', 'Status', 'Izvajalec', 'GERK', 'Segment', 'Ha'];
-    const lines = [header.map(csvField).join(';')];
-
-    for (const r of rows) {
-      const datum = r.ustvarjen ? fmtSampleDate(r.ustvarjen.slice(0, 10)) : '';
-      const base = [r.stevilka || '', datum, r.customer_name || '', r.status || '', r.izvajalec_name || ''];
-      const gerks = gerksByOrder.get(r.work_order_id) || [];
-      if (!gerks.length) {
-        lines.push([...base, '', '', ''].map(csvField).join(';'));
-        continue;
-      }
-      for (const g of gerks) {
-        const ha = g.kolicina_ha != null ? Number(g.kolicina_ha).toFixed(2) : '';
-        const segments = g.delovni_nalogi_vzorci || [];
-        if (!segments.length) {
-          lines.push([...base, g.gerk_code || '', '', ha].map(csvField).join(';'));
-        } else {
-          for (const s of segments) {
-            lines.push([...base, g.gerk_code || '', s.sample_no || '', ha].map(csvField).join(';'));
-          }
-        }
-      }
-    }
-
-    const csv = '﻿' + lines.join('\r\n');
-    downloadTextFile(`porocilo_${todayISO()}.csv`, csv, 'text/csv;charset=utf-8');
-  } catch (e) {
-    reportsError.textContent = e.message || 'Napaka pri izvozu.';
-    reportsError.hidden = false;
-  } finally {
-    btn.disabled = false;
-  }
-}
-reportsExportExcelBtn.addEventListener('click', () => exportReportsToExcel(reportsExportExcelBtn));
 
 function syncReportsSelectAllCheckbox(visibleIds) {
   const headCb = reportsListWrap.querySelector('#reportsSelectAllCb');
@@ -5803,11 +5737,15 @@ function buildWoSelectionBar() {
     <button type="button" class="wlg-sel-close" data-action="wo-sel-close" aria-label="Prekliči izbiro" title="Prekliči izbiro">${WLG_SEL_ICON_CLOSE}</button>
     <span class="wlg-sel-sep" aria-hidden="true"></span>
     <div class="wlg-sel-actions">
+      <button type="button" class="wlg-sel-action" data-action-id="wo-sel-export" aria-label="Izvozi izbrane naloge v Excel" title="Izvozi izbrane naloge v Excel">
+        ${WLG_SEL_ICON_DOWNLOAD}<span class="wlg-sel-action-label">Izvozi</span>
+      </button>
       <button type="button" class="wlg-sel-action wlg-sel-action--danger" data-action-id="wo-sel-delete" aria-label="Izbriši izbrane naloge" title="Izbriši izbrane naloge">
         ${WLG_SEL_ICON_TRASH}<span class="wlg-sel-action-label">Izbriši</span>
       </button>
     </div>`;
   woSelectionBar.querySelector('[data-action="wo-sel-close"]').addEventListener('click', clearWoSelection);
+  woSelectionBar.querySelector('[data-action-id="wo-sel-export"]').addEventListener('click', e => exportSelectedWorkOrdersToExcel(e.currentTarget));
   woSelectionBar.querySelector('[data-action-id="wo-sel-delete"]').addEventListener('click', e => bulkDeleteSelectedWorkOrders(e.currentTarget));
 }
 buildWoSelectionBar();
@@ -5840,6 +5778,61 @@ async function bulkDeleteSelectedWorkOrders(btn) {
   if (error) { alert(error.message || 'Napaka pri brisanju nalogov.'); return; }
   clearWoSelection();
   await loadWorkOrders();
+}
+
+// CSV, not a real .xlsx — Excel opens it directly, no binary format/library
+// needed. Semicolon separator + UTF-8 BOM: Slovenian-locale Excel treats
+// comma as the decimal separator, so a comma-delimited CSV mis-splits
+// columns, and without the BOM č/š/ž render as mojibake.
+function csvField(value) {
+  const s = value == null ? '' : String(value);
+  return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+// A plain dot-decimal like "8.23" opens in Excel as a date serial (it reads
+// the dot as an ambiguous date separator) — formatting with a comma instead
+// matches the semicolon-CSV's own locale convention and avoids that misparse.
+function csvHa(value) {
+  return value == null ? '' : Number(value).toFixed(2).replace('.', ',');
+}
+
+// One row per segment — not per GERK — since export granularity needs to
+// show each segment's own area, not just the GERK total (a GERK split into
+// several KML-imported zones has a different Ha per zone). Falls back to
+// one row per GERK (using the GERK's own kolicina_ha) only when it has no
+// segments at all.
+function exportSelectedWorkOrdersToExcel(btn) {
+  const orders = workOrders.filter(wo => selectedWorkOrderIds.has(wo.id));
+  if (!orders.length) return;
+
+  btn.disabled = true;
+  try {
+    const header = ['Št. naloga', 'Datum', 'Stranka', 'Status', 'Izvajalec', 'GERK', 'Segment', 'Ha'];
+    const lines = [header.map(csvField).join(';')];
+
+    for (const wo of orders) {
+      const datum = wo.ustvarjen ? fmtSampleDate(wo.ustvarjen.slice(0, 10)) : '';
+      const stranka = wo.customers?.naziv || wo.customers?.company_name || '';
+      const izvajalec = wo.profiles?.full_name || '';
+      const base = [wo.stevilka || '', datum, stranka, wo.status || '', izvajalec];
+      const gerks = wo.delovni_nalogi_gerki || [];
+      for (const g of gerks) {
+        const segments = g.delovni_nalogi_vzorci || [];
+        if (!segments.length) {
+          lines.push([...base, g.gerk_code || '', '', csvHa(g.kolicina_ha)].map(csvField).join(';'));
+        } else {
+          for (const s of segments) {
+            lines.push([...base, g.gerk_code || '', s.sample_no || '', csvHa(s.area_ha)].map(csvField).join(';'));
+          }
+        }
+      }
+    }
+
+    const csv = '﻿' + lines.join('\r\n');
+    downloadTextFile(`delovni_nalogi_${todayISO()}.csv`, csv, 'text/csv;charset=utf-8');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function updateWoSearchClearBtn() {
@@ -6183,13 +6176,14 @@ async function confirmNewKmlImport(btn) {
         // instead of showing nothing.
         const known = fields.find(f => f.code === gerkCode);
         let hectares = known?.area ?? null;
+        const { data: segRows } = await supabase.from('gerk_segment').select('label, area_ha').eq('segmentation_id', segmentationId);
         if (!hectares) {
-          const { data: segRows } = await supabase.from('gerk_segment').select('area_ha').eq('segmentation_id', segmentationId);
           const importedHa = (segRows || []).reduce((s, r) => s + (Number(r.area_ha) || 0), 0);
           if (importedHa > 0) hectares = importedHa;
         }
+        const areaByLabel = new Map((segRows || []).map(r => [r.label, Number(r.area_ha) || null]));
         const row = ensureGerkRowForPaste(gerkCode, hectares);
-        if (row) addGerkSegments(row, imp.segments.map(s => ({ fms: null, sampleNo: s.label, vzorcenje: null })));
+        if (row) addGerkSegments(row, imp.segments.map(s => ({ fms: null, sampleNo: s.label, vzorcenje: null, areaHa: areaByLabel.get(s.label) ?? null })));
 
         importedFiles++;
       } catch (e) {
@@ -6701,6 +6695,7 @@ workOrderForm.addEventListener('submit', async e => {
       sample_no:     s.sampleNo,
       fms:           s.fms,
       sampling_note: s.vzorcenje || null,
+      area_ha:       s.areaHa ?? null,
     }))
   );
 
