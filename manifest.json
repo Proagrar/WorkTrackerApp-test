@@ -1,0 +1,24 @@
+{
+  "name": "WorkTracker — Proagrar",
+  "short_name": "WorkTracker",
+  "description": "Evidenca dela traktoristov — Proagrar",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#1C4592",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icons/Proagrar_icon.png",
+      "sizes": "385x381",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

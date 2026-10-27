@@ -1,0 +1,3199 @@
+/* ============================================================
+   WorkTracker — Proagrar  |  Mobile-first stylesheet
+   ============================================================ */
+
+/* ── Variables ─────────────────────────────────────────────── */
+:root {
+  --blue-900: #0D2B5C;
+  --blue-800: #1C4592;
+  --blue-700: #2455AA;
+  --blue-100: #DDEAFF;
+  --blue-50:  #EEF3FF;
+
+  --surface:     #FFFFFF;
+  --background:  #F4F6FB;
+  --border:      #E0E4F0;
+  --border-light:#EEF1F9;
+
+  --text-primary:   #1C1C1E;
+  --text-secondary: #6B7280;
+  --text-muted:     #9CA3AF;
+
+  --error:       #DC2626;
+  --error-bg:    #FEF2F2;
+  --success:     #16A34A;
+  --success-bg:  #F0FDF4;
+  --danger:      #DC2626;
+  --danger-hover:#B91C1C;
+  /* Same amber already used for "not yet done" elsewhere (the map
+     overview's status coloring, woMapStatusColor() in app.js, and the
+     ha summary's Plan chip) — "V delu" reuses it instead of its own
+     one-off color. */
+  --warning:     #92400E;
+  --warning-bg:  #FEF3C7;
+
+  --radius-sm:  6px;
+  --radius-md:  12px;
+  --radius-lg:  18px;
+  --radius-xl:  24px;
+
+  /* Spacing — a 4px-based scale matching what the file's own padding/
+     gap/margin values already cluster around (4, 6, 8, 10, 12, 14, 16,
+     20, 24px were already the most common by far). Existing
+     declarations weren't rewritten wholesale to use these — that's a
+     visual-regression risk across ~2000 lines with no way to check the
+     result without a browser — but new/touched CSS should reach for
+     these instead of another one-off number, the same way the motion
+     tokens above are meant to be used. */
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 10px;
+  --space-5: 12px;
+  --space-6: 14px;
+  --space-7: 16px;
+  --space-8: 20px;
+  --space-9: 24px;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.10), 0 2px 4px rgba(0,0,0,.06);
+  --shadow-fab:0 4px 16px rgba(28,69,146,.40);
+
+  --header-h: 60px;
+  --fab-size:  58px;
+
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Motion — every transition/animation in this file should reference
+     one of these instead of its own magic number, so pacing reads as
+     one consistent "feel" rather than each component inventing its
+     own. -fast for simple property changes (color/background/border on
+     hover, press states); -base for things appearing/disappearing
+     (popovers, bars); -slow for larger movement (modal sheets).
+     -standard is a general-purpose ease for property changes; -out is
+     snappier and reads better for things entering/moving into place. */
+  --duration-fast: .15s;
+  --duration-base: .2s;
+  --duration-slow: .3s;
+  --ease-standard: cubic-bezier(.4, 0, .2, 1);
+  --ease-out:      cubic-bezier(.32, .72, 0, 1);
+}
+
+/* ── Reset ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: var(--font);
+  background: var(--background);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+img, svg { display: block; }
+button  { cursor: pointer; font-family: inherit; }
+input, select, textarea { font-family: inherit; }
+[hidden] { display: none !important; }
+
+
+/* ============================================================
+   LOGIN PAGE
+   ============================================================ */
+.login-page {
+  background: linear-gradient(160deg, var(--blue-900) 0%, var(--blue-800) 55%, var(--blue-700) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 24px 16px;
+}
+
+.login-wrap {
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-card {
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  padding: 36px 28px 32px;
+  box-shadow: var(--shadow-md);
+}
+
+.login-logo {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.login-logo img {
+  display: block;
+  margin: 0 auto var(--header-h);
+}
+
+.login-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -.02em;
+}
+
+.login-sub {
+  font-size: .875rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.login-form   { display: flex; flex-direction: column; gap: 16px; }
+.login-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+
+
+/* ============================================================
+   FORM FIELDS (shared)
+   ============================================================ */
+.field { display: flex; flex-direction: column; gap: 6px; }
+
+.field-label {
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.field-label .required { color: var(--error); }
+
+.field-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  /* Stays at 16px (1rem) on purpose — iOS Safari auto-zooms the page
+     on focus for any text input under that size. */
+  font-size: 1rem;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+  appearance: none;
+  -webkit-appearance: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-input:focus {
+  border-color: var(--blue-800);
+  box-shadow: 0 0 0 3px rgba(28,69,146,.15);
+}
+
+.field-input::placeholder { color: var(--text-muted); }
+
+.field-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%236B7280' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 40px;
+}
+
+.field-textarea {
+  height: auto;
+  padding: 14px 16px;
+  resize: vertical;
+  min-height: 90px;
+}
+
+.time-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* Traktor/Avto + hour selects were both width:100% (inherited from
+   .field-input) fighting for space in this flex row alongside the
+   fixed-width minute select and Dodaj button — on a phone-width
+   screen they'd get crushed down to a sliver, with .field-select's
+   fixed 40px chevron padding eating almost all of it. Let them size
+   to their content instead, and wrap onto a second line if needed. */
+.time-wrap select:not(.time-min) {
+  width: auto;
+  flex: 1 1 92px;
+  min-width: 0;
+}
+
+.time-sep {
+  font-weight: 700;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.time-min {
+  width: 80px;
+  flex-shrink: 0;
+  padding-right: 28px;
+}
+
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 20px;
+  font-size: .9375rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: none;
+  transition: background var(--duration-fast) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+  white-space: nowrap;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  /* Without this, a tap that lands just outside a button's actual box
+     (easy on a small target) can read to iOS Safari as an ambiguous
+     double-tap and zoom the page into that spot instead of just
+     missing the button — this tells it every tap here is a deliberate
+     single action, never a zoom gesture. Doesn't touch pinch-zoom. */
+  touch-action: manipulation;
+}
+
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn:disabled:active { transform: none; }
+
+.btn-primary {
+  background: var(--blue-800);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) { background: var(--blue-900); }
+
+.btn-secondary {
+  background: var(--border-light);
+  color: var(--text-primary);
+  border: 1.5px solid var(--border);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--border); }
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+.btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
+
+.btn-ghost-white {
+  background: rgba(255,255,255,.15);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.3);
+  backdrop-filter: blur(4px);
+}
+.btn-ghost-white:hover:not(:disabled) { background: rgba(255,255,255,.25); }
+
+.btn-icon {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: var(--border-light);
+  color: var(--text-secondary);
+  border-radius: 50%;
+  border: none;
+  flex-shrink: 0;
+}
+.btn-icon:hover { background: var(--border); }
+
+.btn-block  { width: 100%; }
+.btn-flex   { flex: 1; }
+.btn-sm     { height: 36px; padding: 0 14px; font-size: .8125rem; }
+
+
+/* ── Spinner inside button ──────────────────────────────────── */
+.btn-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(255,255,255,.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+.btn-secondary .btn-spinner {
+  border-color: rgba(0,0,0,.15);
+  border-top-color: var(--text-primary);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+
+/* ============================================================
+   ALERTS
+   ============================================================ */
+.alert {
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  font-size: .875rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.alert-error   { background: var(--error-bg);   color: var(--error);   border: 1px solid #FECACA; }
+.alert-success { background: var(--success-bg); color: var(--success); border: 1px solid #BBF7D0; }
+.alert-info    { background: var(--blue-50);     color: var(--blue-800); border: 1px solid var(--blue-100); }
+
+.wo-map-filter-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+
+/* ============================================================
+   APP HEADER
+   ============================================================ */
+.app-header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--header-h);
+  background: var(--blue-800);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: env(safe-area-inset-top) 16px 0 12px;
+  height: calc(var(--header-h) + env(safe-area-inset-top));
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,.15);
+}
+
+.header-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.header-version {
+  font-size: .5625rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, .55);
+  letter-spacing: .02em;
+}
+
+.header-logo {
+  width: auto;
+  height: 28px;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-badge {
+  font-size: .625rem;
+  font-weight: 700;
+  background: #c6d92d;
+  color: #1a3a00;
+  padding: 2px 7px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.location-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex-shrink: 0;
+}
+
+.location-status-dot--active { background: var(--success); }
+
+.header-name {
+  font-size: .8125rem;
+  font-weight: 500;
+  opacity: .9;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Admin/Regular view switch — a real checkbox underneath (for
+   accessibility/keyboard support) drives a styled track+thumb via
+   :checked, same pattern as a native iOS-style toggle. Checked = Admin
+   view (full controls); unchecked = Regular view (admin controls
+   hidden). */
+.admin-view-switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.admin-view-switch-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  border: 0;
+}
+
+.admin-view-switch-track {
+  position: relative;
+  box-sizing: border-box;
+  width: 28px;
+  height: 16px;
+  flex-shrink: 0;
+  background: rgba(255,255,255,.25);
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 20px;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+
+.admin-view-switch-thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.3);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.admin-view-switch-input:checked ~ .admin-view-switch-track {
+  background: #c6d92d;
+  border-color: #c6d92d;
+}
+.admin-view-switch-input:checked ~ .admin-view-switch-track .admin-view-switch-thumb {
+  transform: translateX(12px);
+}
+.admin-view-switch-input:focus-visible ~ .admin-view-switch-track {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.admin-view-switch-label {
+  font-size: .625rem;
+  font-weight: 700;
+  color: rgba(255,255,255,.85);
+  white-space: nowrap;
+}
+
+
+/* ============================================================
+   APP MAIN
+   ============================================================ */
+.app-main {
+  margin-top: calc(var(--header-h) + env(safe-area-inset-top));
+  padding: 0 0 calc(var(--fab-size) + 40px);
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+
+/* ── Tabs ───────────────────────────────────────────────────── */
+.tab-bar {
+  position: sticky;
+  top: calc(var(--header-h) + env(safe-area-inset-top));
+  z-index: 95;
+  display: flex;
+  gap: 8px;
+  background: var(--background);
+  padding: 12px 16px;
+}
+
+.tab-btn {
+  flex: 1;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: .875rem;
+  font-weight: 600;
+  transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.tab-btn:hover { background: var(--border-light); }
+
+.tab-btn--active {
+  background: var(--blue-800);
+  color: #fff;
+  border-color: var(--blue-800);
+}
+.tab-btn--active:hover { background: var(--blue-900); }
+
+
+/* ── Work order status badge ───────────────────────────────── */
+.wo-status-badge {
+  font-size: .75rem;
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+/* As a grid item it stretches to fill its (now fr-weighted, wider)
+   column by default — pin it back to its own content width so it
+   still reads as a compact pill instead of a wide bar. */
+.wo-compact .wo-status-badge { justify-self: start; }
+.wo-status--plan     { background: var(--border-light); color: var(--text-secondary); }
+.wo-status--delo     { background: var(--warning-bg);    color: var(--warning); }
+.wo-status--izvedeno { background: var(--success-bg);    color: var(--success); }
+.wo-status--racun    { background: #EDE9FE;               color: #6D28D9; }
+
+
+/* ── Work orders: compact table ────────────────────────────── */
+/* Combined-class selectors, not comma-separated single classes — these
+   rows carry both .log-compact and .wo-compact (same for the header),
+   and .lc-header/.log-compact's own grid-template-columns (further
+   down, for Evidenca dela's date/duration/gerks/ha/actions layout)
+   has identical specificity. Whichever rule came later in the file
+   used to win regardless of which one actually applied here — Stranka
+   was silently getting Evidenca dela's 55px "duration" slot instead
+   of its own 1fr, while GERKI got the 1fr meant for Stranka. */
+.wo-lc-header.wo-lc-header,
+.wo-compact.wo-compact {
+  grid-template-columns: 34px 56px 1fr 52px 40px 48px 70px 80px;
+}
+
+.wo-compact { cursor: pointer; }
+.wo-compact--izvedeno { background: var(--success-bg); }
+.wo-compact--delo { background: var(--warning-bg); }
+.wo-compact--deleted { opacity: .6; }
+.wo-compact--deleted .lc-date { text-decoration: line-through; }
+
+/* Admin view only: an extra leading checkbox column for bulk-select —
+   same triple-class-selector trick as the base rule above, to keep
+   beating Evidenca dela's competing grid-template-columns rule. */
+.wo-lc-header.wo-lc-header.wo-lc-header--selectable,
+.wo-compact.wo-compact.wo-compact--selectable {
+  grid-template-columns: 22px 34px 56px 1fr 52px 40px 48px 70px 80px;
+}
+.wo-select-cell { display: flex; align-items: center; justify-content: center; }
+.wo-select-checkbox { width: 16px; height: 16px; cursor: pointer; }
+
+.wo-th {
+  appearance: none;
+  border: none;
+  background: none;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-size: .6875rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.wo-th:hover,
+.wo-th:focus-visible { color: var(--blue-800); }
+.wo-th--active { color: var(--blue-800); }
+.wo-th-center { text-align: center; }
+
+.wo-c-vnos {
+  font-size: .75rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wo-c-stranka {
+  font-size: .8125rem;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wo-c-gerki {
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.wo-c-izvajalec {
+  font-size: .8125rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wo-c-duration {
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--blue-800);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Maps column — desktop-only (900px+ below), hidden here so the base
+   grid-template-columns stays accurate on mobile even though the
+   element is always present in the markup. Shared by both the header
+   span (wo-th wo-th-center wo-c-maps) and the row cells — the header
+   span previously only had .wo-th and was never hidden on mobile, so
+   the header ended up with more grid items than the rows below it and
+   the two fell out of alignment. */
+.wo-c-maps { display: none; }
+.wo-c-maps--empty { color: var(--text-muted); }
+
+
+/* ── Work log: work-order label + compact GERK entry table ──── */
+.wo-order-label {
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--blue-800);
+  background: var(--blue-50);
+  border: 1px solid var(--blue-100);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin: -4px 0 4px;
+}
+
+/* Detail modal header — title/close row, then Stranka | Datum | Status
+   compacted into one row, then a read-only meta line (see
+   updateOrderHeader()). Only #formModal's .modal-head needs this;
+   every other modal keeps the plain title+close row. */
+/* Combined selector (not just .wo-modal-head) — needs to beat
+   .modal-head's own align-items on equal specificity, and that rule is
+   defined later in this file, so source order alone would lose. */
+.modal-head.wo-modal-head { flex-direction: column; align-items: stretch; gap: 8px; }
+.wo-modal-head-top { display: flex; align-items: center; justify-content: space-between; }
+
+/* Flex, not a fixed-column grid — the exact set of visible fields varies
+   (Stranka vs "+ Dodaj stranko", Planirano shows only sometimes, Status
+   is an edit vs a badge), so items just flow and share space instead of
+   needing to match a predetermined column count. Wraps on genuinely
+   narrow screens; fits in one row at the modal's normal width. */
+.wo-header-fields {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Phone-only compact header line + back button + tap-to-edit disclosure
+   for date/status (see buildWoHeaderSummary()/toggleWoDateEdit() in
+   app.js) — all hidden on desktop by default; the matching phone-only
+   block near the bottom of this file turns them on and hides what they
+   replace. The date/status *panels* are a special case: they must stay
+   visible on desktop regardless of the `hidden` attribute app.js sets on
+   them (collapsed-by-default state for phone), so that's overridden here
+   unconditionally rather than in the phone block. */
+.wo-back-btn, .wo-header-summary, .wo-date-summary, .wo-date-edit-btn, .wo-status-edit-btn {
+  display: none;
+}
+.wo-date-panel[hidden] { display: flex; }
+
+.wo-gerk-pager { display: none; }
+
+.wo-header-stranka {
+  flex: 1.3 1 140px;
+  align-self: center;
+  font-size: .875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Datum's input and Status's select/badge all occupy the same 36px
+   band, regardless of which one renders — a plain status badge is
+   naturally much shorter than an input otherwise, and the status
+   <select> was silently inheriting the global 46px .field-input
+   height instead of matching Datum's. */
+.wo-header-fields .field-input {
+  flex: 1 1 110px;
+  height: 36px;
+  padding: 0 10px;
+  font-size: .8125rem;
+}
+/* Slovenian-formatted date overlay — see the HTML comment above
+   #workLogDate in app.html for why this exists. .date-sl-wrap carries
+   .field-input too, so it inherits that class's box (border/background/
+   radius) plus the header override just above (36px band, 10px padding,
+   13px font) automatically — only the parts specific to the overlay
+   trick are added here. */
+.date-sl-wrap { position: relative; }
+/* :focus-within, not :focus — the focusable element is the nested real
+   input now, not this wrapper — same blue ring .field-input:focus gives
+   every other field. */
+.date-sl-wrap:focus-within {
+  border-color: var(--blue-800);
+  box-shadow: 0 0 0 3px rgba(28,69,146,.15);
+}
+.date-sl-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: transparent; /* hides the native (wrong-locale) text; the real value/picker still work */
+  outline: none;
+  cursor: pointer;
+}
+.date-sl-input::-webkit-calendar-picker-indicator { opacity: 1; }
+.date-sl-display {
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  right: 20px; /* clears the native calendar icon */
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  pointer-events: none; /* clicks pass through to the real input underneath */
+}
+
+.wo-header-fields .wo-status-badge {
+  flex: 1 1 110px;
+  align-self: center;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+}
+.wo-plan-date-wrap { display: flex; align-items: center; gap: 6px; flex: 1.6 1 180px; }
+.wo-plan-date-label { color: var(--text-secondary); font-size: .75rem; font-weight: 700; white-space: nowrap; }
+
+.wlg-table { display: flex; flex-direction: column; gap: 8px; }
+
+/* Floating, not inline — fixed to the viewport (not the scrollable
+   modal sheet) so it stays put, centered, above everything else while
+   the GERK list scrolls underneath it. Hidden state uses opacity, not
+   `hidden`/display:none, since display can't be transitioned; the
+   visibility delay keeps it out of the way for clicks/focus once
+   faded out instead of leaving an invisible-but-interactive strip
+   sitting over the bottom of the screen. */
+.wlg-selection-bar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 250;
+  max-width: calc(100vw - 32px);
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 26px;
+  box-shadow: 0 12px 28px rgba(16,24,40,.16), 0 2px 6px rgba(16,24,40,.08);
+  overflow-x: auto;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--duration-base) var(--ease-standard), visibility 0s linear var(--duration-base);
+}
+.wlg-selection-bar--visible {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--duration-base) var(--ease-standard), visibility 0s linear 0s;
+}
+
+.wlg-sel-summary {
+  font-size: .8125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  padding: 0 10px 0 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wlg-sel-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.wlg-sel-close:hover { background: var(--border-light); color: var(--text-primary); }
+.wlg-sel-close:active { background: var(--border); }
+.wlg-sel-close:focus-visible { outline: 2px solid var(--blue-800); outline-offset: 2px; }
+
+.wlg-sel-sep {
+  width: 1px;
+  height: 26px;
+  flex-shrink: 0;
+  margin: 0 6px;
+  background: var(--border);
+}
+
+.wlg-sel-actions { display: flex; align-items: center; }
+
+.wlg-sel-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: .8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.wlg-sel-action svg { flex-shrink: 0; color: var(--text-secondary); }
+.wlg-sel-action:hover:not(:disabled) { background: var(--border-light); }
+.wlg-sel-action:active:not(:disabled) { background: var(--border); }
+.wlg-sel-action:focus-visible { outline: 2px solid var(--blue-800); outline-offset: -2px; }
+.wlg-sel-action:disabled { color: var(--text-muted); cursor: not-allowed; }
+.wlg-sel-action:disabled svg { color: var(--text-muted); }
+
+.wlg-sel-action--danger, .wlg-sel-action--danger svg { color: var(--danger); }
+.wlg-sel-action--danger:hover:not(:disabled) { background: var(--error-bg); }
+.wlg-sel-action--danger:active:not(:disabled) { background: #FEE2E2; }
+
+.wlg-select-checkbox { width: 15px; height: 15px; margin-right: 4px; vertical-align: middle; cursor: pointer; }
+
+/* rowFadeIn plays automatically on every re-render — innerHTML
+   replacement destroys and recreates these nodes each time, so a
+   plain (non-toggled) animation on the class fires fresh every time
+   without needing any JS coordination. */
+.wlg-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  animation: rowFadeIn var(--duration-fast) var(--ease-standard);
+}
+
+@keyframes rowFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+}
+
+.wlg-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
+
+.wlg-code-line {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wlg-code { font-family: monospace; font-weight: 700; font-size: .875rem; color: var(--text-primary); }
+
+.wlg-name { font-size: .8125rem; font-weight: 600; color: var(--text-primary); }
+
+/* Used both as an <a> (GERK-level, opens Google Maps directly) and a
+   <button> (sample-level, opens the embedded map modal) — the reset
+   properties are harmless no-ops on the <a> case. */
+.wlg-field-map {
+  margin-left: 4px;
+  text-decoration: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 1em;
+  cursor: pointer;
+}
+
+.wlg-meta {
+  font-size: .75rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wlg-lab-type {
+  display: block;
+  font-size: .75rem;
+  color: var(--text-secondary);
+}
+
+.wlg-lab-type-select { margin-top: 2px; }
+
+.wlg-row--completed {
+  background: var(--success-bg);
+  border-color: #BBF7D0;
+}
+
+/* box-shadow rather than border-color — layers cleanly on top of
+   --completed's own border-color instead of fighting it on cascade
+   order. Triggered both ways: hovering the matching shape/marker on
+   the map, and clicking this row to highlight it there. */
+.wlg-row--map-hover {
+  box-shadow: 0 0 0 2px var(--blue-800);
+}
+
+.wlg-times {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wlg-time-value {
+  font-family: monospace;
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 42px;
+}
+
+.wlg-toggle-btn {
+  height: 36px;
+  padding: 0 14px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--blue-800);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--blue-800);
+  font-size: .8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.wlg-toggle-btn:hover:not(:disabled) { background: var(--blue-50); }
+.wlg-toggle-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.wlg-edit-btn {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.wlg-edit-panel {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-light);
+}
+
+.wlg-others {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  background: var(--blue-50);
+  border-radius: var(--radius-sm);
+}
+
+.wlg-others-item {
+  font-size: .75rem;
+  color: var(--blue-800);
+}
+
+.wlg-edit-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: .75rem;
+  color: var(--text-secondary);
+}
+
+.wlg-edit-label input[type="time"],
+.wlg-edit-label input[type="date"] {
+  height: 36px;
+  padding: 0 8px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: .8125rem;
+}
+
+.wlg-samples-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: .75rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.wlg-samples-toggle:hover { color: var(--blue-800); }
+.wlg-samples-chevron { transition: transform var(--duration-fast) var(--ease-out); font-size: .7rem; }
+.wlg-samples-toggle--open .wlg-samples-chevron { transform: rotate(180deg); }
+
+.wlg-samples-panel {
+  border-top: 1px solid var(--border-light);
+  padding-top: 8px;
+  overflow-x: auto;
+}
+
+.wlg-samples-table { width: 100%; border-collapse: collapse; font-size: .78125rem; }
+.wlg-samples-table th {
+  text-align: left;
+  padding: 4px 8px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.wlg-samples-table td {
+  padding: 4px 8px;
+  font-family: monospace;
+  white-space: nowrap;
+  border-top: 1px solid var(--border-light);
+}
+
+/* "Don't collect this one" comments ("ne", "ne pobereš"/"ne poberes")
+   flagged red — both the row and its comment input, plus a dot on the
+   collapsed toggle so it's visible without expanding the panel. */
+.wlg-sample-row--flagged { background: var(--error-bg); }
+.wlg-comment-input--flagged {
+  border-color: var(--error);
+  background: var(--error-bg);
+  color: var(--error);
+  font-weight: 600;
+}
+.wlg-sample-flag-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--error);
+  flex-shrink: 0;
+}
+
+.sample-field-input {
+  font-family: inherit;
+  font-size: .78125rem;
+  padding: 2px 4px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.wlg-add-sample { margin-top: 8px; }
+
+.wlg-add-sample-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.wlg-new-sample-input {
+  font-family: inherit;
+  font-size: .78125rem;
+  padding: 4px 6px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.wlg-import-zones { margin-top: 8px; margin-bottom: 8px; }
+
+.wlg-import-zones-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.wlg-import-zones-filename {
+  font-size: .78125rem;
+  color: var(--text-secondary);
+  flex-basis: 100%;
+}
+
+/* One row per selected file when several KMLs are imported at once —
+   each gets its own editable target GERK, since a batch import maps
+   one file to one GERK each. */
+.wlg-import-zones-files { display: flex; flex-direction: column; gap: 6px; flex-basis: 100%; }
+.wlg-import-zones-file-row { display: flex; align-items: center; gap: 6px; }
+.wlg-import-zones-file-row .wlg-import-zones-filename { flex-basis: auto; flex: 1; min-width: 0; }
+.wlg-import-zones-file-row .sample-field-input { width: 140px; flex-shrink: 0; }
+.wlg-import-zones-file-remove { width: 26px; height: 26px; font-size: .8125rem; flex-shrink: 0; }
+
+.wlg-segmentation-info { display: inline-flex; gap: 4px; margin-left: 4px; vertical-align: middle; }
+
+.wlg-segmentation-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  font-size: .6875rem;
+  line-height: 1;
+  border-radius: 50%;
+  background: var(--blue-50);
+  border: none;
+  padding: 0;
+  cursor: default;
+}
+button.wlg-segmentation-icon { cursor: pointer; }
+button.wlg-segmentation-icon:hover { background: var(--error-bg); }
+
+.road-time-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+
+.road-time-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--background);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  font-size: .8125rem;
+}
+
+.road-time-type {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.road-time-comment { color: var(--text-muted); font-style: italic; }
+.road-comment-input { margin-top: 6px; }
+
+.road-time-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.road-time-remove:hover { color: var(--danger); }
+
+.wlg-remove-sample {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: .875rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.wlg-remove-sample:hover { color: var(--danger); }
+
+/* ── Work order header: start/status button + meta ─────────── */
+
+.wo-header-meta {
+  font-size: .8125rem;
+  color: var(--text-secondary);
+}
+.wo-header-meta:empty { display: none; }
+
+/* ── Greeting ───────────────────────────────────────────────── */
+.greeting-section {
+  background: linear-gradient(135deg, var(--blue-800) 0%, var(--blue-700) 100%);
+  color: #fff;
+  padding: 22px 20px 20px;
+}
+
+.greeting {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+.greeting-sub {
+  font-size: .8125rem;
+  opacity: .8;
+  margin-top: 2px;
+}
+
+
+.month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px 12px;
+  gap: 12px;
+}
+
+.month-nav-label {
+  flex: 1;
+  text-align: center;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -.01em;
+}
+
+.month-nav-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--blue-800);
+  color: #fff;
+  font-size: 1.5rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+.month-nav-btn:hover  { background: var(--blue-900, #163a7a); }
+.month-nav-btn:active { transform: scale(.93); }
+
+/* ── Logs section ───────────────────────────────────────────── */
+.logs-section { padding: 8px 16px 0; }
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -.01em;
+}
+
+/* Poročila's own header row (back button + title) — .section-header
+   already handles the outer spacing, this just lines these two up. */
+.reports-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reports-date-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  flex-shrink: 0;
+}
+.reports-date-field input {
+  width: auto;
+  height: 34px;
+  padding: 0 8px;
+  font-size: .8125rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.reports-operator-filter {
+  width: auto;
+  min-width: 170px;
+  height: 34px;
+  padding: 0 10px;
+  font-size: .8125rem;
+  flex-shrink: 0;
+}
+
+.reports-row-checkbox-col { width: 32px; }
+
+/* Poročila stacked bar chart — total time per date, split Zabeležen /
+   Pot med GERK-i. Colors are the dataviz skill's validated categorical
+   slots 1 (blue) & 2 (orange): both checks pass cleanly at this surface,
+   unlike the app's own green/amber chip colors which sit in the CVD
+   floor band (validate_palette.js) — kept separate from .wo-ha-chip on
+   purpose, a chart series needs the clean pair more than chip-color
+   consistency does. */
+.reports-chart-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 16px;
+  margin: 0 0 16px;
+  overflow-x: auto;
+}
+.reports-chart-empty {
+  color: var(--text-secondary);
+  font-size: .8125rem;
+  text-align: center;
+  padding: 24px 0;
+}
+.reports-chart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.reports-chart-legend {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  font-size: .75rem;
+  color: var(--text-secondary);
+}
+.reports-chart-toggle-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.reports-chart-mode-toggle {
+  display: inline-flex;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.reports-chart-mode-btn, .reports-chart-metric-btn {
+  padding: 4px 12px;
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: none;
+  cursor: pointer;
+}
+.reports-chart-mode-btn + .reports-chart-mode-btn,
+.reports-chart-metric-btn + .reports-chart-metric-btn { border-left: 1.5px solid var(--border); }
+.reports-chart-mode-btn.is-active, .reports-chart-metric-btn.is-active { background: var(--blue-800); color: #fff; }
+.reports-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.reports-chart-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.reports-chart-svg { display: block; }
+.reports-chart-bar-hit { cursor: pointer; }
+.reports-chart-axis-label { fill: var(--text-secondary); font-size: 10px; font-family: inherit; }
+.reports-chart-gridline { stroke: var(--border-light); stroke-width: 1; }
+.reports-chart-tooltip {
+  position: fixed;
+  z-index: 50;
+  background: var(--text-primary);
+  color: #fff;
+  font-size: .75rem;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.reports-chart-tooltip strong { font-weight: 700; }
+
+.logs-list { display: flex; flex-direction: column; gap: 10px; }
+
+.wo-section { padding-top: 16px; }
+
+#logsList { overflow-x: auto; }
+.reports-table-wrap { overflow-x: auto; }
+
+.evidenca-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  font-size: .8125rem;
+}
+.evidenca-table th {
+  text-align: left;
+  padding: 10px 14px;
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: .6875rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+.evidenca-table td {
+  padding: 10px 14px;
+  color: var(--text-primary);
+  border-top: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+.evidenca-table tr:first-child td { border-top: none; }
+
+/* Poročila's table has more columns than Evidenca dela's (12 incl.
+   checkbox) — tighter cell padding buys back width before the reader
+   needs to reach for the horizontal scrollbar .reports-table-wrap
+   already provides. */
+.reports-data-table th, .reports-data-table td { padding: 8px 10px; }
+/* Always the first body row — totals for whatever's in scope (selected
+   rows, or every filtered row if none are selected), recomputed from the
+   summed fields rather than averaged per-row. See reportsRowMetrics()/
+   reportsAggregateRow() in app.js. */
+.reports-totals-row td {
+  font-weight: 700;
+  color: var(--text-primary);
+  background: var(--border-light);
+  border-top: none;
+  border-bottom: 1.5px solid var(--border);
+}
+
+.wo-toolbar {
+  /* Now the only child of .section-header (the "Delovni Nalogi" title
+     was removed — redundant with the tab above it) — flex:1 so it still
+     spans the full row, keeping the ha chips flush left and the filter
+     buttons flush right exactly as before. */
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wo-search-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.wo-status-filter-wrap { position: relative; flex-shrink: 0; }
+
+/* Layout-only grouping of the filter/map buttons — invisible to the
+   desktop flex row (display:contents), turned into a single
+   non-wrapping row in the phone block below. */
+.wo-toolbar-buttons { display: contents; }
+
+/* Poročila's filter row — status + operator + date range + search, all
+   as direct children of one real flex row (not the display:contents
+   trick .wo-toolbar-buttons uses — this row lives on its own line below
+   the summary chips, not merged into .wo-toolbar). Wraps on narrow
+   screens; see the mobile override further down. */
+.reports-filters-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+/* Pushed flush left within the toolbar (auto margin eats the remaining
+   space on its line), so the three chips sit right next to the filter
+   controls that change them, with the actual buttons staying
+   right-aligned as before. */
+.wo-ha-summary {
+  margin-right: auto;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Same pill shape as .wo-status-badge; colors match that badge's own
+   Izvedeno green and the overview map's amber for "not done yet" (Plan),
+   so this reads consistently with the status coding used everywhere else. */
+.wo-ha-chip {
+  font-size: .75rem;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+.wo-ha-chip--total    { background: var(--blue-100);   color: var(--blue-800); }
+.wo-ha-chip--izvedeno { background: var(--success-bg); color: var(--success); }
+.wo-ha-chip--plan     { background: #FEF3C7;            color: #92400E; }
+.wo-ha-chip--time     { background: #EDE9FE;            color: #6D28D9; }
+.wo-ha-chip--cost     { background: #CCFBF1;            color: #115E59; }
+
+.wo-assign-customer-wrap { position: relative; flex-shrink: 0; width: 360px; }
+
+.wo-status-filter-btn { height: 34px; white-space: nowrap; }
+
+.wo-show-deleted-btn { height: 34px; white-space: nowrap; flex-shrink: 0; }
+.wo-show-deleted-btn--active { background: var(--blue-800); color: #fff; }
+
+/* Main list's admin-only map overview — stacked (map below list) by
+   default, matching the work-order detail map's own mobile-first
+   breakpoint convention; split side-by-side only at desktop width. */
+.wo-list-layout { display: flex; flex-direction: column; }
+
+.wo-list-map-wrap {
+  position: relative;
+  /* Own stacking context (position + z-index together) so Leaflet's
+     internal controls/attribution — z-index up to 1000 by default —
+     stay scoped inside this element instead of comparing directly
+     against .modal-backdrop's z-index:200 and floating above modals
+     opened on top of the main list (e.g. opening a work order). */
+  z-index: 1;
+  height: 50vh;
+  max-height: 480px;
+  margin-top: 12px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.wo-list-map { position: absolute; inset: 0; }
+
+/* Two-line customer/GERK tooltip on overview pins/shapes — each line
+   its own row, centered, see redrawWoOverviewLayer. */
+.wo-overview-tooltip { text-align: center; }
+.wo-overview-tooltip > div:first-child { font-weight: 600; }
+
+@media (min-width: 900px) {
+  .wo-list-layout--map-active { flex-direction: row; gap: 16px; align-items: flex-start; }
+  .wo-list-layout--map-active #workOrdersList { width: 50%; }
+  .wo-list-layout--map-active .wo-list-map-wrap { width: 50%; height: 70vh; max-height: 700px; margin-top: 0; }
+}
+
+/* Same [hidden]-override fade as .gerk-suggestions above — JS keeps
+   using the plain `hidden` attribute, this just makes it transition
+   instead of snap. */
+.wo-status-filter-menu[hidden] { display: block; opacity: 0; visibility: hidden; pointer-events: none; }
+.wo-status-filter-menu:not([hidden]) { opacity: 1; visibility: visible; }
+.wo-status-filter-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  width: 160px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 6px;
+  transition: opacity var(--duration-fast) var(--ease-standard), visibility 0s linear var(--duration-fast);
+}
+.wo-status-filter-menu:not([hidden]) {
+  transition: opacity var(--duration-fast) var(--ease-standard), visibility 0s linear 0s;
+}
+.wo-status-filter-menu .wo-gerk-checklist { max-height: none; border: none; margin-bottom: 0; }
+
+/* Customer filter — same dropdown component as the status filter, but
+   wider (customer names run longer than status words) and with its
+   checklist scrollable again (there can be far more than 4 customers),
+   plus a pinned "Izberi vse" row above the scrolling list. */
+.reports-customer-filter-menu { width: 260px; }
+.reports-customer-filter-menu .wo-gerk-checklist { max-height: 240px; overflow-y: auto; border: none; margin-bottom: 0; }
+.wo-gerk-check-item.reports-customer-select-all {
+  font-weight: 700;
+  border-bottom: 1.5px solid var(--border);
+  margin-bottom: 4px;
+}
+.reports-customer-filter-btn {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wo-search-input {
+  width: 140px;
+  height: 34px;
+  padding: 0 12px;
+  font-size: .8125rem;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard), width var(--duration-fast) var(--ease-standard);
+}
+.wo-search-input:focus {
+  width: 180px;
+  border-color: var(--blue-800);
+  box-shadow: 0 0 0 3px rgba(28,69,146,.15);
+}
+.wo-search-input::placeholder { color: var(--text-muted); }
+/* Room on the right for the clear ✕ below, so typed text never runs under it. */
+.wo-search-input { padding-right: 30px; }
+
+/* Clear (✕) inside the customer search box — shown only while it has
+   text, see updateWoSearchClearBtn() in app.js. */
+.wo-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--text-primary);
+  font-size: .75rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.wo-search-clear:hover { background: var(--text-muted); color: #fff; }
+.wo-search-clear[hidden] { display: none; }
+
+
+/* ── States ─────────────────────────────────────────────────── */
+.state-loading,
+.state-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 20px;
+  color: var(--text-muted);
+  font-size: .9375rem;
+  text-align: center;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--blue-800);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+
+/* ============================================================
+   FAB
+   ============================================================ */
+.fab {
+  position: fixed;
+  bottom: 28px;
+  right: 20px;
+  width: var(--fab-size);
+  height: var(--fab-size);
+  background: var(--blue-800);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-fab);
+  z-index: 90;
+  transition: background var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.fab:hover  { background: var(--blue-900); }
+.fab:active { transform: scale(.92); }
+
+/* Opacity/transform, not the `hidden` attribute — same reasoning as
+   .wlg-selection-bar above: display:none can't be transitioned, and
+   the visibility delay keeps it out of the way for clicks once faded
+   out instead of leaving an invisible-but-interactive menu floating
+   over the page. Grows from the FAB it opens from (bottom right). */
+.fab-menu {
+  position: fixed;
+  right: 20px;
+  bottom: calc(28px + var(--fab-size) + 10px);
+  min-width: 200px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  z-index: 91;
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(.94) translateY(6px);
+  transform-origin: bottom right;
+  transition: opacity var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-out),
+              visibility 0s linear var(--duration-fast);
+}
+.fab-menu--visible {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1) translateY(0);
+  transition: opacity var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-out),
+              visibility 0s linear 0s;
+}
+
+.fab-menu-item {
+  display: block;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border-light);
+  font-size: .9375rem;
+  color: var(--text-primary);
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+.fab-menu-item:last-child { border-bottom: none; }
+.fab-menu-item:hover,
+.fab-menu-item:active { background: var(--blue-50); }
+
+
+/* ============================================================
+   MODAL SHEET
+   ============================================================ */
+/* transition-based (class toggle), not the old @keyframes animation —
+   an `animation` only ever plays once, forward, when the element
+   becomes displayed, so closing (display:none via the `hidden`
+   attribute) always just snapped instantly with no reverse. A
+   transition can play both ways: showModalAnimated()/hideModalAnimated()
+   in app.js add/remove .modal-backdrop--visible, and only set the
+   `hidden` attribute itself once the close transition has finished. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--duration-slow) var(--ease-standard);
+}
+.modal-backdrop--visible { opacity: 1; }
+
+.modal-sheet {
+  background: var(--surface);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  width: 100%;
+  max-width: 640px;
+  max-height: 92dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 0 env(safe-area-inset-bottom);
+  transform: translateY(60px);
+  transition: transform var(--duration-slow) var(--ease-out);
+}
+.modal-backdrop--visible .modal-sheet { transform: translateY(0); }
+
+.modal-sheet-compact { max-height: auto; }
+
+.modal-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 14px auto 0;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.modal-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+.work-form {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+/* Work order detail: map pane stays put, only the form content
+   scrolls underneath/beside it. Overrides .modal-sheet's own
+   overflow-y so the sheet itself doesn't ALSO scroll as one block —
+   scoped to #formModal only, other modals keep the shared behavior. */
+#formModal .modal-sheet {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wo-detail-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.wo-detail-map-wrap {
+  position: relative;
+  height: 27vh; /* was 22vh — grown back ~20% once the GERK card below no longer needed the extra room (desktop overrides this at min-width:900px) */
+  max-height: 230px; /* was 190px */
+  flex-shrink: 0;
+}
+
+.wo-detail-map {
+  position: absolute;
+  inset: 0;
+}
+
+.wo-detail-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: calc(18px + env(safe-area-inset-bottom));
+}
+
+/* Sits on top of the Leaflet map itself (its own panes/controls use
+   z-index in the low hundreds–1000 range) — small strip on the right
+   so it doesn't cover much of the field imagery underneath. */
+.wo-capture-panel {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  max-height: 50%;
+  width: 128px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(255, 255, 255, .55);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow-y: auto;
+}
+
+/* Highlighted GERK's name, floated over the map — purely informational
+   (pointer-events: none) so it never blocks dragging/zooming under it. */
+.wo-map-gerk-label {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  max-width: calc(100% - 160px);
+  padding: 5px 12px;
+  background: rgba(255, 255, 255, .85);
+  color: var(--text-primary);
+  font-size: .8125rem;
+  font-weight: 600;
+  border-radius: 20px;
+  box-shadow: var(--shadow-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* Confirms a captured GPS point, fading out on its own — opacity +
+   visibility (not `hidden`) so it can transition, same pattern as
+   .wlg-selection-bar; pointer-events: none since it's purely
+   informational and shouldn't block the map underneath. */
+.wo-capture-toast {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  padding: 7px 16px;
+  background: var(--success);
+  color: #fff;
+  font-size: .8125rem;
+  font-weight: 600;
+  border-radius: 20px;
+  box-shadow: var(--shadow-md);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--duration-base) var(--ease-standard), visibility 0s linear var(--duration-base);
+}
+.wo-capture-toast--visible {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--duration-base) var(--ease-standard), visibility 0s linear 0s;
+}
+
+.wo-map-expand-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1000;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .85);
+  color: var(--text-primary);
+  font-size: .75rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.wo-map-expand-btn:hover { background: #fff; }
+
+/* Toggles the roads/borders/place-names overlay on top of the satellite
+   imagery — off by default (satellite detail matters more here, see
+   ensureWoMap's own comment), same pill styling as .wo-map-expand-btn.
+   --detail sits just below the expand button (which already occupies
+   top:8px there); --overview has that top-left slot to itself. */
+.wo-map-layers-btn {
+  position: absolute;
+  left: 8px;
+  z-index: 1000;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .85);
+  color: var(--text-primary);
+  font-size: .75rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.wo-map-layers-btn:hover { background: #fff; }
+.wo-map-layers-btn[aria-pressed="true"] { background: var(--blue-800); color: #fff; }
+.wo-map-layers-btn[aria-pressed="true"]:hover { background: var(--blue-800); }
+/* left:54px clears Leaflet's zoom +/- control (10px margin + 34px wide)
+   in the same top-left corner — at left:8px the two overlapped. */
+.wo-map-layers-btn--overview { top: 10px; left: 54px; }
+
+/* Close (✕) in the overview map's top-right corner — same action as the
+   "Skrij zemljevid" toolbar button, so the map can be closed without
+   scrolling back up to the toolbar. */
+.wo-map-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .9);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+}
+.wo-map-close-btn:hover { background: #fff; }
+.wo-map-layers-btn--detail { top: 44px; }
+
+/* Expanded map mode — the button toggles this class on .wo-detail-layout.
+   Width only, never height — height stays whatever the normal (non-
+   expanded) sizing already gives it (fixed on mobile, stretch-to-
+   content with a floor on desktop — see .wo-detail-map-wrap's own
+   comment further up). Mobile has no separate width to grow into
+   either (the map's already 100% there, stacked above the content), so
+   expand only really does something at the desktop breakpoint below —
+   on mobile it's just the compact GERK list swap. */
+@media (min-width: 900px) {
+  .wo-detail-layout--map-expanded .wo-detail-map-wrap { width: 78%; }
+  .wo-detail-layout--map-expanded .wo-detail-content  { width: 22%; }
+}
+
+/* Compact GERK list — code, segment numbers and Start/Konec, no
+   name/meta/comments/edit-time-panel, shown in place of #workLogGerkRows
+   while the map is expanded. Start/Konec here are real .wlg-toggle-btn
+   buttons (same class as the full list) that delegate their click to
+   the corresponding real, hidden button — see delegateCompactGerkAction. */
+.wlg-compact-list { display: flex; flex-direction: column; }
+.wlg-compact-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border-light);
+  animation: rowFadeIn var(--duration-fast) var(--ease-standard);
+}
+.wlg-compact-row:last-child { border-bottom: none; }
+.wlg-compact-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+.wlg-compact-head:hover .wlg-compact-code { color: var(--blue-800); }
+.wlg-compact-code { font-weight: 600; font-size: .8125rem; flex-shrink: 0; }
+.wlg-compact-name { font-weight: 400; color: var(--text-secondary); }
+.wlg-compact-segs { font-size: .6875rem; color: var(--text-secondary); text-align: right; overflow-wrap: anywhere; }
+.wlg-compact-row .wlg-toggle-btn { height: 32px; padding: 0 10px; font-size: .75rem; }
+.wlg-compact-row .wlg-time-value { font-size: .75rem; min-width: 0; }
+
+.wo-capture-btn { width: 100%; white-space: normal; }
+
+.wo-capture-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: .5625rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.wo-capture-toggle input { width: 11px; height: 11px; cursor: pointer; }
+
+/* Permanent (always-on, not hover-only) Leaflet tooltip showing each
+   imported zone's segment number, centered on its polygon. Overrides
+   Leaflet's default white tooltip box with a small amber pill matching
+   the zone outline color (WO_MAP_SEGMENT_STYLE in app.js). */
+.leaflet-tooltip.wo-map-segment-label {
+  background: #D97706;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 1px 6px;
+  font-size: .6875rem;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0,0,0,.4);
+  white-space: nowrap;
+}
+
+.wo-capture-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--capture-marker-color, #16A34A);
+  color: #fff;
+  font-size: .625rem;
+  font-weight: 700;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.4);
+}
+
+.wo-capture-error {
+  padding: 6px 8px;
+  font-size: .6875rem;
+  line-height: 1.3;
+}
+
+.wo-capture-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wo-capture-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--border-light);
+  font-size: .75rem;
+  cursor: pointer;
+}
+
+.wo-capture-item-remove {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0 2px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: .875rem;
+  line-height: 1;
+}
+
+@media (min-width: 900px) {
+  .wo-detail-layout   { flex-direction: row; }
+  /* height:auto + min-height (not a fixed height, and no max-height
+     cap): both of this wrap's children (#woDetailMap, .wo-capture-panel)
+     are position:absolute, so they contribute zero intrinsic content
+     height on their own — without help the wrap had nothing to size
+     itself from except align-items:stretch matching .wo-detail-content's
+     height, which collapsed the map to a sliver whenever the detail
+     content was short (few GERKs, no samples yet). min-height is the
+     floor that fixes that case. A *fixed* height (a max-height cap)
+     fixed that but broke the opposite case: a tall content column (lots
+     of GERKs) would stretch past the capped map height, leaving blank
+     space below the map instead of the map growing to match. Plain
+     stretch (this rule) tracks .wo-detail-content's real height either
+     way, capped only by the modal's own max-height further up. */
+  .wo-detail-map-wrap { width: 50%; height: auto; min-height: 400px; max-height: none; order: 2; }
+  .wo-detail-content  { width: 50%; order: 1; }
+}
+
+.map-container {
+  height: 320px;
+  width: 100%;
+}
+@media (min-width: 900px) {
+  .map-container { height: 420px; }
+}
+
+
+/* ============================================================
+   RESPONSIVE — phone-only polish (exact complement of the
+   min-width:900px "wider screens" block below — nothing here should
+   ever be visible at ≥900px). Addresses three specific complaints on
+   phone-class widths: the ha/time chip row wrapping to two lines, the
+   toolbar's filter/search/map buttons wrapping in whatever order they
+   happen to fit, and the map overview opening in normal flow below
+   the full (possibly long) list instead of staying in view.
+   ============================================================ */
+@media (max-width: 899px) {
+  /* Header: min-width:0 overrides the default min-width:auto a flex
+     item gets — without it, .header-user refuses to shrink below its
+     own content's natural width (dot+name+badge+switch+logout), which
+     pushed "Odjava" straight off the right edge of the screen instead
+     of ever actually wrapping or truncating. Combined with tighter
+     gaps and hiding the admin view switch's text label ("Admin"/
+     "Uporabnik" — redundant with the track/thumb position itself, and
+     with the static "Admin" badge next to the name), name + badge +
+     switch + logout stop crowding each other. */
+  .header-user { gap: 5px; min-width: 0; }
+  .header-name { max-width: 72px; }
+  .header-logo { height: 22px; }
+  .admin-view-switch { gap: 0; }
+  .admin-view-switch-label { display: none; }
+  .header-user .btn-sm { padding: 0 10px; }
+
+  /* Work order toolbar: switched from flex to plain block flow. The
+     flex version let .wo-ha-summary's percentage flex-basis resolve
+     against an indefinite ancestor main-size (a well-known flexbox
+     pitfall once nested flex:1 containers + flex-wrap are involved),
+     so the chip row silently grew to its full content width instead
+     of the row's actual available width — pulling the whole toolbar,
+     and with it the page, into horizontal overflow. Block layout has
+     no equivalent ambiguity: percentages resolve against the (always
+     definite) containing block, full stop.
+     Result: the ha/time chips get their own full-width, horizontally-
+     scrollable row (no more wrapping to a second line), the search
+     box gets its own full-width row below that, and the filter/show-
+     deleted/map buttons — left as normal inline-block <button>s —
+     wrap naturally on whatever's left, same as any flowing text. */
+  .wo-toolbar { display: block; min-width: 0; }
+  .wo-ha-summary {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    width: 100%;
+    margin: 0 0 8px;
+  }
+  .wo-ha-summary::-webkit-scrollbar { display: none; }
+  .wo-search-wrap { display: block; width: 100%; margin: 8px 0; }
+  /* 16px, not the desktop .8125rem (13px) — below 16px, iOS Safari
+     auto-zooms the whole page in on focus (its own accessibility
+     behavior, not something JS can suppress) and never zooms back out
+     on blur, which left the just-added ✕ clear button (and everything
+     else) shifted out of view until the user manually pinch-zoomed
+     back out. 16px is the documented threshold where iOS stops doing
+     this — not a cosmetic choice. */
+  .wo-search-input, .wo-search-input:focus { width: 100%; font-size: 16px; }
+  /* Filter/archive/map buttons on one row: no wrapping — buttons shrink
+     and ellipsize instead when a fourth one (✕ Prekliči filter) shows
+     up. Deliberately not overflow-x:auto: that would clip the status
+     filter's dropdown menu, which hangs below this row. */
+  .wo-toolbar-buttons {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin: 0 0 8px;
+  }
+  .wo-toolbar-buttons > * { flex: 0 1 auto; min-width: 0; }
+  .wo-toolbar-buttons .btn-sm {
+    max-width: 100%;
+    padding: 0 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Poročila's filter row: a <select> and two date inputs can't shrink
+     or ellipsize like the plain buttons .wo-toolbar-buttons was built
+     for, so this wraps (base .reports-filters-row rule already sets
+     flex-wrap: wrap) instead of forcing one cramped non-wrapping row. */
+  .reports-filters-row > * { flex: 1 1 auto; min-width: 0; }
+  .reports-date-field { flex: 1 1 130px; }
+  .reports-date-field input { flex: 1; width: 0; } /* width:0 + flex:1 so the input actually stretches instead of keeping its intrinsic size */
+  .reports-operator-filter { flex: 1 1 140px; min-width: 140px; }
+
+  /* Map overview: pinned to the bottom of the screen as soon as it's
+     toggled on, instead of sitting below the list in normal flow —
+     visible immediately, no scrolling past the list required. z-index
+     80 keeps it under the FAB (90) and any modal (200), same reasoning
+     as the position+z-index already on .wo-list-map-wrap. */
+  .wo-list-layout--map-active #woOverviewMapWrap {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    /* dvh, not vh — matches this file's existing convention (see
+       .modal-sheet/.planning-shell) for correctness against iOS
+       Safari's collapsing address bar, which a static vh doesn't track. */
+    height: 35dvh;
+    max-height: 35dvh;
+    margin-top: 0;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    box-shadow: 0 -4px 16px rgba(0,0,0,.18);
+    z-index: 80;
+  }
+  .wo-list-layout--map-active #workOrdersList { padding-bottom: 35dvh; }
+
+  /* Work-order detail (#formModal) — fullscreen takeover instead of a
+     bottom sheet, with a back button in place of (alongside) the X.
+     Scoped to #formModal specifically, not .modal-sheet generally — no
+     other modal in the app changes. */
+  #formModal .modal-sheet {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    transform: none;
+  }
+  #formModal .modal-handle { display: none; }
+  .wo-back-btn { display: flex; order: -1; }
+
+  /* Compact header: the summary line replaces the raw fields visually
+     (the real fields stay in the DOM — buildWoHeaderSummary() just
+     mirrors them — and remain reachable via the date/status pencils
+     below), plus tighter padding/gaps overall. Stranka name, the status
+     badge, and the "Izvaja/Skupaj čas" meta line are all redundant with
+     the summary line on phone (it already carries that same info) — left
+     visible, they doubled up the header to ~6 lines tall and squeezed
+     the GERK list below to a sliver. Desktop is untouched — none of
+     these three selectors appear in the base (non-media) ruleset. */
+  .wo-header-stranka, #woStatusBadge, #woHeaderMeta {
+    display: none;
+  }
+  .wo-header-summary {
+    display: block;
+    font-size: .8125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 2px 0;
+  }
+  /* iOS status bar / Dynamic Island sits right over the fixed-position
+     sheet's top edge once it's fullscreen (no bottom-sheet margin to
+     absorb it any more) — top padding extended by the real inset instead
+     of a flat value so it degrades safely to plain 10px on a non-notched
+     phone (env() resolves to 0 there). */
+  .modal-head.wo-modal-head { gap: 4px; padding: calc(10px + env(safe-area-inset-top)) 14px 6px; }
+  .wo-header-fields { gap: 6px; }
+
+  /* Date/status: plain text + pencil instead of an always-visible
+     input/select — tap to reveal the real control (toggleWoDateEdit()/
+     woStatusEditBtn's handler in app.js). */
+  .wo-date-summary { display: inline-block; font-size: .8125rem; font-weight: 600; }
+  .wo-date-edit-btn { display: inline-flex; width: 28px; height: 28px; }
+  /* :not([hidden]), not a flat override — app.js still controls whether
+     this shows at all (admin + phone only) via the hidden attribute;
+     this just supplies its phone-only visual when it's not hidden. */
+  .wo-status-edit-btn:not([hidden]) { display: inline-flex; width: 28px; height: 28px; }
+  .wo-date-panel[hidden] { display: none; }
+  .wo-date-panel:not([hidden]) { margin-top: 4px; width: 100%; }
+
+  /* Čas na poti + Opomba now live outside #workLogForm on phone (JS
+     physically relocates them — see layoutWoDetailSections() in
+     app.js): the entry row sits above the map, the opomba input right
+     below it, as direct flex children of .wo-detail-layout. Desktop
+     keeps both nested inside #workLogForm exactly as before — none of
+     this block's selectors reach there. */
+  .wo-detail-layout > #woTravelTimeField,
+  .wo-detail-layout > #roadComment {
+    flex-shrink: 0;
+    margin: 0 14px;
+  }
+  .wo-detail-layout > #woTravelTimeField { margin-top: 10px; }
+
+  /* The add-row controls used the same 46px/16px inputs as every other
+     form field. Selects are shrunk the same way the header's own
+     date/status selects already are — safe because a closed <select>
+     doesn't trigger iOS's input-zoom — and flex-wrap:nowrap is what
+     actually gets "Traktor | 0 h | 30 min | Dodaj" onto a single row at
+     phone width. Widths aren't equal: #roadType ("Traktor"/"Avto") is
+     the only one with real text to fit, #roadHour only ever shows 0-23
+     so it can be narrow, and the extra room that frees up goes to
+     #roadMin (.time-min) per Matej's request. */
+  #woTravelTimeField .time-wrap { flex-wrap: nowrap; gap: 4px; }
+  #woTravelTimeField .time-wrap .field-select {
+    height: 34px;
+    padding: 0 20px 0 8px;
+    font-size: .8125rem;
+  }
+  #woTravelTimeField #roadType { flex: 1.6 1 0; min-width: 0; }
+  #woTravelTimeField #roadHour { flex: 0 0 46px; padding: 0 14px 0 6px; }
+  #woTravelTimeField .time-wrap .time-min { flex: 0 0 58px; padding-right: 16px; }
+  #woTravelTimeField .time-wrap .time-sep { font-size: .75rem; }
+  #woTravelTimeField #roadAddBtn { padding: 0 10px; flex-shrink: 0; }
+  #woTravelTimeField .road-time-row { padding: 6px 10px; font-size: .75rem; }
+  /* The common "no entries yet" case left an empty list still taking up
+     a label-gap + margin-bottom's worth of dead space above the add
+     row — collapse it entirely when there's nothing in it. */
+  #woTravelTimeField .road-time-list:empty { display: none; margin-bottom: 0; }
+
+  /* Opomba: shorter field at Matej's request — explicitly trading away
+     the usual 16px input-zoom floor (see the comment on .field-input
+     itself) for a lower-profile field here; typing in it will
+     auto-zoom the page on iOS the way other text inputs in this app
+     deliberately don't. */
+  .wo-detail-layout > #roadComment { height: 34px; padding: 0 12px; font-size: .8125rem; }
+
+  /* #workLogForm now wraps only the GERKI field on phone (Čas na poti
+     and the opomba input were both relocated above/below the map) —
+     its old 18px top padding and 12px inter-field gap were sized for a
+     form with several fields in it, leaving a dead gap between the
+     opomba input (now a sibling above it, not a child) and the "GERKI"
+     label. Collapsed to just enough to separate it from the opomba
+     field, and the field itself drops the matching built-in label gap. */
+  #workLogForm.wo-detail-content { padding-top: 4px; gap: 0; }
+  #workLogForm .wo-gerk-field { gap: 4px; }
+
+  #workLogForm .wlg-row { padding: 8px 10px; gap: 6px; }
+
+  /* GERK/Segments is a full switch on phone, not an inline expand — see
+     toggleGerkSamples() in app.js. Only one side is ever in the DOM's
+     visible flow at a time, so the card's height stays bounded to
+     whichever view is showing instead of growing by however many
+     segments exist on top of the GERK info, which was pushing the
+     pager's own buttons off-screen. */
+  #workLogForm .wlg-row[data-mobile-view="segments"] .wlg-info,
+  #workLogForm .wlg-row[data-mobile-view="segments"] .wlg-times,
+  #workLogForm .wlg-row[data-mobile-view="segments"] .wlg-edit-panel,
+  #workLogForm .wlg-row[data-mobile-view="segments"] .wlg-others {
+    display: none;
+  }
+  /* Styled as a real button, not the subtle inline link desktop uses —
+     this is now a full view switch rather than a small "expand"
+     affordance, so it needs the same visibility as any other button.
+     Scoped to #workLogForm — the create-order form has its own,
+     unrelated .wlg-samples-toggle (GERK paste preview) that must keep
+     its normal desktop-style look regardless of viewport width. */
+  #workLogForm .wlg-samples-toggle {
+    align-self: stretch;
+    justify-content: center;
+    margin-top: 4px;
+    padding: 8px 0;
+    background: var(--border-light);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: .8125rem;
+  }
+  #workLogForm .wlg-samples-toggle--open { background: var(--blue-800); border-color: var(--blue-800); color: #fff; }
+  /* State is conveyed by color + the "N segmentov"/"← GERK" label text
+     now, not rotation — the little chevron reads as clutter next to a
+     full-width button. */
+  #workLogForm .wlg-samples-chevron { display: none; }
+  /* Caps the segments table at ~6 rows before it scrolls internally,
+     instead of letting the card (and the pager stretched to match its
+     height) grow without bound for an order with many segments. A
+     fixed px figure, not a vh/dvh one — unlike the map or the card's
+     old min-height, row height here is font/padding-driven, not
+     viewport-driven, so this stays "about 6 rows" on any phone size.
+     A plain max-height + overflow-y here (not flex-grow + min-height:0
+     the way the whole card briefly tried) is what actually scrolls
+     reliably on iOS — see the removed min-height:42dvh floor's own
+     comment for that history. */
+  #workLogForm .wlg-samples-panel {
+    max-height: 215px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Map: the expand/collapse toggle is a desktop power-feature (swaps
+     the GERK list for a compact code+segment view to give the map more
+     room) that doesn't make sense once the map is already full-width
+     on phone — hidden outright, which also frees the top-left corner
+     for Leaflet's own zoom +/- control. Ceste/imena moves up into that
+     freed slot, shifted right by the same 54px the overview map's copy
+     of this exact button already uses to clear the same zoom control
+     (see .wo-map-layers-btn--overview above). */
+  #woMapExpandBtn { display: none; }
+  .wo-map-layers-btn--detail { top: 10px; left: 54px; }
+  /* The Leaflet/Esri attribution strip along the bottom edge — not
+     worth the vertical space it eats on a phone-width map. */
+  #woDetailMap .leaflet-control-attribution { display: none; }
+
+  /* GERK list admin tools (KML import, paste-to-add, sampling export)
+     and the bottom action row (Zaključi delo/Izbriši nalog) all assume
+     real screen width and don't fit the phone's one-GERK-at-a-time
+     card — hidden here. Nothing is left below the map except the
+     opomba field (relocated right below it, see
+     .wo-detail-layout > #roadComment above) and the GERK list itself. */
+  #woImportZonesWrap,
+  #woAddExistingGerkWrap,
+  #woExportSamplingWrap,
+  #formModal .form-actions {
+    display: none;
+  }
+
+  /* GERK pager: the field is a 2-row grid (label on its own row; table
+     + pager sharing the row below, side by side) so the pager gets its
+     own real column instead of floating over the card's content — see
+     updateGerkPaging() in app.js for the show/hide logic.
+
+     The visible .wlg-row is NOT forced into a fixed-height, internally
+     -scrolling box here (an earlier version did that with flex:1 +
+     min-height:0 + overflow-y:auto on the row) — real iPhones couldn't
+     reliably reach content past the fold inside that nested flex/grid
+     scroll container via touch, even though toggling "N segmentov"
+     correctly un-hid it and it was provably present in the DOM. Rows
+     now size to their natural content height instead, same as every
+     other scrollable form in this app: when a row (or its expanded
+     segments panel) is taller than the screen, the already-reliable
+     outer scroll — #workLogForm.wo-detail-content's own overflow-y:auto,
+     unchanged from before this whole redesign — reaches it. */
+  .wo-gerk-field {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    column-gap: 8px;
+    /* Without this, the grid's default align-content (stretch) spreads
+       any leftover height — whenever the GERK info is shorter than the
+       flex-allocated space — into BOTH "auto" rows, inflating the
+       label's own row into a tall gap above the card and padding the
+       card out at the bottom. start packs both rows to their real
+       content size and leaves any extra space below row 2, where it
+       just reads as (harmless) blank space instead of a stretched gap. */
+    align-content: start;
+  }
+  .wo-gerk-field > .field-label { grid-column: 1 / -1; }
+  .wlg-table { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; min-width: 0; }
+  /* No forced min-height here (an earlier version used one, ~42dvh, to
+     keep the card looking tall even with sparse content) — on top of
+     the header/Čas na poti/map/opomba already above it, that floor
+     pushed the card's own bottom (and the pager's buttons) past the
+     visible viewport, requiring a scroll just to reach the end of the
+     card. Sized to its actual content instead, so the whole GERKI
+     section reliably fits on screen without scrolling in the common
+     case; a genuinely long segments table still simply grows past the
+     fold, same as any other content on this page. */
+  /* :not([hidden]) — updateGerkPaging() in app.js still decides whether
+     this shows at all (hides it for a single-GERK order, desktop, or
+     map-expanded mode); this just supplies its phone-only visual. */
+  .wo-gerk-pager:not([hidden]) {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 46px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 8px 0;
+  }
+  /* Solid color instead of the pale grey every other .btn-icon uses —
+     at the old grey-on-grey (the pill itself is also var(--border-light))
+     the buttons were barely distinguishable from their own background. */
+  .wo-gerk-pager:not([hidden]) .btn-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--blue-800);
+    color: #fff;
+  }
+  .wo-gerk-pager-label { font-size: .75rem; font-weight: 700; color: var(--text-secondary); }
+}
+
+
+/* ============================================================
+   RESPONSIVE — wider screens
+   ============================================================ */
+@media (min-width: 480px) {
+  .login-card { padding: 44px 40px 40px; }
+  .app-main   { padding-left: 0; padding-right: 0; }
+}
+
+@media (min-width: 640px) {
+  .greeting-section { padding: 28px 24px 24px; }
+  .logs-section     { padding: 12px 24px 0; }
+  .fab              { right: 32px; bottom: 36px; }
+}
+
+/* Laptop/desktop is now the primary target — phone stays fully usable via
+   everything above, this layer just stops the app looking like a stretched
+   phone screen once there's real width to work with. */
+@media (min-width: 900px) {
+  .app-main { max-width: 1100px; }
+
+  .tab-bar { justify-content: flex-start; }
+  .tab-btn { flex: 0 0 auto; min-width: 180px; }
+
+  .wo-search-input { width: 220px; }
+  /* Not 260px: the toolbar (ha chips + filter/map buttons + this box) sits
+     right at the edge of .app-main's 1100px cap, so growing the box by 40px
+     on focus tipped it over and wrapped the whole row to a second line —
+     every time, at virtually every real desktop window width (reproduced
+     from ~1088px up through 1920px). Focus still gets the border/shadow
+     treatment from the base .wo-search-input:focus rule, just no width
+     change here. */
+  .wo-search-input:focus { width: 220px; }
+
+  .header-name { max-width: 240px; }
+
+  /* Work order list: room for a map-link column. Combined-class
+     selector (not just .wo-lc-header--enhanced) to keep beating
+     .lc-header/.log-compact's own grid-template-columns on
+     specificity — see the base rule's comment further up for why
+     that matters here. */
+  .wo-c-maps { display: flex; align-items: center; justify-content: center; }
+
+  /* fr-weighted (not fixed px) on every column except the icon-only
+     ones — otherwise Stranka's 1fr soaks up 100% of the extra width on
+     a wide screen while Čas/GERKI/Ha/Status stay pinned to their tiny
+     minimums, leaving one huge gap after Stranka and everything else
+     cramped together at the right edge. */
+  .wo-lc-header.wo-lc-header--enhanced,
+  .wo-compact.wo-compact--enhanced {
+    grid-template-columns: 48px minmax(64px,.6fr) minmax(140px,1.6fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(90px,.8fr) minmax(100px,.9fr) 44px;
+  }
+  .wo-lc-header.wo-lc-header.wo-lc-header--enhanced.wo-lc-header--selectable,
+  .wo-compact.wo-compact.wo-compact--enhanced.wo-compact--selectable {
+    grid-template-columns: 28px 48px minmax(64px,.6fr) minmax(140px,1.6fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(90px,.8fr) minmax(100px,.9fr) 44px;
+  }
+
+  /* Modals read as centered desktop dialogs instead of mobile bottom sheets. */
+  .modal-backdrop     { align-items: center; padding: 24px; }
+  .modal-sheet         { border-radius: var(--radius-xl); max-height: 88vh; }
+  .modal-sheet-compact { max-width: 420px; }
+  /* Scales with the viewport (80% of width) instead of a fixed cap —
+     the split-view map+form layout wants real room to breathe, and a
+     flat 760px looked cramped once the map pane was added. Capped at
+     1400px so it doesn't stretch absurdly wide on an ultrawide monitor. */
+  .modal-sheet-wide    { width: 80vw; max-width: 1400px; }
+  .modal-handle        { display: none; }
+
+  /* GERK rows in the work-order detail read as one line per record
+     (info | times side by side) instead of a stacked mobile card. The
+     edit panel and samples toggle/panel still expand to full width. */
+  .wlg-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) auto;
+    column-gap: 20px;
+    align-items: center;
+  }
+  .wlg-edit-panel,
+  .wlg-samples-toggle,
+  .wlg-samples-panel {
+    grid-column: 1 / -1;
+  }
+}
+
+
+/* ============================================================
+   COMPACT TABLE VIEW
+   columns: date(80px) | duration(55px) | gerks(1fr) | ha(50px) | actions(58px)
+   ============================================================ */
+.logs-list--compact {
+  gap: 0;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.lc-header,
+.log-compact {
+  display: grid;
+  grid-template-columns: 80px 55px 1fr 50px 58px;
+  column-gap: 8px;
+  padding: 0 14px;
+  align-items: center;
+}
+
+.lc-header {
+  padding-top: 7px;
+  padding-bottom: 7px;
+  background: var(--background);
+  border-bottom: 1.5px solid var(--border);
+}
+
+.lc-header span {
+  font-size: .6875rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+
+.log-compact {
+  padding-top: 9px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--border-light);
+  animation: rowFadeIn var(--duration-fast) var(--ease-standard);
+}
+.log-compact:last-child { border-bottom: none; }
+.log-compact:hover { background: var(--blue-50); }
+
+.lc-date {
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lc-ha {
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* ============================================================
+   GERK ROWS (multi-GERK entry)
+   ============================================================ */
+.gerk-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.gerk-row-main {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.gerk-row-main .gerk-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.gerk-ha-input {
+  width: 80px;
+  flex-shrink: 0;
+  padding-right: 10px;
+  -moz-appearance: textfield;
+}
+.gerk-ha-input::-webkit-inner-spin-button,
+.gerk-ha-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+.gerk-remove-btn {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.125rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.gerk-remove-btn:hover {
+  background: var(--error-bg);
+  color: var(--danger);
+  border-color: #FECACA;
+}
+
+.btn-add-gerk {
+  width: 100%;
+  height: 44px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--blue-800);
+  font-size: .875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-add-gerk:hover {
+  background: var(--blue-50);
+  border-color: var(--blue-700);
+}
+
+.wo-bulk-segment-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+}
+.wo-bulk-segment-row #woBulkDepth { width: auto; align-self: flex-start; }
+
+/* Segments (FMS + Sample no) on a GERK row in the create-order form —
+   reuses the detail view's .wlg-samples-toggle/.wlg-samples-panel look
+   for visual consistency, collapsed by default, auto-expanded when a
+   paste actually fills it. */
+.gerk-segments-section { margin-top: 2px; }
+
+.gerk-segments-list { display: flex; flex-direction: column; gap: 6px; }
+
+.gerk-segment-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.gerk-segment-fms        { flex: 0 0 72px; }
+.gerk-segment-sample     { flex: 1 1 80px; }
+.gerk-segment-vzorcenje  { flex: 1 1 110px; }
+
+.gerk-segment-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: .875rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+.gerk-segment-remove:hover { color: var(--danger); }
+
+.gerk-segment-add { margin-top: 4px; }
+
+
+/* ============================================================
+   GERK AUTOCOMPLETE
+   ============================================================ */
+.gerk-wrap { position: relative; }
+
+/* [hidden] normally means display:none, which can't be transitioned —
+   overriding it here to opacity/visibility instead (same technique as
+   .wlg-selection-bar/.fab-menu) lets JS keep doing the simple
+   `el.hidden = true/false` it already does everywhere this dropdown is
+   used (customer search, every GERK row's own code autocomplete) while
+   it fades instead of snapping. Safe since it's position:absolute —
+   doesn't affect layout either way. */
+.gerk-suggestions[hidden] {
+  display: block;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.gerk-suggestions:not([hidden]) { opacity: 1; visibility: visible; }
+.gerk-suggestions {
+  position: absolute;
+  top: calc(100% - 1px);
+  left: 0; right: 0;
+  background: var(--surface);
+  border: 1.5px solid var(--blue-800);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 300;
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  box-shadow: var(--shadow-md);
+  transition: opacity var(--duration-fast) var(--ease-standard), visibility 0s linear var(--duration-fast);
+}
+.gerk-suggestions:not([hidden]) {
+  transition: opacity var(--duration-fast) var(--ease-standard), visibility 0s linear 0s;
+}
+
+.gerk-suggestion-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--border-light);
+}
+.gerk-suggestion-item:last-child { border-bottom: none; }
+.gerk-suggestion-item:hover,
+.gerk-suggestion-item:active { background: var(--blue-50); }
+
+.gerk-suggestion-code {
+  font-size: .9375rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: monospace;
+  letter-spacing: .04em;
+}
+
+.gerk-suggestion-meta {
+  font-size: .8125rem;
+  color: var(--text-secondary);
+}
+
+/* Customer-name suggestions reuse .gerk-suggestion-code (shared with the
+   GERK-code autocomplete elsewhere), but names aren't codes — the
+   monospace/bold/15px styling sized for short codes like "688697" read as
+   oversized for names like "Kmetija Novak". Scoped to this one dropdown
+   only; GERK-code suggestions elsewhere keep their original styling. */
+#woSearchSuggestions .gerk-suggestion-code {
+  font-size: .8125rem;
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: normal;
+}
+
+.gerk-suggestion-item--add .gerk-suggestion-code {
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--blue-800);
+  letter-spacing: normal;
+}
+
+.decl-list-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.decl-list-toolbar .field-input { flex: 1; min-width: 0; }
+.decl-list-toolbar .btn { flex: 0 0 auto; white-space: nowrap; }
+
+.wo-gerk-checklist {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 10px;
+}
+
+.wo-gerk-check-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+}
+.wo-gerk-check-item:last-child { border-bottom: none; }
+.wo-gerk-check-item:hover { background: var(--blue-50); }
+
+/* Izvajalci list rows, admin variant: the existing check-item label
+   plus a pair of per-row action icons, and a second "meta" row below
+   for role/organization — border-bottom moves to the outer .operator-block
+   wrapper so :last-child still lands on the real last user once each
+   user spans two rows instead of one. */
+.operator-block { border-bottom: 1px solid var(--border-light); animation: rowFadeIn var(--duration-fast) var(--ease-standard); }
+.operator-block:last-child { border-bottom: none; }
+.operator-row {
+  display: flex;
+  align-items: center;
+}
+.operator-row .wo-gerk-check-item { flex: 1; min-width: 0; border-bottom: none; }
+.operator-row-actions { display: flex; align-items: center; gap: 2px; padding-right: 8px; flex-shrink: 0; }
+.operator-row-actions .btn-icon { width: 32px; height: 32px; font-size: .9375rem; }
+
+.operator-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 8px 40px;
+}
+.operator-meta-row .operator-role-select { flex: 0 0 auto; width: auto; font-size: .8125rem; padding: 4px 6px; }
+.operator-meta-row .operator-org-input { flex: 1; min-width: 0; font-size: .8125rem; padding: 4px 6px; }
+.operator-meta-row--readonly {
+  color: var(--text-muted);
+  font-size: .8125rem;
+}
+
+.operators-add-wrap { margin-bottom: 10px; }
+.operators-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--border-light);
+  border-radius: var(--radius-md);
+}
+.operators-add-actions { display: flex; gap: 8px; }
+
+.wo-gerk-check-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.wo-gerk-check-code {
+  font-family: monospace;
+  font-weight: 700;
+  font-size: .8125rem;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.wo-gerk-check-name {
+  font-size: .8125rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-hint {
+  font-size: .8125rem;
+  color: var(--blue-800);
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+
+/* ============================================================
+   DEKLARACIJE TAB (admin review of customer field declarations)
+   ============================================================ */
+.state-empty-inline {
+  font-size: .875rem;
+  color: var(--text-secondary);
+  padding: 12px 0;
+}
+
+.decl-customer-row {
+  padding: 12px 14px;
+  font-size: .9375rem;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+}
+.decl-customer-row:last-child { border-bottom: none; }
+.decl-customer-row:hover,
+.decl-customer-row:active { background: var(--blue-50); }
+
+.decl-customer-info {
+  margin: 4px 0 16px;
+}
+.decl-customer-info .wo-order-label { margin: 0; }
+
+.decl-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.decl-link-row:last-child { border-bottom: none; }
+
+.decl-link-sub {
+  font-size: .8125rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.decl-link-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.decl-table-scroll {
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+
+.decl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .8125rem;
+  white-space: nowrap;
+}
+
+.decl-table th,
+.decl-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.decl-table th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+/* ============================================================
+   PLANIRANJE — drag-and-drop scheduling calendar (admin-only tab)
+   ============================================================ */
+.planning-shell {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  min-height: calc(100dvh - var(--header-h) - 58px);
+}
+
+.planning-sidebar {
+  padding: 24px 18px;
+  background: #f7f8fc;
+  border-right: 1px solid var(--border);
+}
+
+.operator-filter { position: relative; display: grid; gap: 5px; margin-bottom: 10px; }
+.operator-filter label { color: var(--text-secondary); font-size: .6875rem; font-weight: 800; text-transform: uppercase; }
+.operator-filter-button { width: 100%; height: 38px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-primary); font: inherit; font-size: .8125rem; text-align: left; }
+.operator-filter-button[aria-expanded="true"] { border-color: var(--blue-800); box-shadow: 0 0 0 3px rgba(28,69,146,.12); }
+.operator-filter-menu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; max-height: 240px; overflow-y: auto; padding: 5px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); box-shadow: var(--shadow-md); }
+.operator-filter-option { display: flex; align-items: center; gap: 8px; padding: 8px; color: var(--text-primary) !important; font-size: .75rem !important; font-weight: 600 !important; text-transform: none !important; cursor: pointer; }
+.operator-filter-option:hover { background: var(--blue-50); }
+.operator-filter-option input { width: 16px; height: 16px; accent-color: var(--blue-800); }
+
+.planning-sidebar-head, .calendar-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.eyebrow {
+  color: var(--text-muted);
+  font-size: .6875rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.planning-title, .calendar-title {
+  color: var(--blue-900);
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.planning-count {
+  min-width: 30px;
+  height: 30px;
+  padding: 4px 8px;
+  border-radius: 99px;
+  background: var(--blue-100);
+  color: var(--blue-800);
+  font-weight: 800;
+  text-align: center;
+}
+
+.planning-hint { color: var(--text-secondary); font-size: .75rem; }
+.planning-sidebar > .planning-hint { margin: 8px 0 16px; }
+.work-order-cards { display: grid; gap: 10px; }
+
+.work-order-card {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--blue-700);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  cursor: default;
+}
+
+.work-order-card:active { cursor: default; }
+.work-order-card:focus-visible { outline: 3px solid rgba(28,69,146,.2); }
+.work-order-card-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.work-order-card h3 { font-size: .875rem; line-height: 1.25; }
+/* Same "N GERK · M segm. · X ha" combined line the main Delovni Nalogi
+   list uses (loadWorkOrders() in app.js) — whole-order totals, not what's
+   still unplanned. */
+.work-order-card-meta { margin-top: 6px; color: var(--text-muted); font-size: .6875rem; }
+.card-operator-select { width: 100%; height: 30px; margin-top: 8px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-primary); font: inherit; font-size: .75rem; }
+.planning-error { padding: 12px; border-radius: var(--radius-sm); background: var(--error-bg); color: var(--error); font-size: .75rem; overflow-wrap: anywhere; }
+
+.calendar-panel { padding: 24px; min-width: 0; background: var(--surface); }
+.calendar-range { display: flex; gap: 8px; align-items: center; }
+.calendar-range label { display: grid; gap: 2px; color: var(--text-muted); font-size: .625rem; font-weight: 800; text-transform: uppercase; }
+.calendar-range input { height: 32px; padding: 0 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font: inherit; text-transform: none; }
+.calendar-actions { display: flex; align-items: center; gap: 6px; }
+.calendar-nav { width: 34px; height: 34px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--blue-800); font-size: 1.5rem; line-height: 1; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin-top: 22px; border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
+.calendar-weekday { padding: 8px 6px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--text-muted); font-size: .6875rem; font-weight: 800; text-transform: uppercase; }
+.calendar-day { min-height: 112px; min-width: 0; padding: 8px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--surface); transition: background .15s, box-shadow .15s; }
+.calendar-day--blank { background: var(--background); }
+.calendar-day.is-outside { background: #fafbfe; }
+.calendar-day.is-out-of-range { background: #f1f2f5; opacity: .45; }
+.calendar-day.is-out-of-range .calendar-day-orders { visibility: hidden; }
+.calendar-day.is-today .calendar-day-number { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--blue-800); color: white; }
+.calendar-day.is-drop-target { background: var(--blue-50); box-shadow: inset 0 0 0 2px var(--blue-700); }
+.calendar-day-number { color: var(--text-secondary); font-size: .75rem; font-weight: 700; }
+.calendar-day-orders { display: grid; gap: 4px; margin-top: 6px; }
+/* A div, not a button — hosts its own inner .calendar-order-remove button,
+   which a <button> couldn't (no nested buttons). position:relative so the
+   remove button can sit in the top-right corner without pushing content. */
+.calendar-order { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%; min-width: 0; padding: 5px 20px 5px 6px; border-radius: 4px; color: #1f2430; font-size: .6875rem; font-weight: 700; text-align: left; cursor: grab; }
+.calendar-order-name { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-order-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; opacity: .8; }
+/* Background is now the per-operator color (inline style, see
+   renderCalendarOrder in planning.js) — completeness is a left accent
+   stripe instead of the fill so both are visible at once. */
+.calendar-order.is-complete { box-shadow: inset 3px 0 0 #2f9e44; }
+.calendar-order.is-partial { box-shadow: inset 3px 0 0 #b8860b; }
+.calendar-order.is-selected { outline: 2px solid var(--blue-800); outline-offset: 1px; }
+.calendar-order-dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; }
+.calendar-order-remove { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; font-size: .625rem; line-height: 1; opacity: .55; }
+.calendar-order-remove:hover { opacity: 1; background: rgba(0,0,0,.08); }
+
+@media (max-width: 800px) {
+  .planning-shell { grid-template-columns: 1fr; }
+  .planning-sidebar { border-right: 0; border-bottom: 1px solid var(--border); }
+  .planning-sidebar .work-order-cards { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  .calendar-panel { padding: 16px 10px; }
+  .calendar-head { flex-wrap: wrap; }
+  .calendar-range { order: 3; width: 100%; }
+  .calendar-range label { flex: 1; }
+  .calendar-range input { width: 100%; }
+  .calendar-day { min-height: 92px; padding: 5px; }
+  .calendar-order { padding: 4px 20px 4px 4px; }
+}

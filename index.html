@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1C4592" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="WorkTracker" />
+  <title>WorkTracker — Proagrar</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/Proagrar_icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="login-page">
+
+  <div class="login-wrap">
+    <div class="login-card">
+
+      <div class="login-logo">
+        <img src="https://proagrar.si/assets/img/Proagrar_LOGO2026-14.png"
+             alt="Proagrar" width="200" height="67" />
+        <h1 class="login-title">WorkTracker</h1>
+        <p class="login-sub">Proagrar — Evidenca dela</p>
+      </div>
+
+
+      <form id="loginForm" class="login-form" novalidate>
+        <div class="field" id="emailField">
+          <label class="field-label" for="email">E-pošta</label>
+          <input class="field-input" type="email" id="email" autocomplete="email" required />
+        </div>
+        <div class="field" id="passwordField">
+          <label class="field-label" id="passwordLabel" for="password">Geslo</label>
+          <input class="field-input" type="password" id="password" autocomplete="current-password" required />
+        </div>
+        <div class="field" id="confirmPasswordField" hidden>
+          <label class="field-label" id="confirmPasswordLabel" for="confirmPassword">Potrdi geslo</label>
+          <input class="field-input" type="password" id="confirmPassword" autocomplete="new-password" />
+        </div>
+        <button id="loginBtn" class="btn btn-primary" type="submit">
+          <span class="btn-label">Prijava</span>
+          <span class="btn-spinner" hidden aria-hidden="true"></span>
+        </button>
+      </form>
+
+      <div class="login-actions">
+        <button type="button" id="authToggleLink" class="btn btn-secondary btn-sm btn-block" hidden>← Nazaj na prijavo</button>
+        <button type="button" id="forgotPasswordLink" class="btn btn-secondary btn-sm btn-block">Pozabljeno geslo?</button>
+      </div>
+
+      <div id="loginSuccess" class="alert alert-success" hidden role="status"></div>
+      <div id="loginError"   class="alert alert-error"   hidden role="alert"></div>
+
+    </div>
+  </div>
+
+  <script type="module" src="auth.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').then(reg => reg.update());
+    }
+  </script>
+
+</body>
+</html>

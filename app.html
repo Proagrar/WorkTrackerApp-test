@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1C4592" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="WorkTracker" />
+  <title>WorkTracker — Proagrar</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/Proagrar_icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="app-page">
+
+  <!-- ── Header ─────────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="header-brand">
+      <img src="icons/Proagrar_LOGO.png" alt="Proagrar" height="30" class="header-logo" />
+      <span id="appVersion" class="header-version"></span>
+    </div>
+    <div class="header-user">
+      <!-- Location-tracking health: green while a GPS fix has arrived in
+           the last 15s, red otherwise — see updateLocationStatusDot() in
+           app.js. No other UI for this feature by design. -->
+      <span id="locationStatusDot" class="location-status-dot" hidden></span>
+      <span id="operatorName" class="header-name">—</span>
+      <span id="adminBadge" class="admin-badge" hidden>Admin</span>
+      <!-- Admin only: switches between full admin controls (deletes, role
+           edits, soft-delete, etc.) and a plain view with those hidden —
+           see isAdminView() in app.js. -->
+      <label id="adminViewToggleWrap" class="admin-view-switch" hidden>
+        <input type="checkbox" id="adminViewToggle" class="admin-view-switch-input">
+        <span class="admin-view-switch-track"><span class="admin-view-switch-thumb"></span></span>
+        <span class="admin-view-switch-label"></span>
+      </label>
+      <button id="logoutBtn" class="btn btn-ghost-white btn-sm">Odjava</button>
+    </div>
+  </header>
+
+  <!-- ── Main ───────────────────────────────────────────────── -->
+  <main class="app-main">
+
+    <!-- Tabs -->
+    <nav class="tab-bar" aria-label="Zavihki">
+      <button id="tabNalogi" class="tab-btn tab-btn--active" data-tab="nalogi">Delovni Nalogi</button>
+      <button id="tabEvidenca" class="tab-btn" data-tab="evidenca">Evidenca dela</button>
+      <!-- Admin-only, like the FAB — see updateFabVisibility() in app.js. -->
+      <button id="tabPlaniranje" class="tab-btn" data-tab="planiranje" hidden>Planiranje</button>
+    </nav>
+
+    <!-- ── Tab: Evidenca dela (original view) ────────────────── -->
+    <div id="panelEvidenca" class="tab-panel" hidden>
+
+      <section class="greeting-section">
+        <p id="greeting" class="greeting"></p>
+        <p class="greeting-sub">Danes, <span id="todayDate"></span></p>
+      </section>
+
+      <!-- Month navigation -->
+      <div class="month-nav">
+        <button id="prevMonthBtn" class="month-nav-btn" aria-label="Prejšnji mesec">&#8249;</button>
+        <span id="monthLabel" class="month-nav-label"></span>
+        <button id="nextMonthBtn" class="month-nav-btn" aria-label="Naslednji mesec">&#8250;</button>
+      </div>
+
+      <!-- Log table -->
+      <section class="logs-section">
+        <div class="section-header">
+          <h2 class="section-title">Evidenca dela</h2>
+          <button type="button" id="exportLogsBtn" class="btn btn-secondary btn-sm">Izvozi (CSV)</button>
+        </div>
+        <div id="logsList">
+          <div class="state-loading">
+            <div class="spinner"></div>
+            <p>Nalaganje...</p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ── Tab: Delovni Nalogi (work orders) ─────────────────── -->
+    <div id="panelNalogi" class="tab-panel">
+      <section class="logs-section wo-section">
+        <div class="section-header">
+          <div class="wo-toolbar">
+            <!-- Sum of the currently filtered/visible rows' ha, split by
+                 status — recomputed by renderWorkOrders() on every filter
+                 change (status checkboxes, search, map-click, archived
+                 toggle), see updateWoHaSummary() in app.js. -->
+            <div id="woHaSummary" class="wo-ha-summary">
+              <span class="wo-ha-chip wo-ha-chip--total" id="woHaChipTotal"></span>
+              <span class="wo-ha-chip wo-ha-chip--izvedeno" id="woHaChipIzvedeno"></span>
+              <span class="wo-ha-chip wo-ha-chip--plan" id="woHaChipPlan"></span>
+              <span class="wo-ha-chip wo-ha-chip--time" id="woHaChipTime"></span>
+            </div>
+            <!-- Groups the filter/map buttons so the phone layout can keep
+                 them on one row; display:contents on desktop, so there it
+                 changes nothing. -->
+            <div class="wo-toolbar-buttons">
+            <div class="wo-status-filter-wrap">
+              <button type="button" id="woStatusFilterBtn" class="btn btn-secondary btn-sm wo-status-filter-btn">Vsi statusi</button>
+              <div id="woStatusFilterMenu" class="wo-status-filter-menu" hidden>
+                <div class="wo-gerk-checklist">
+                  <label class="wo-gerk-check-item">
+                    <input type="checkbox" class="wo-status-filter-cb" value="Plan">
+                    <span class="wo-gerk-check-code">Plan</span>
+                  </label>
+                  <label class="wo-gerk-check-item">
+                    <input type="checkbox" class="wo-status-filter-cb" value="V delu">
+                    <span class="wo-gerk-check-code">V delu</span>
+                  </label>
+                  <label class="wo-gerk-check-item">
+                    <input type="checkbox" class="wo-status-filter-cb" value="Izvedeno">
+                    <span class="wo-gerk-check-code">Izvedeno</span>
+                  </label>
+                  <label class="wo-gerk-check-item">
+                    <input type="checkbox" class="wo-status-filter-cb" value="Izdan Račun">
+                    <span class="wo-gerk-check-code">Izdan Račun</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <!-- Shown only while a GERK/segment click on the map overview
+                 is narrowing the list — see woMapClickFilterId in app.js. -->
+            <button type="button" id="woMapFilterClearBtn" class="btn btn-secondary btn-sm" hidden>✕ Prekliči filter</button>
+            <!-- Admin view only: switches the list to archived (soft-
+                 deleted) orders — see woShowDeletedActive in app.js. -->
+            <button type="button" id="woShowDeletedBtn" class="btn btn-secondary btn-sm wo-show-deleted-btn" hidden>🗑 Izbrisani</button>
+            <!-- Available to every user — opens the map overview
+                 panel, see woMapOverviewActive in app.js. -->
+            <button type="button" id="woMapToggleBtn" class="btn btn-secondary btn-sm wo-show-deleted-btn">🗺 Zemljevid</button>
+            </div>
+            <div class="wo-search-wrap">
+              <input type="text" id="woSearchStranka" class="wo-search-input" placeholder="Išči stranko..." autocomplete="off">
+              <button type="button" id="woSearchClearBtn" class="wo-search-clear" title="Počisti iskanje" aria-label="Počisti iskanje" hidden>✕</button>
+              <ul id="woSearchSuggestions" class="gerk-suggestions" hidden></ul>
+            </div>
+          </div>
+        </div>
+        <!-- Shown when a GERK/segment was clicked on the map overview —
+             see woMapClickFilterId in app.js. The clear button itself now
+             lives in the toolbar above, next to "Vsi statusi". -->
+        <div id="woMapFilterBanner" class="alert alert-info wo-map-filter-banner" hidden>
+          <span>Prikazan samo izbran nalog z zemljevida</span>
+        </div>
+        <div id="woListLayout" class="wo-list-layout">
+          <div id="workOrdersList" class="logs-list" role="list">
+            <div class="state-loading">
+              <div class="spinner"></div>
+              <p>Nalaganje...</p>
+            </div>
+          </div>
+          <div id="woOverviewMapWrap" class="wo-list-map-wrap" hidden>
+            <div id="woOverviewMap" class="wo-list-map"></div>
+            <button type="button" id="woOverviewMapLayersBtn" class="wo-map-layers-btn wo-map-layers-btn--overview" aria-pressed="false" title="Prikaži/skrij ceste in imena krajev">🛣 Ceste/imena</button>
+            <button type="button" id="woOverviewMapCloseBtn" class="wo-map-close-btn" title="Zapri zemljevid" aria-label="Zapri zemljevid">✕</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── Tab: Planiranje (drag-and-drop scheduling calendar, admin-only) ── -->
+    <div id="panelPlaniranje" class="tab-panel" hidden>
+      <section class="planning-shell" aria-label="Planiranje nalogov">
+        <aside class="planning-sidebar">
+          <div class="operator-filter">
+            <label id="operatorFilterLabel">Izvajalec</label>
+            <button id="operatorFilterButton" class="operator-filter-button" type="button" aria-expanded="false" aria-controls="operatorFilterMenu">Vsi izvajalci</button>
+            <div id="operatorFilterMenu" class="operator-filter-menu" hidden></div>
+          </div>
+          <div class="planning-sidebar-head">
+            <div>
+              <p class="eyebrow">Odprti nalogi</p>
+              <h1 class="planning-title">Planiranje nalogov</h1>
+            </div>
+            <span id="planningCount" class="planning-count">0</span>
+          </div>
+          <p id="planningHint" class="planning-hint">Nalaganje delovnih nalogov ...</p>
+          <div id="workOrderCards" class="work-order-cards" role="list"></div>
+        </aside>
+
+        <section class="calendar-panel" aria-label="Koledar">
+          <div class="calendar-head">
+            <div>
+              <p class="eyebrow">Razpored dela</p>
+              <h2 id="calendarTitle" class="calendar-title"></h2>
+            </div>
+            <div class="calendar-range" aria-label="Obdobje prikaza">
+              <label>Od <input id="calendarFrom" type="date" /></label>
+              <label>Do <input id="calendarTo" type="date" /></label>
+            </div>
+            <div class="calendar-actions">
+              <button id="calendarToday" class="btn btn-secondary btn-sm" type="button">Danes</button>
+              <button id="calendarPrev" class="calendar-nav" type="button" aria-label="Prejšnji mesec">‹</button>
+              <button id="calendarNext" class="calendar-nav" type="button" aria-label="Naslednji mesec">›</button>
+            </div>
+          </div>
+          <div id="calendarGrid" class="calendar-grid" role="grid"></div>
+        </section>
+      </section>
+    </div>
+
+    <!-- ── Poročila (admin only) — full-screen view, not a tab-bar
+         entry (opened from the + menu, no persistent button). The tab
+         bar itself hides while this is shown; ← Nazaj returns to
+         whichever real tab was active before — see openReportsView()/
+         closeReportsView()/switchTab() in app.js. First report: one
+         row per work order — stranka, številka, ha, zabeležen čas, čas
+         med GERK-i, skupni čas, zajete točke in njihovo razmerje na
+         uro/ha. Data from get_work_orders_report() RPC. -->
+    <div id="panelReports" class="tab-panel" hidden>
+      <section class="logs-section wo-section">
+        <div class="section-header">
+          <div class="reports-head">
+            <button type="button" id="reportsBackBtn" class="btn btn-secondary btn-sm">← Nazaj</button>
+            <h2 class="section-title">Poročila</h2>
+          </div>
+        </div>
+        <div class="wo-toolbar">
+          <!-- Totals for the selected rows if any are checked, otherwise
+               for every currently filtered row — same "Izbrano"/"Skupaj"
+               pattern as the main list's ha chips. -->
+          <div id="reportsSummary" class="wo-ha-summary">
+            <span class="wo-ha-chip wo-ha-chip--total" id="reportsChipHa"></span>
+            <span class="wo-ha-chip wo-ha-chip--izvedeno" id="reportsChipTracked"></span>
+            <span class="wo-ha-chip wo-ha-chip--plan" id="reportsChipGap"></span>
+            <span class="wo-ha-chip wo-ha-chip--time" id="reportsChipTotal"></span>
+            <span class="wo-ha-chip wo-ha-chip--cost" id="reportsChipCost"></span>
+          </div>
+        </div>
+
+        <!-- All filters in a single row, above the chart + table they
+             both scope — see dataviz skill's interaction.md ("one row,
+             above the charts, never per-chart"). -->
+        <div class="reports-filters-row">
+          <div class="wo-status-filter-wrap">
+            <button type="button" id="reportsStatusFilterBtn" class="btn btn-secondary btn-sm wo-status-filter-btn">Vsi statusi</button>
+            <div id="reportsStatusFilterMenu" class="wo-status-filter-menu" hidden>
+              <div class="wo-gerk-checklist">
+                <label class="wo-gerk-check-item">
+                  <input type="checkbox" class="reports-status-filter-cb" value="Plan">
+                  <span class="wo-gerk-check-code">Plan</span>
+                </label>
+                <label class="wo-gerk-check-item">
+                  <input type="checkbox" class="reports-status-filter-cb" value="V delu">
+                  <span class="wo-gerk-check-code">V delu</span>
+                </label>
+                <label class="wo-gerk-check-item">
+                  <input type="checkbox" class="reports-status-filter-cb" value="Izvedeno">
+                  <span class="wo-gerk-check-code">Izvedeno</span>
+                </label>
+                <label class="wo-gerk-check-item">
+                  <input type="checkbox" class="reports-status-filter-cb" value="Izdan Račun">
+                  <span class="wo-gerk-check-code">Izdan Račun</span>
+                </label>
+              </div>
+            </div>
+          </div>
+          <select id="reportsOperatorFilter" class="field-input field-select reports-operator-filter">
+            <option value="">Vsi izvajalci</option>
+          </select>
+          <label class="reports-date-field">Od <input type="date" id="reportsDateFrom"></label>
+          <label class="reports-date-field">Do <input type="date" id="reportsDateTo"></label>
+          <!-- Multi-select checklist dropdown (same component as the
+               status filter above), not free-text search — options are
+               rebuilt from distinct customers in the data, see
+               populateReportsCustomerFilter() in app.js. -->
+          <div class="wo-status-filter-wrap">
+            <button type="button" id="reportsCustomerFilterBtn" class="btn btn-secondary btn-sm wo-status-filter-btn reports-customer-filter-btn">Vse stranke</button>
+            <div id="reportsCustomerFilterMenu" class="wo-status-filter-menu reports-customer-filter-menu" hidden>
+              <label class="wo-gerk-check-item reports-customer-select-all">
+                <input type="checkbox" id="reportsCustomerSelectAllCb">
+                <span class="wo-gerk-check-code">Izberi vse</span>
+              </label>
+              <div class="wo-gerk-checklist" id="reportsCustomerFilterList"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bar chart: per day/week/month (toggle, default weekly), measure
+             toggle Čas (stacked Zabeležen/Pot med GERK-i, default) or Ha —
+             reads filteredReportsRows(), re-rendered by renderReportsTable()
+             so it always matches the table below. See renderReportsChart()
+             in app.js. -->
+        <div id="reportsChartWrap" class="reports-chart-wrap"></div>
+
+        <div id="reportsError" class="alert alert-error" hidden role="alert"></div>
+        <div id="reportsListWrap"></div>
+      </section>
+    </div>
+
+  </main>
+
+  <!-- ── FAB with menu ──────────────────────────────────────── -->
+  <div id="fabMenu" class="fab-menu">
+    <button type="button" class="fab-menu-item" data-action="new-work-order">+ Nov delovni nalog</button>
+    <button type="button" class="fab-menu-item" data-action="customer-list">Seznam strank</button>
+    <button type="button" class="fab-menu-item" data-action="operators-list">Izvajalci</button>
+    <button type="button" class="fab-menu-item" data-action="reports">Poročila</button>
+  </div>
+  <button id="addBtn" class="fab" aria-label="Meni">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+      <line x1="14" y1="4" x2="14" y2="24" stroke="white" stroke-width="3" stroke-linecap="round"/>
+      <line x1="4" y1="14" x2="24" y2="14" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <!-- ── Work Order Detail (live time tracking) ──────────────── -->
+  <div id="formModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-sheet modal-sheet-wide">
+      <div class="modal-handle" aria-hidden="true"></div>
+      <div class="modal-head wo-modal-head">
+        <div class="wo-modal-head-top">
+          <!-- Phone only (CSS) — takes over from #modalClose, which stays
+               for desktop. Both call the same closeModal(). -->
+          <button type="button" id="woBackBtn" class="btn btn-icon wo-back-btn" aria-label="Nazaj">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M12 4 L6 10 L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>
+          </button>
+          <h3 id="modalTitle" class="modal-title">Delovni nalog</h3>
+          <button id="modalClose" class="btn btn-icon" aria-label="Zapri">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <!-- Phone only (CSS) — compact "123/Customer/izvaja: Name/date/status"
+             line. Built in buildWoHeaderSummary(), always kept in sync with
+             the real fields below (which stay the source of truth). -->
+        <p id="woHeaderSummary" class="wo-header-summary"></p>
+        <div class="wo-header-fields">
+          <span id="workLogOrderLabel" class="wo-header-stranka"></span>
+          <!-- Admin only, shown instead of workLogOrderLabel when the
+               order has no customer at all yet — see updateOrderHeader()/
+               assignCustomerToWorkOrder() in app.js. -->
+          <button type="button" id="woAssignCustomerBtn" class="btn btn-secondary btn-sm" hidden>+ Dodaj stranko</button>
+          <div id="woAssignCustomerWrap" class="wo-assign-customer-wrap" hidden>
+            <input type="text" id="woAssignCustomerInput" class="field-input" placeholder="Išči stranko..." autocomplete="off">
+            <ul id="woAssignCustomerSuggestions" class="gerk-suggestions" hidden></ul>
+          </div>
+          <!-- Native <input type="date"> doesn't expose a way to control its
+               displayed format from the page (it follows the browser/OS
+               locale, not this page's lang="sl") — the real input stays
+               underneath for its value/picker, its own text hidden, and
+               #workLogDateDisplay overlays the Slovenian-formatted text.
+               Kept in sync by setWorkLogDate()/updateWorkLogDateDisplay()
+               in app.js. -->
+          <!-- Phone only (CSS): #woDateSummary + #woDateEditBtn show
+               instead, revealing the real panel below on tap — see
+               toggleWoDateEdit() in app.js. Desktop is untouched (panel
+               always visible, summary/pencil hidden). -->
+          <span id="woDateSummary" class="wo-date-summary"></span>
+          <button type="button" id="woDateEditBtn" class="btn btn-icon wo-date-edit-btn" aria-label="Uredi datum">✎</button>
+          <span class="date-sl-wrap field-input wo-date-panel" id="woDatePanel">
+            <input class="date-sl-input" type="date" id="workLogDate" />
+            <span class="date-sl-display" id="workLogDateDisplay" aria-hidden="true"></span>
+          </span>
+          <!-- Admin only: assign/change izvajalec directly — same write
+               reassignOperator() in planning.js does from a Planiranje
+               card, just reachable from the main detail view too. Options
+               populated from operatorsList (loadOperatorsList() in app.js),
+               same roster the "+ Nov delovni nalog" form's own select uses. -->
+          <select class="field-input field-select" id="woIzvajalecEdit" hidden></select>
+          <!-- Admin only, shown when this order has a scheduled date
+               (delovni_nalogi_planiranje.plan_date) — see
+               openWorkOrderDetail()/updateOrderHeader() in app.js and the
+               window.openWorkOrderDetailById bridge planning.js calls. -->
+          <label class="wo-plan-date-wrap" id="woPlanDateWrap" hidden>
+            <span class="wo-plan-date-label">Planirano</span>
+            <input class="field-input" type="date" id="woPlanDate" />
+          </label>
+          <!-- Admin only: change status directly — unreachable any other way.
+               Phone: collapsed behind #woStatusEditBtn (see updateOrderHeader()
+               in app.js); desktop: always visible as before, pencil hidden. -->
+          <select class="field-input field-select" id="woStatusEdit" hidden>
+            <option value="Plan">Plan</option>
+            <option value="V delu">V delu</option>
+            <option value="Izvedeno">Izvedeno</option>
+            <option value="Izdan Račun">Izdan Račun</option>
+          </select>
+          <button type="button" id="woStatusEditBtn" class="btn btn-icon wo-status-edit-btn" aria-label="Spremeni status" hidden>✎</button>
+          <span id="woStatusBadge" class="wo-status-badge" hidden></span>
+        </div>
+        <!-- Everything else that used to sit up here (who worked on it,
+             total logged time, archived state) is read-only — no reason
+             to give it its own interactive slot, so it's just one
+             concatenated line — see updateOrderHeader(). -->
+        <p id="woHeaderMeta" class="wo-header-meta"></p>
+      </div>
+
+      <div class="wo-detail-layout">
+        <div class="wo-detail-map-wrap">
+          <div id="woDetailMap" class="wo-detail-map"></div>
+          <!-- Shrinks the GERK list to a compact code+segment reference
+               (see renderCompactGerkList()) and grows the map — for
+               desktop side-by-side viewing where the full form isn't
+               needed, just orientation on the map. -->
+          <button type="button" id="woMapExpandBtn" class="wo-map-expand-btn">⛶ Razširi zemljevid</button>
+          <button type="button" id="woMapLayersBtn" class="wo-map-layers-btn wo-map-layers-btn--detail" aria-pressed="false" title="Prikaži/skrij ceste in imena krajev">🛣 Ceste/imena</button>
+          <!-- Set by highlightGerkOnWoMap() when a GERK row is clicked —
+               just a name label, so it's clear which GERK is highlighted
+               while panning/zooming, not an interactive control. -->
+          <div id="woMapGerkLabel" class="wo-map-gerk-label" hidden></div>
+          <!-- Fades out on its own after a successful "Poberi vzorec" —
+               see showCaptureToast() in app.js. -->
+          <div id="woCaptureToast" class="wo-capture-toast" aria-live="polite"></div>
+          <div id="woCapturePanel" class="wo-capture-panel">
+            <button type="button" id="woCaptureBtn" class="btn btn-primary btn-sm wo-capture-btn">📍 Poberi vzorec</button>
+            <label class="wo-capture-toggle">
+              <input type="checkbox" id="woCaptureShowPoints" checked>
+              Prikaži točke
+            </label>
+            <div id="woCaptureError" class="alert alert-error wo-capture-error" hidden role="alert"></div>
+            <div id="woCaptureList" class="wo-capture-list"></div>
+          </div>
+        </div>
+        <div id="workLogForm" class="work-form wo-detail-content">
+        <!-- Phone only (JS): layoutWoDetailSections() in app.js relocates
+             this field (and #roadComment, see below) to sit above/below
+             the map instead of here — desktop keeps this exact position. -->
+        <div class="field" id="woTravelTimeField">
+          <label class="field-label">Čas na poti</label>
+          <div id="roadTimeList" class="road-time-list"></div>
+          <div class="time-wrap">
+            <select class="field-input field-select" id="roadType">
+              <option value="Traktor">Traktor</option>
+              <option value="Avto">Avto</option>
+            </select>
+            <select class="field-input field-select" id="roadHour"></select>
+            <span class="time-sep">h</span>
+            <select class="field-input field-select time-min" id="roadMin"></select>
+            <span class="time-sep">min</span>
+            <button type="button" id="roadAddBtn" class="btn btn-secondary btn-sm">Dodaj</button>
+          </div>
+          <!-- Phone only (JS): moved out to sit right below the map —
+               see layoutWoDetailSections(). Stays here on desktop. -->
+          <input class="field-input road-comment-input" type="text" id="roadComment" placeholder="Opomba (neobvezno)" autocomplete="off" maxlength="200">
+        </div>
+
+        <!-- GERKs: one row per planned field, Start/Stop logs start/end time -->
+        <div class="field wo-gerk-field">
+          <label class="field-label">GERKI</label>
+          <!-- Admin only: import a KML file — enriches the matching GERK's
+               row if it's already on this order, adds it first if not. -->
+          <div class="wlg-import-zones" id="woImportZonesWrap" hidden>
+            <input type="file" accept=".kml" multiple class="wlg-kml-input" id="woKmlInput" hidden>
+            <button type="button" class="btn btn-secondary btn-sm" id="woImportZonesPickBtn">Uvozi cone (KML)</button>
+            <div class="wlg-import-zones-form" id="woImportZonesForm" hidden>
+              <div class="wlg-import-zones-files" id="woImportZonesFiles"></div>
+              <datalist id="woImportZonesGerkList"></datalist>
+              <select class="sample-field-input" id="woImportZonesType">
+                <option value="vzorčenje">Vzorčenje</option>
+                <option value="gnojenje">Gnojenje</option>
+                <option value="setev">Setev</option>
+              </select>
+              <!-- Globina only makes sense for Vzorčenje — shown/hidden to
+                   match the Tip segmentacije selection above. One value
+                   here applies to every segment this import creates. -->
+              <select class="sample-field-input" id="woImportZonesGlobina">
+                <option value="">Globina…</option>
+                <option value="12">12 cm</option>
+                <option value="20">20 cm</option>
+                <option value="25">25 cm</option>
+                <option value="30">30 cm</option>
+                <option value="60">60 cm</option>
+                <option value="90">90 cm</option>
+              </select>
+              <input type="date" class="sample-field-input" id="woImportZonesDate">
+              <button type="button" class="btn btn-secondary btn-sm" id="woImportZonesConfirmBtn">Uvozi</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="woImportZonesCancelBtn">Prekliči</button>
+            </div>
+            <div class="alert alert-error" id="woImportZonesError" hidden role="alert"></div>
+          </div>
+          <div id="workLogGerkRows" class="wlg-table"></div>
+          <!-- Phone only (CSS): pages through .wlg-row elements one at a
+               time instead of scrolling the whole list — see
+               updateGerkPaging() in app.js. Inert (hidden) on desktop and
+               whenever the map is expanded (compact list below takes over). -->
+          <div id="woGerkPager" class="wo-gerk-pager" hidden>
+            <button type="button" id="woGerkPagerPrev" class="btn btn-icon" aria-label="Prejšnji GERK">↑</button>
+            <span id="woGerkPagerLabel" class="wo-gerk-pager-label"></span>
+            <button type="button" id="woGerkPagerNext" class="btn btn-icon" aria-label="Naslednji GERK">↓</button>
+          </div>
+          <!-- Shown instead of the above while the map is expanded (see
+               woMapExpandBtn) — code + segment numbers only, click to
+               highlight on the map, no edit controls. -->
+          <div id="wlgCompactList" class="wlg-compact-list" hidden></div>
+          <!-- Admin only: add a GERK to an already-created order — the create
+               form's own +/− only works before the first save. -->
+          <div class="field" id="woAddExistingGerkWrap" hidden>
+            <label class="field-label" for="woAddExistingGerkPaste">Ali prilepite GERK šifre (vejica, ali direktno iz Excela — vrstica/stolpec, ali lab. listo GERK/Ha/FMS/Št. segmenta)</label>
+            <textarea class="field-input field-textarea" id="woAddExistingGerkPaste" rows="3" placeholder="npr. 830635, 1367184, 1319486&#10;ali prilepite stolpec/vrstice iz Excela"></textarea>
+            <button type="button" class="btn btn-secondary btn-sm" id="woAddExistingGerkBtn">+ Dodaj GERK-e</button>
+          </div>
+          <!-- Admin only: export selected GERKs' sampling zones to a
+               NextFarm-compatible shapefile (zone geometry + sample
+               numbers; lab-analysis columns ship blank, filled in later
+               by NextFarm/the lab once results come back). -->
+          <div class="gerk-wrap" id="woExportSamplingWrap" hidden>
+            <button type="button" class="btn btn-secondary btn-sm" id="woExportSamplingBtn">📦 Izvoz vzorčenja</button>
+          </div>
+        </div>
+
+        <!-- Tractor — temporarily hidden per request 2026-08-22, JS wiring
+             left intact so this is a one-line revert (drop the hidden). -->
+        <div class="field" hidden>
+          <label class="field-label" for="tractor">Traktor</label>
+          <input class="field-input" type="text" id="tractor" placeholder="npr. Fendt 724" autocomplete="off" list="tractorList" />
+          <datalist id="tractorList"></datalist>
+        </div>
+
+        <!-- Notes — temporarily hidden per request 2026-08-22, same as above. -->
+        <div class="field" hidden>
+          <label class="field-label" for="description">Opombe</label>
+          <textarea
+            class="field-input field-textarea"
+            id="description"
+            rows="2"
+            placeholder="Kratek opis..."
+          ></textarea>
+        </div>
+
+        <div id="formError"   class="alert alert-error"   hidden role="alert"></div>
+        <div id="formSuccess" class="alert alert-success" hidden role="status"></div>
+
+        <div class="form-actions">
+          <button type="button" id="cancelBtn" class="btn btn-secondary btn-flex">Zaključi delo</button>
+          <!-- Admin only: "Izbriši" archives the order (deleted_at) — no
+               guard, always reversible via "Obnovi" in the "Izbrisani"
+               list. No separate hard-delete anymore, same action either
+               way regardless of logged time. -->
+          <button type="button" id="woRestoreBtn" class="btn btn-secondary btn-sm" hidden>Obnovi</button>
+          <button type="button" id="woDeleteBtn" class="btn btn-danger btn-sm" hidden>Izbriši nalog</button>
+        </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin only: floating bulk-action toolbar for the GERK list above,
+       content built by buildSelectionBar() in app.js. A sibling of
+       #formModal (not nested inside it) on purpose — the modal sheet
+       has overflow:hidden and a slide-in transform, either of which
+       can trap a position:fixed descendant into that ancestor's own
+       box instead of the real viewport, which is what made the map
+       paint on top of it before. -->
+  <div id="wlgSelectionBar" class="wlg-selection-bar"></div>
+
+  <!-- Admin view only: floating bulk-action toolbar for the main work
+       orders list, content built by buildWoSelectionBar() in app.js.
+       Reuses the same .wlg-selection-bar styling as the GERK one above. -->
+  <div id="woSelectionBar" class="wlg-selection-bar"></div>
+
+  <!-- ── Delete Confirm ──────────────────────────────────────── -->
+  <!-- ── Work Order Add / Edit Modal ─────────────────────────── -->
+  <div id="workOrderModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="woModalTitle">
+    <div class="modal-sheet">
+      <div class="modal-handle" aria-hidden="true"></div>
+      <div class="modal-head">
+        <h3 id="woModalTitle" class="modal-title">Nov delovni nalog</h3>
+        <button id="woModalClose" class="btn btn-icon" aria-label="Zapri">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <form id="workOrderForm" class="work-form" novalidate>
+        <input type="hidden" id="woStrankaId" />
+
+        <p id="woStevilkaLabel" class="wo-order-label"></p>
+
+        <div class="field">
+          <label class="field-label" for="woStranka">Stranka</label>
+          <div class="gerk-wrap">
+            <input class="field-input" type="text" id="woStranka" placeholder="Išči stranko..." autocomplete="off" />
+            <ul id="woStrankaSuggestions" class="gerk-suggestions" hidden></ul>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="woIzvajalec">Izvajalec</label>
+          <select class="field-input field-select" id="woIzvajalec">
+            <option value="">— brez —</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="woTip">Tip storitve</label>
+          <select class="field-input field-select" id="woTip">
+            <option value="">— izberi —</option>
+            <option>Vzorčenje</option>
+            <option>Gnojenje</option>
+            <option>Setev</option>
+            <option>Škropljenje</option>
+            <option>Žetev</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field-label">GERKI <span class="required">*</span></label>
+
+          <!-- Import a KML before the order even exists — the zones
+               (gerk_segmentation/gerk_segment) attach to the GERK's own
+               code, not to this work order, so they can be imported right
+               away; the GERK itself is just added to the list below like
+               any pasted/typed one, and saved with the rest on submit. -->
+          <div class="wlg-import-zones" id="woNewImportZonesWrap">
+            <input type="file" accept=".kml" multiple class="wlg-kml-input" id="woNewKmlInput" hidden>
+            <button type="button" class="btn btn-secondary btn-sm" id="woNewImportZonesPickBtn">Uvozi cone (KML)</button>
+            <div class="wlg-import-zones-form" id="woNewImportZonesForm" hidden>
+              <div class="wlg-import-zones-files" id="woNewImportZonesFiles"></div>
+              <datalist id="woNewImportZonesGerkList"></datalist>
+              <select class="sample-field-input" id="woNewImportZonesType">
+                <option value="vzorčenje">Vzorčenje</option>
+                <option value="gnojenje">Gnojenje</option>
+                <option value="setev">Setev</option>
+              </select>
+              <select class="sample-field-input" id="woNewImportZonesGlobina">
+                <option value="">Globina…</option>
+                <option value="12">12 cm</option>
+                <option value="20">20 cm</option>
+                <option value="25">25 cm</option>
+                <option value="30">30 cm</option>
+                <option value="60">60 cm</option>
+                <option value="90">90 cm</option>
+              </select>
+              <input type="date" class="sample-field-input" id="woNewImportZonesDate">
+              <button type="button" class="btn btn-secondary btn-sm" id="woNewImportZonesConfirmBtn">Uvozi</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="woNewImportZonesCancelBtn">Prekliči</button>
+            </div>
+            <div class="alert alert-error" id="woNewImportZonesError" hidden role="alert"></div>
+          </div>
+
+          <!-- Populated once a customer is selected — check the ones this
+               order covers instead of typing/searching each one. -->
+          <div id="woCustomerGerksWrap" hidden>
+            <p class="field-hint">GERKI stranke — obkljukajte, kar sodi v ta nalog:</p>
+            <div id="woCustomerGerksList" class="wo-gerk-checklist"></div>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="woGerkPaste">Ali prilepite GERK šifre (vejica, ali direktno iz Excela — vrstica/stolpec)</label>
+            <textarea class="field-input field-textarea" id="woGerkPaste" rows="4" placeholder="npr. 830635, 1367184, 1319486&#10;ali prilepite stolpec/vrstice iz Excela"></textarea>
+            <button type="button" class="btn btn-secondary btn-sm" id="woGerkPasteBtn">Dodaj iz seznama</button>
+          </div>
+
+          <div id="woGerksList"></div>
+          <button type="button" id="woAddGerkBtn" class="btn-add-gerk">+ Dodaj GERK ročno</button>
+
+          <!-- Applied to every segment above once the order is saved —
+               not per-segment like Vzorčenje, since depth is normally
+               the same across a whole sampling run. -->
+          <div class="wo-bulk-segment-row">
+            <label class="field-label" for="woBulkDepth">Globina (za vse segmente)</label>
+            <select class="field-input field-select" id="woBulkDepth">
+              <option value="">Globina…</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="woStatus">Status</label>
+          <select class="field-input field-select" id="woStatus">
+            <option value="Plan">Plan</option>
+            <option value="V delu">V delu</option>
+            <option value="Izvedeno">Izvedeno</option>
+            <option value="Izdan Račun">Izdan Račun</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="woPodrobnosti">Podrobnosti</label>
+          <textarea
+            class="field-input field-textarea"
+            id="woPodrobnosti"
+            rows="2"
+            placeholder="npr. Sampling depth: 25 cm"
+          ></textarea>
+        </div>
+
+        <div id="woFormError"   class="alert alert-error"   hidden role="alert"></div>
+        <div id="woFormSuccess" class="alert alert-success" hidden role="status"></div>
+
+        <div class="form-actions">
+          <button type="button" id="woCancelBtn" class="btn btn-secondary btn-flex">Prekliči</button>
+          <button type="submit" id="woSaveBtn"   class="btn btn-primary   btn-flex">
+            <span class="btn-label">Shrani</span>
+            <span class="btn-spinner" hidden aria-hidden="true"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Seznam strank / Deklaracije (admin only) ────────────── -->
+  <div id="declModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="declModalTitle">
+    <div class="modal-sheet">
+      <div class="modal-handle" aria-hidden="true"></div>
+      <div class="modal-head">
+        <h3 id="declModalTitle" class="modal-title">Seznam strank</h3>
+        <button id="declModalClose" class="btn btn-icon" aria-label="Zapri">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- List view -->
+      <div id="declListView">
+        <div class="decl-list-toolbar">
+          <input class="field-input" type="text" id="declListSearch" placeholder="Išči stranko..." autocomplete="off" />
+          <!-- Switches the list to archived (soft-deleted) customers —
+               see declShowDeletedActive in app.js, mirrors woShowDeletedBtn. -->
+          <button type="button" id="declShowDeletedBtn" class="btn btn-secondary btn-sm wo-show-deleted-btn">🗑 Izbrisane</button>
+          <button type="button" id="declAddCustomerBtn" class="btn btn-secondary btn-sm">+ Nova stranka</button>
+        </div>
+        <div id="declCustomerList" class="logs-list logs-list--compact"></div>
+      </div>
+
+      <!-- Detail view (one customer) -->
+      <div id="declDetailView" hidden>
+        <button type="button" id="declBackBtn" class="btn btn-secondary btn-sm">← Nazaj na seznam</button>
+
+        <div id="declCustomerInfo" class="decl-customer-info"></div>
+        <!-- "Izbriši" = archive (deleted_at), cascades to the customer's
+             fields/work orders too, reversible via "Obnovi" — see
+             soft_delete_customer/restore_customer RPCs. -->
+        <button type="button" id="declDeleteCustomerBtn" class="btn btn-secondary btn-block">🗑 Izbriši stranko</button>
+        <button type="button" id="declRestoreCustomerBtn" class="btn btn-secondary btn-block" hidden>↺ Obnovi stranko</button>
+
+        <button type="button" id="declGenerateBtn" class="btn btn-secondary btn-block">Ustvari povezavo</button>
+        <div id="declLinkResult" hidden></div>
+
+        <div class="section-header">
+          <h3 class="section-title">Ustvarjene povezave</h3>
+        </div>
+        <div id="declLinksList"></div>
+
+        <div class="section-header">
+          <h3 class="section-title">Prijavljeni podatki</h3>
+        </div>
+        <div id="declTableWrap"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── Izvajalci (admin: who's eligible to be assigned as izvajalec) ── -->
+  <div id="operatorsModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="operatorsModalTitle">
+    <div class="modal-sheet">
+      <div class="modal-handle" aria-hidden="true"></div>
+      <div class="modal-head">
+        <h3 id="operatorsModalTitle" class="modal-title">Izvajalci</h3>
+        <button id="operatorsModalClose" class="btn btn-icon" aria-label="Zapri">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="work-form">
+        <p class="field-hint">Samo obkljukani so na voljo za izbiro pri "Izvajalec" na delovnem nalogu.</p>
+        <div id="operatorsError" class="alert alert-error" hidden role="alert"></div>
+        <div id="operatorsSuccess" class="alert alert-success" hidden role="status"></div>
+        <div id="operatorsList" class="wo-gerk-checklist"></div>
+
+        <!-- Admin only -->
+        <div id="operatorsAddWrap" class="operators-add-wrap" hidden>
+          <button type="button" class="btn btn-secondary btn-sm" id="operatorsAddToggleBtn">+ Dodaj uporabnika</button>
+          <div id="operatorsAddForm" class="operators-add-form" hidden>
+            <input class="field-input" type="text" id="newOperatorName" placeholder="Ime in priimek" autocomplete="off">
+            <input class="field-input" type="email" id="newOperatorEmail" placeholder="E-pošta" autocomplete="off">
+            <!-- type="text", not "password" on purpose — the admin is
+                 setting someone else's password and needs to read it
+                 back to send it on, not hide their own input. -->
+            <input class="field-input" type="text" id="newOperatorPassword" placeholder="Geslo" autocomplete="off">
+            <select class="field-input" id="newOperatorRole">
+              <option value="operator">Operater</option>
+              <option value="supervisor">Vodja organizacije</option>
+              <option value="admin">Administrator</option>
+            </select>
+            <input class="field-input" type="text" id="newOperatorOrg" placeholder="Organizacija (neobvezno)" autocomplete="off">
+            <div class="operators-add-actions">
+              <button type="button" class="btn btn-primary btn-sm" id="operatorsAddConfirmBtn">Ustvari</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="operatorsAddCancelBtn">Prekliči</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Nova stranka (admin: quick-add when a customer doesn't exist yet) ── -->
+  <div id="addCustomerModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="addCustomerModalTitle">
+    <div class="modal-sheet modal-sheet-compact">
+      <div class="modal-handle" aria-hidden="true"></div>
+      <div class="modal-head">
+        <h3 id="addCustomerModalTitle" class="modal-title">Nova stranka</h3>
+        <button id="addCustomerModalClose" class="btn btn-icon" aria-label="Zapri">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <form id="addCustomerForm" class="work-form" novalidate>
+        <div class="field">
+          <label class="field-label" for="newCustomerNaziv">Naziv <span class="required">*</span></label>
+          <input class="field-input" type="text" id="newCustomerNaziv" autocomplete="off" required />
+        </div>
+        <div class="field">
+          <label class="field-label" for="newCustomerKraj">Kraj</label>
+          <input class="field-input" type="text" id="newCustomerKraj" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label class="field-label" for="newCustomerCountry">Država</label>
+          <select class="field-input field-select" id="newCustomerCountry">
+            <option value="Slovenija" selected>Slovenija</option>
+            <option value="Hrvaška">Hrvaška</option>
+            <option value="Bosna in Hercegovina">Bosna in Hercegovina</option>
+            <option value="Avstrija">Avstrija</option>
+          </select>
+        </div>
+        <div id="addCustomerError" class="alert alert-error" hidden role="alert"></div>
+        <div class="form-actions">
+          <button type="button" id="addCustomerCancelBtn" class="btn btn-secondary btn-flex">Prekliči</button>
+          <button type="submit" id="addCustomerSaveBtn" class="btn btn-primary btn-flex">
+            <span class="btn-label">Dodaj</span>
+            <span class="btn-spinner" hidden aria-hidden="true"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Export sampling zones (NextFarm shapefile) — admin only ───── -->
+  <div id="exportSamplingModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="exportSamplingModalTitle">
+    <div class="modal-sheet modal-sheet-compact">
+      <div class="modal-handle" aria-hidden="true"></div>
+      <div class="modal-head">
+        <h3 id="exportSamplingModalTitle" class="modal-title">Izvoz vzorčenja</h3>
+        <button id="exportSamplingModalClose" class="btn btn-icon" aria-label="Zapri">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="work-form">
+        <p class="field-hint">Izberite GERK-e, katerih cone vzorčenja želite izvoziti v shapefile za NextFarm. Prikazani so samo GERK-i z uvoženimi conami.</p>
+        <label class="wo-gerk-check-item">
+          <input type="checkbox" id="exportSamplingSelectAllCb">
+          <span class="wo-gerk-check-code">Izberi vse</span>
+        </label>
+        <div id="exportSamplingList" class="wo-gerk-checklist"></div>
+        <p class="field-hint" id="exportSamplingNote" hidden></p>
+        <div id="exportSamplingError" class="alert alert-error" hidden role="alert"></div>
+        <div class="form-actions">
+          <button type="button" id="exportSamplingCancelBtn" class="btn btn-secondary btn-flex">Prekliči</button>
+          <button type="button" id="exportSamplingConfirmBtn" class="btn btn-primary btn-flex">
+            <span class="btn-label">Izvozi</span>
+            <span class="btn-spinner" hidden aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Map (Leaflet — embedded preview, "Odpri v Google Maps" still
+       there for actual turn-by-turn navigation) ─────────────────── -->
+  <div id="mapModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="mapModalTitle">
+    <div class="modal-sheet modal-sheet-compact">
+      <div class="modal-handle" aria-hidden="true"></div>
+      <div class="modal-head">
+        <h3 id="mapModalTitle" class="modal-title">Lokacija</h3>
+        <button id="mapModalClose" class="btn btn-icon" aria-label="Zapri">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div id="mapContainer" class="map-container"></div>
+      <div class="form-actions" style="padding: 12px 20px 20px;">
+        <a id="mapOpenExternalLink" class="btn btn-secondary btn-flex" href="#" target="_blank" rel="noopener">Odpri v Google Maps</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script type="module" src="app.js"></script>
+  <script type="module" src="planning.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').then(reg => reg.update());
+    }
+  </script>
+
+</body>
+</html>

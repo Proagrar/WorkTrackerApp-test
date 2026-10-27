@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#1C4592"/>
+  <!-- Tractor body -->
+  <rect x="60" y="90" width="72" height="40" rx="6" fill="#FFFFFF"/>
+  <!-- Cab -->
+  <rect x="90" y="68" width="38" height="28" rx="5" fill="#FFFFFF" opacity="0.9"/>
+  <!-- Large rear wheel -->
+  <circle cx="76" cy="138" r="22" fill="none" stroke="#FFFFFF" stroke-width="6"/>
+  <circle cx="76" cy="138" r="8" fill="#FFFFFF"/>
+  <!-- Small front wheel -->
+  <circle cx="118" cy="138" r="13" fill="none" stroke="#FFFFFF" stroke-width="5"/>
+  <circle cx="118" cy="138" r="5" fill="#FFFFFF"/>
+  <!-- Exhaust pipe -->
+  <rect x="94" y="52" width="6" height="18" rx="3" fill="#FFFFFF" opacity="0.8"/>
+</svg>
