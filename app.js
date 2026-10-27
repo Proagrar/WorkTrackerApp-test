@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v3.125';
+const APP_VERSION = 'v3.126';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -1534,6 +1534,8 @@ let currentRoadTimeEntries = [];
 let currentAllGerkEntries  = []; // every operator's work_log_gerks for this work order — powers the "who else worked on this" view
 let currentCapturedPoints  = []; // gerk_captured_point rows for this work order — the right-side map capture panel
 let currentGerkSegments    = []; // get_work_order_gerk_segments rows — one per imported zone, powers the per-GERK badge + map layer
+let woMapSegmentLabelLayers = new Map(); // segment_id -> its permanent map label tooltip layer, so renaming a segment (updateSampleNo) can patch it live
+let woMapSegmentPointLayers = new Map(); // segment_id -> [{ layer, pointNo }] captured-point markers, same reason
 let selectedGerkCodes      = new Set(); // admin-only multi-select on the GERK list, powers the contextual selection bar
 let currentDetailPlanId    = null; // delovni_nalogi_planiranje.id backing the "Planirano" field, if any — see loadPlanDateForDetail()
 let currentDetailPlanDate  = null;
@@ -1748,6 +1750,8 @@ async function showWoDetailMap(workOrder) {
   woMapCapturedLayer.clearLayers();
   currentCapturedPoints = [];
   currentGerkSegments = [];
+  woMapSegmentLabelLayers = new Map();
+  woMapSegmentPointLayers = new Map();
   woCaptureList.innerHTML = '';
   woCaptureError.hidden = true;
   woCaptureShowPoints.checked = true;
@@ -1872,10 +1876,11 @@ async function showWoDetailMap(workOrder) {
     // polygon, or inside a tightly-packed neighboring one.
     if (row.label_point) {
       const [lpLng, lpLat] = row.label_point.coordinates;
-      L.tooltip({ permanent: true, direction: 'center', className: 'wo-map-segment-label' })
+      const labelLayer = L.tooltip({ permanent: true, direction: 'center', className: 'wo-map-segment-label' })
         .setLatLng([lpLat, lpLng])
         .setContent(row.segment_label || '')
         .addTo(woMapSegmentLayer);
+      if (row.segment_id) woMapSegmentLabelLayers.set(row.segment_id, labelLayer);
     }
     layer.on('mouseover', () => highlightGerkRow(row.gerk_code, true));
     layer.on('mouseout',  () => highlightGerkRow(row.gerk_code, false));
@@ -1890,9 +1895,13 @@ async function showWoDetailMap(workOrder) {
     woMapLayersByCode.set(row.gerk_code, entry);
     for (const p of (row.points || [])) {
       const [lng, lat] = p.geojson.coordinates;
-      L.circleMarker([lat, lng], { radius: 5, color: '#D97706', weight: 2, fillColor: '#fff', fillOpacity: 1 })
+      const ptLayer = L.circleMarker([lat, lng], { radius: 5, color: '#D97706', weight: 2, fillColor: '#fff', fillOpacity: 1 })
         .bindTooltip(`${row.segment_label || ''} · ${p.point_no ?? ''}`.trim())
         .addTo(woMapSegmentLayer);
+      if (row.segment_id) {
+        if (!woMapSegmentPointLayers.has(row.segment_id)) woMapSegmentPointLayers.set(row.segment_id, []);
+        woMapSegmentPointLayers.get(row.segment_id).push({ layer: ptLayer, pointNo: p.point_no });
+      }
     }
   }
 
@@ -3299,12 +3308,33 @@ async function updateSampleNo(inputEl) {
     .find(g => (g.delovni_nalogi_vzorci || []).some(s => s.id === sampleId));
   const sample = gerk?.delovni_nalogi_vzorci.find(s => s.id === sampleId);
   if (sample && sample.sample_no === value) return;
+  const oldValue = sample?.sample_no;
 
   inputEl.disabled = true;
   try {
     const { error } = await supabase.from('delovni_nalogi_vzorci').update({ sample_no: value }).eq('id', sampleId);
     if (error) throw error;
     if (sample) sample.sample_no = value;
+
+    // The map's segment label comes from a separate table (gerk_segment.label,
+    // set once at KML import time, matched here only by string equality — no
+    // FK between the two) — without this it would silently drift from the
+    // renamed sample_no and keep showing the old number.
+    const seg = gerk && currentGerkSegments.find(s => s.gerk_code === gerk.gerk_code && s.segment_label === oldValue);
+    if (seg) {
+      // gerk_segment has no client-writable RLS policy — goes through a
+      // SECURITY DEFINER RPC, same as the other writes to this table.
+      const { error: segError } = await supabase.rpc('rename_gerk_segment', { p_segment_id: seg.segment_id, p_label: value });
+      if (!segError) {
+        seg.segment_label = value;
+        woMapSegmentLabelLayers.get(seg.segment_id)?.setContent(value);
+        (woMapSegmentPointLayers.get(seg.segment_id) || []).forEach(({ layer, pointNo }) => {
+          layer.setTooltipContent(`${value} · ${pointNo ?? ''}`.trim());
+        });
+      } else {
+        console.warn('gerk_segment label sync failed', segError);
+      }
+    }
   } catch (e) {
     // 23505 = unique_violation on (delovni_nalog_gerk_id, sample_no) — same
     // constraint as addSample, hit here if renamed to a number already in use.
