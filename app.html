@@ -54,6 +54,8 @@
       <button id="tabEvidenca" class="tab-btn" data-tab="evidenca">Evidenca dela</button>
       <!-- Admin-only, like the FAB — see updateFabVisibility() in app.js. -->
       <button id="tabPlaniranje" class="tab-btn" data-tab="planiranje" hidden>Planiranje</button>
+      <!-- Admin-only too — same gate as Planiranje (updateFabVisibility()). -->
+      <button id="tabGnojilni" class="tab-btn" data-tab="gnojilni" hidden>Gnojilni načrt</button>
     </nav>
 
     <!-- ── Tab: Evidenca dela (original view) ────────────────── -->
@@ -206,6 +208,85 @@
           </div>
           <div id="calendarGrid" class="calendar-grid" role="grid"></div>
         </section>
+      </section>
+    </div>
+
+    <!-- ── Tab: Gnojilni načrt (admin-only) — fertilizer plans per field,
+         soil lab results (+ Excel import) and the calculation settings.
+         All behavior lives in fertilization.js; app.js's switchTab() only
+         shows/hides #panelGnojilni, same split as Planiranje/planning.js.
+         Data: fert_* and lab_* tables (supabase/schema/migration_fert_*.sql,
+         migration_lab_soil_results.sql). -->
+    <div id="panelGnojilni" class="tab-panel" hidden>
+      <section class="logs-section wo-section">
+        <div class="section-header fert-head">
+          <div class="fert-subnav" role="tablist" aria-label="Gnojilni načrt">
+            <button type="button" class="fert-subnav-btn fert-subnav-btn--active" role="tab" aria-selected="true" data-fert-view="plans">Načrti</button>
+            <button type="button" class="fert-subnav-btn" role="tab" aria-selected="false" data-fert-view="lab">Analize tal</button>
+            <button type="button" class="fert-subnav-btn" role="tab" aria-selected="false" data-fert-view="settings">Nastavitve</button>
+          </div>
+          <div class="fert-head-actions">
+            <button type="button" id="fertImportOpenBtn" class="btn btn-primary btn-sm" hidden>⬆ Uvoz Excel</button>
+          </div>
+        </div>
+
+        <!-- Načrti — built in the next step (needs migration_fert_plans.sql). -->
+        <div id="fertViewPlans" class="fert-view">
+          <div class="fert-notice fert-notice--info">Načrti za polja bodo dodani v naslednjem koraku. Najprej uvozi laboratorijske rezultate v zavihku <strong>Analize tal</strong>.</div>
+        </div>
+
+        <!-- Analize tal — lab_soil_result list -->
+        <div id="fertViewLab" class="fert-view" hidden>
+          <div class="fert-toolbar">
+            <label class="fert-field">
+              <span class="field-label">Iskanje</span>
+              <input type="search" id="fertLabSearch" class="field-input fert-input" placeholder="Št. vzorca, stranka, GERK">
+            </label>
+            <label class="fert-check">
+              <input type="checkbox" id="fertLabOnlyUnmatched"> Samo nepovezani
+            </label>
+          </div>
+          <div id="fertLabNotice"></div>
+          <div class="reports-table-wrap">
+            <table class="evidenca-table fert-table">
+              <thead>
+                <tr>
+                  <th>Vzorec</th><th>Stranka</th><th>GERK</th><th>Nalog</th>
+                  <th class="fert-num">pH (KCl)</th><th class="fert-num">P₂O₅</th><th class="fert-num">K₂O</th>
+                  <th class="fert-num">Humus %</th><th class="fert-num">Mg</th>
+                  <th>Lab. koda</th><th>Datum analize</th><th>Datoteka</th><th>Stanje</th>
+                </tr>
+              </thead>
+              <tbody id="fertLabRows"></tbody>
+            </table>
+          </div>
+          <p class="fert-hint">Vrednosti, kot je „&lt;25“, se v izračunu uporabijo kot 25 — originalno besedilo laboratorija ostane shranjeno.</p>
+        </div>
+
+        <!-- Uvoz — pick files/folder → preview → confirm -->
+        <div id="fertViewImport" class="fert-view" hidden>
+          <button type="button" id="fertImportBackBtn" class="btn btn-secondary btn-sm">← Analize tal</button>
+          <h2 class="section-title fert-title">Uvoz laboratorijskih rezultatov</h2>
+          <label class="fert-field">
+            <span class="field-label">Ime datoteke vsebuje</span>
+            <input type="text" id="fertImportNameFilter" class="field-input fert-input" placeholder="npr. proagrar 2026">
+          </label>
+          <div class="fert-dropzone" id="fertDropzone">
+            <span class="fert-dropzone-title">Povleci Excel datoteke sem</span>
+            <span class="fert-hint">.xlsx izvozi iz laboratorija · več datotek hkrati · že uvožene datoteke se preskočijo</span>
+            <div class="fert-dropzone-actions">
+              <label class="btn btn-secondary btn-sm">Izberi datoteke<input type="file" id="fertImportFiles" accept=".xlsx,.xls" multiple hidden></label>
+              <label class="btn btn-secondary btn-sm">Izberi mapo<input type="file" id="fertImportFolder" webkitdirectory multiple hidden></label>
+            </div>
+          </div>
+          <div id="fertImportPreview"></div>
+        </div>
+
+        <!-- Nastavitve — read-only for now (editing comes later) -->
+        <div id="fertViewSettings" class="fert-view" hidden>
+          <div class="fert-notice fert-notice--info">Samo za ogled — urejanje nastavitev bo dodano kasneje. Shranjeni načrti obdržijo nastavitve, s katerimi so bili izračunani.</div>
+          <div id="fertSettingsBody" class="fert-settings-grid"></div>
+        </div>
       </section>
     </div>
 
@@ -865,6 +946,7 @@
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script type="module" src="app.js"></script>
   <script type="module" src="planning.js"></script>
+  <script type="module" src="fertilization.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').then(reg => reg.update());

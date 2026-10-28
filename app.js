@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v3.127';
+const APP_VERSION = 'v3.2';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -24,7 +24,7 @@ let logs         = [];
 let fields       = [];
 let currentMonth = new Date().toISOString().slice(0, 7);
 
-let currentTab       = 'nalogi'; // 'evidenca' | 'nalogi' | 'planiranje' | 'reports'
+let currentTab       = 'nalogi'; // 'evidenca' | 'nalogi' | 'planiranje' | 'gnojilni' | 'reports'
 let preReportsTab    = 'nalogi'; // which real tab to return to from Poročila — see openReportsView()
 let reportsData         = []; // raw rows from get_work_orders_report(), refetched every time the view opens
 let reportsStatusValues = new Set();
@@ -138,9 +138,11 @@ const tabBarEl        = document.querySelector('.tab-bar');
 const tabEvidenca     = document.getElementById('tabEvidenca');
 const tabNalogi       = document.getElementById('tabNalogi');
 const tabPlaniranje   = document.getElementById('tabPlaniranje');
+const tabGnojilni     = document.getElementById('tabGnojilni');
 const panelEvidenca   = document.getElementById('panelEvidenca');
 const panelNalogi     = document.getElementById('panelNalogi');
 const panelPlaniranje = document.getElementById('panelPlaniranje');
+const panelGnojilni   = document.getElementById('panelGnojilni');
 const workOrdersList = document.getElementById('workOrdersList');
 const woHaChipTotal = document.getElementById('woHaChipTotal');
 const woHaChipIzvedeno = document.getElementById('woHaChipIzvedeno');
@@ -5124,12 +5126,14 @@ function switchTab(tab) {
   tabEvidenca.classList.toggle('tab-btn--active', tab === 'evidenca');
   tabNalogi.classList.toggle('tab-btn--active', tab === 'nalogi');
   tabPlaniranje.classList.toggle('tab-btn--active', tab === 'planiranje');
+  tabGnojilni.classList.toggle('tab-btn--active', tab === 'gnojilni');
   // Poročila has no tab-bar button of its own (opened from the + menu) —
   // hide the whole bar rather than leave it showing with nothing active.
   tabBarEl.hidden         = tab === 'reports';
   panelEvidenca.hidden   = tab !== 'evidenca';
   panelNalogi.hidden     = tab !== 'nalogi';
   panelPlaniranje.hidden = tab !== 'planiranje';
+  panelGnojilni.hidden   = tab !== 'gnojilni';
   panelReports.hidden    = tab !== 'reports';
   updateFabVisibility();
   if (tab === 'nalogi' && !workOrdersLoaded) loadWorkOrders();
@@ -5155,6 +5159,7 @@ function closeReportsView() {
 function updateFabVisibility() {
   addBtn.hidden = !isAdminView();
   tabPlaniranje.hidden = !isAdminView();
+  tabGnojilni.hidden = !isAdminView();
 }
 
 // Renders the header's Admin/Regular view switch (admin-only) and
@@ -5176,7 +5181,7 @@ adminViewToggle.addEventListener('change', () => {
   adminViewActive = adminViewToggle.checked;
   localStorage.setItem('adminViewActive', adminViewActive ? '1' : '0');
   if (!isAdminView()) { woShowDeletedActive = false; clearWoSelection(); } // never leave the archived list or a bulk selection showing once out of Admin view
-  if (!isAdminView() && currentTab === 'planiranje') switchTab('nalogi'); // its tab button is about to hide — don't strand them on it
+  if (!isAdminView() && (currentTab === 'planiranje' || currentTab === 'gnojilni')) switchTab('nalogi'); // its tab button is about to hide — don't strand them on it
   renderAdminViewToggle();
   updateFabVisibility();
   updateShowDeletedButton();
@@ -5188,6 +5193,7 @@ adminViewToggle.addEventListener('change', () => {
 tabEvidenca.addEventListener('click',   () => switchTab('evidenca'));
 tabNalogi.addEventListener('click',     () => switchTab('nalogi'));
 tabPlaniranje.addEventListener('click', () => switchTab('planiranje'));
+tabGnojilni.addEventListener('click',   () => switchTab('gnojilni'));
 
 // ── Work orders: load + render ───────────────────────────────────
 function slugStatus(status) {
