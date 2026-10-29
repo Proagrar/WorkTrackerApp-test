@@ -130,8 +130,8 @@ const LAB_COLUMNS = [
   { key: 'file',     label: 'Datoteka',      value: r => r.lab_import_file?.file_name },
   { key: 'state',    label: 'Stanje',        value: r => ({ linked: 'a', multiple: 'b', unmatched: 'c' })[labMatchState(r)] },
 ];
-let labSortKey = null; // null = load order (newest import first)
-let labSortDir = 'asc';
+let labSortKey = 'sample'; // default: Vzorec, newest (highest) sample number first (Matej, 2026-10-29)
+let labSortDir = 'desc';
 const textCollator = new Intl.Collator('sl', { numeric: true, sensitivity: 'base' });
 
 function sortLabRows(rows) {
