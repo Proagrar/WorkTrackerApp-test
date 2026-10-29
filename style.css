@@ -2587,6 +2587,13 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
      need the whole screen; the other tabs keep the 1100px column
      (Matej, 2026-10-30). */
   .app-main:has(#panelGnojilni:not([hidden])) { max-width: none; }
+  /* …but the tab buttons stay exactly where the 1100px column puts them on
+     every other tab (Matej, 2026-10-30). The bar itself stays full width so
+     its sticky background still covers content scrolling under it. */
+  .app-main:has(#panelGnojilni:not([hidden])) .tab-bar {
+    padding-left: max(16px, calc((100% - 1100px) / 2 + 16px));
+    padding-right: max(16px, calc((100% - 1100px) / 2 + 16px));
+  }
 
   .tab-bar { justify-content: flex-start; }
   .tab-btn { flex: 0 0 auto; min-width: 180px; }
@@ -3432,3 +3439,12 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 /* 69 crops: own scroll area with a sticky header instead of a 2000px card */
 #fertSettingsBody .fert-set-crops .reports-table-wrap { max-height: 55vh; overflow: auto; }
 #fertSettingsBody .fert-set-crops thead th { position: sticky; top: 0; z-index: 1; background: var(--surface); }
+/* v4.21: in the compact grid the 110px .fert-input--num was wider than its
+   ~80px cell — inputs overlapped and cut the values ("12" for 120). Fill the
+   cell instead; labels may take two lines, all reserving the same height so
+   the inputs of a row stay level. */
+@media (min-width: 640px) {
+  #fertSettingsBody .fert-form-grid .fert-input--num { width: 100%; min-width: 0; }
+  #fertSettingsBody .fert-form-grid .field-label { display: flex; align-items: flex-end; min-height: 2.5em; line-height: 1.25; white-space: normal; overflow: visible; text-overflow: clip; }
+  #fertSettingsBody .fert-set-groups { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+}
