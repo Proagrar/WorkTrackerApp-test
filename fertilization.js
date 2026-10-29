@@ -112,18 +112,25 @@ function showView(view) {
   if (view === 'plans') loadPlans();
 }
 
-for (const btn of els.subnavBtns) btn.addEventListener('click', () => {
-  if (currentView === 'wizard' && !confirmLeaveWizard()) return;
-  if (currentView === 'settings' && btn.dataset.fertView !== 'settings' && settingsDirty()) {
-    if (!confirm('Nastavitve imajo neshranjene spremembe. Jih zavržem?')) return;
+// may the current sub-view be left for `target`? asks about unsaved work first
+function canLeaveView(target) {
+  if (target === currentView) return true;
+  if (currentView === 'wizard' && !confirmLeaveWizard()) return false;
+  if (currentView === 'settings' && settingsDirty()) {
+    if (!confirm('Nastavitve imajo neshranjene spremembe. Jih zavržem?')) return false;
     Object.assign(setState, { draft: jsonClone(setState.orig), editing: false, review: null });
     renderSettings();
   }
-  showView(btn.dataset.fertView);
+  return true;
+}
+
+for (const btn of els.subnavBtns) btn.addEventListener('click', () => {
+  if (canLeaveView(btn.dataset.fertView)) showView(btn.dataset.fertView);
 });
-// app.js's switchTab() shows/hides #panelGnojilni itself; this only needs to
-// know the tab was opened, to (re)load whichever sub-view is showing.
-els.tab.addEventListener('click', () => showView(currentView));
+// app.js's switchTab() shows/hides #panelGnojilni itself. The tab button
+// always leads back to the module's main screen, Načrti (Matej, 2026-10-30) —
+// unless the admin chooses to stay with unsaved work.
+els.tab.addEventListener('click', () => showView(canLeaveView('plans') ? 'plans' : currentView));
 
 // ── Analize tal: list ────────────────────────────────────────
 // Read in the order the work flows (Matej, 2026-10-29): work order → GERK

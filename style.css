@@ -2583,6 +2583,10 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
    phone screen once there's real width to work with. */
 @media (min-width: 900px) {
   .app-main { max-width: 1100px; }
+  /* Gnojilni načrt's tables (plans, lab results with 12 columns, settings)
+     need the whole screen; the other tabs keep the 1100px column
+     (Matej, 2026-10-30). */
+  .app-main:has(#panelGnojilni:not([hidden])) { max-width: none; }
 
   .tab-bar { justify-content: flex-start; }
   .tab-btn { flex: 0 0 auto; min-width: 180px; }
