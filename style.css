@@ -3276,6 +3276,14 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 @media (max-width: 520px) { .tab-bar { flex-wrap: wrap; } .tab-btn { flex: 1 1 40%; } }
 /* Analize tal: sortable column headers — same look/behavior as the work-order list's .wo-th buttons */
 #fertLabHead th { padding: 0; }
+/* Analize tal: fit the screen width instead of scrolling sideways (Matej,
+   2026-10-30) — names/GERK codes wrap, file names cut with …, tighter cells */
+.fert-lab-table { width: 100%; }
+.fert-lab-table td, .fert-lab-table .fert-sort-btn { padding: 8px 10px; }
+.fert-lab-table td.fert-wrap { white-space: normal; overflow-wrap: anywhere; min-width: 80px; max-width: 200px; }
+.fert-lab-table td.fert-ellipsis { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.fert-lab-table .fert-row-actions { gap: 6px; align-items: center; }
+.fert-badge--mini { margin-left: 4px; padding: 1px 6px; font-size: .625rem; vertical-align: 1px; }
 .fert-sort-btn { display: block; width: 100%; padding: 10px 14px; border: 0; background: transparent; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; text-align: inherit; white-space: nowrap; cursor: pointer; }
 .fert-sort-btn:hover, .fert-sort-btn:focus-visible, .fert-sort-btn--active { color: var(--blue-800); }
 
@@ -3358,3 +3366,23 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   .fert-step--current .fert-step-label { display: inline; }
   .fert-org-total { text-align: left; }
 }
+
+/* ── Gnojilni načrt: Nastavitve editor (view → edit → review & confirm) ── */
+.fert-set-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-bottom: var(--space-5); padding: var(--space-4) var(--space-6); background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius-md); }
+.fert-set-bar .fert-hint { margin: 0; }
+.fert-set-bar--editing { position: sticky; top: 0; z-index: 15; border-color: #F59E0B; background: var(--warning-bg); box-shadow: var(--shadow-sm); }
+.fert-set-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: var(--space-7); align-items: start; min-width: 0; margin: 0; padding: 0; border: 0; }
+.fert-set-wide { grid-column: 1 / -1; }
+.fert-set-body > .fert-card { min-width: 0; }
+.fert-set-review { margin-bottom: var(--space-5); border: 2px solid var(--blue-800); }
+.fert-set-table { width: 100%; }
+.fert-set-table td, .fert-set-table th { padding: 6px 8px; }
+.fert-input--sm { height: 34px; padding: 0 8px; font-size: .8125rem; }
+.fert-set-table .fert-input--num { width: 84px; }
+.fert-set-table .fert-input--code { width: 60px; }
+.fert-input--text { width: 100%; min-width: 150px; }
+.fert-set-changed, .fert-set-table input[type="checkbox"].fert-set-changed { border-color: #D97706 !important; background: var(--warning-bg) !important; outline: 2px solid #F59E0B; outline-offset: 1px; }
+.fert-set-new td { background: var(--blue-50); }
+.fert-set-body:disabled .fert-input { background: var(--background); color: var(--text-primary); opacity: 1; -webkit-text-fill-color: var(--text-primary); }
+.fert-set-body .fert-crop-search { max-width: 280px; margin-left: auto; }
+@media (max-width: 520px) { .fert-set-body { grid-template-columns: 1fr; } }

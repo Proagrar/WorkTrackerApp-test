@@ -114,6 +114,11 @@ function showView(view) {
 
 for (const btn of els.subnavBtns) btn.addEventListener('click', () => {
   if (currentView === 'wizard' && !confirmLeaveWizard()) return;
+  if (currentView === 'settings' && btn.dataset.fertView !== 'settings' && settingsDirty()) {
+    if (!confirm('Nastavitve imajo neshranjene spremembe. Jih zavržem?')) return;
+    Object.assign(setState, { draft: jsonClone(setState.orig), editing: false, review: null });
+    renderSettings();
+  }
   showView(btn.dataset.fertView);
 });
 // app.js's switchTab() shows/hides #panelGnojilni itself; this only needs to
@@ -173,17 +178,21 @@ function labValueCell(row, key, header) {
   return `<td class="fert-num">${esc(shown)}</td>`;
 }
 const noCodeBadge = r => (r.notes || '').includes(NO_CODE_NOTE)
-  ? ` <span class="fert-badge" title="${esc(NO_CODE_NOTE)}">Brez lab. kode</span>` : '';
+  ? ` <span class="fert-badge fert-badge--mini" title="${esc(NO_CODE_NOTE)}">brez kode</span>` : '';
+// compound GERK codes (688697+6492082+6492080) may break after each +
+const gerkWrap = code => esc(code ?? '—').replace(/\+/g, '+<wbr>');
 
 function labPlanCell(r) {
   if (!labPlans) return '<td class="fert-muted">—</td>';
   const p = labPlan(r);
-  if (!p) return `<td class="fert-row-actions"><button type="button" class="btn btn-secondary btn-sm" data-lab-plan-new="${esc(r.id)}">+ Ustvari</button></td>`;
+  if (!p) return `<td><div class="fert-row-actions"><button type="button" class="btn btn-secondary btn-sm" data-lab-plan-new="${esc(r.id)}">+ Ustvari</button></div></td>`;
+  // the plan date sits in the tooltip — the column has to stay narrow
+  const when = esc(`Načrt z dne ${fmtDate(p.plan_date)}`);
   const badge = p.status === 'potrjeno'
-    ? '<span class="fert-badge fert-badge--ok">Potrjeno</span>'
-    : '<span class="fert-badge fert-badge--warn">Osnutek</span>';
-  return `<td class="fert-row-actions">${badge} <span class="fert-muted">${esc(fmtDate(p.plan_date))}</span>
-    <button type="button" class="btn btn-secondary btn-sm" data-lab-plan-open="${esc(p.id)}">Odpri</button></td>`;
+    ? `<span class="fert-badge fert-badge--ok" title="${when}">Potrjeno</span>`
+    : `<span class="fert-badge fert-badge--warn" title="${when}">Osnutek</span>`;
+  return `<td><div class="fert-row-actions">${badge}
+    <button type="button" class="btn btn-secondary btn-sm" data-lab-plan-open="${esc(p.id)}">Odpri</button></div></td>`;
 }
 
 // Column order = table order. `value` feeds the sort: numbers sort as
@@ -196,15 +205,16 @@ const LAB_VALUE_COLUMNS = [
   { key: 'k2o',   label: 'K₂O',      value: r => r.k2o,       num: true, render: r => labValueCell(r, 'k2o', 'K2O') },
   { key: 'humus', label: 'Humus %',  value: r => r.humus_pct, num: true, render: r => `<td class="fert-num">${esc(fmtNum(r.humus_pct))}</td>` },
   { key: 'mg',    label: 'Mg',       value: r => r.mg,        num: true, render: r => `<td class="fert-num">${esc(fmtNum(r.mg))}</td>` },
-  { key: 'date',  label: 'Datum analize', value: r => r.analysis_date, render: r => `<td>${esc(fmtDate(r.analysis_date))}</td>` },
+  { key: 'date',  label: 'Analiza', value: r => r.analysis_date, render: r => `<td title="Datum analize">${esc(fmtDate(r.analysis_date))}</td>` },
   { key: 'file',  label: 'Datoteka', value: r => r.lab_import_file?.file_name,
-    render: r => `<td class="fert-muted" title="${esc(r.lab_import_file ? 'Uvoženo ' + fmtDate(r.lab_import_file.imported_at) : '')}">${esc(r.lab_import_file?.file_name ?? '—')}</td>` },
+    // long names ("Proagrar d.o.o._21.10.2026.xlsx") cut with … — full name + import date on hover
+    render: r => `<td class="fert-muted fert-ellipsis" title="${esc(r.lab_import_file ? `${r.lab_import_file.file_name} · uvoženo ${fmtDate(r.lab_import_file.imported_at)}` : '')}">${esc(r.lab_import_file?.file_name ?? '—')}</td>` },
 ];
 const LAB_LINKED_COLUMNS = [
   { key: 'order',    label: 'Nalog',  value: r => labGerk(r)?.delovni_nalogi?.stevilka, render: r => `<td>${esc(labGerk(r)?.delovni_nalogi?.stevilka ?? '—')}</td>` },
   { key: 'customer', label: 'Stranka', value: r => customerName(labGerk(r)?.delovni_nalogi?.customers),
-    render: r => `<td class="fert-strong">${esc(customerName(labGerk(r)?.delovni_nalogi?.customers))}</td>` },
-  { key: 'gerk',     label: 'GERK',   value: r => labGerk(r)?.gerk_code, render: r => `<td>${esc(labGerk(r)?.gerk_code ?? '—')}</td>` },
+    render: r => `<td class="fert-strong fert-wrap">${esc(customerName(labGerk(r)?.delovni_nalogi?.customers))}</td>` },
+  { key: 'gerk',     label: 'GERK',   value: r => labGerk(r)?.gerk_code, render: r => `<td class="fert-wrap">${gerkWrap(labGerk(r)?.gerk_code)}</td>` },
   { key: 'sample',   label: 'Vzorec', value: r => r.sample_no,
     render: r => `<td class="fert-strong" title="${esc(r.lab_sample_code ? 'Lab. koda ' + r.lab_sample_code : '')}">${esc(r.sample_no)}${noCodeBadge(r)}</td>` },
   ...LAB_VALUE_COLUMNS,
@@ -675,7 +685,52 @@ els.dropzone.addEventListener('drop', event => {
   handleFiles(event.dataTransfer.files);
 });
 
-// ── Nastavitve (read-only) ───────────────────────────────────
+// ── Nastavitve: the defaults new plans start from — editable ──
+// Matej, 2026-10-30: editable (the whole tab is admin-only, RLS too), and
+// nothing is written before the admin has seen the list of changes and
+// confirmed it. Saved plans keep their own copies (fert_plan_parameters …),
+// so a change here only reaches plans created afterwards.
+// The working copy (draft) holds what the inputs show; on "Shrani" it is
+// diffed against what was loaded (orig) into a change list + DB operations.
+const SET_NUM = 'num', SET_TEXT = 'text', SET_BOOL = 'bool', SET_SELECT = 'select';
+const SET_NUTRIENTS = [['P2O5', 'P₂O₅'], ['K2O', 'K₂O'], ['LIME', 'apno']];
+const SET_ROW_TABLES = {
+  fertilizers: { table: 'fert_fertilizer', section: 'Mineralna gnojila', addLabel: 'gnojilo', newLabel: 'Novo gnojilo', fields: [
+    { key: 'name', label: 'Ime', type: SET_TEXT, required: true },
+    { key: 'nutrient', label: 'Hranilo', type: SET_SELECT, options: SET_NUTRIENTS },
+    { key: 'content', label: 'Vsebnost', type: SET_NUM, required: true },
+    { key: 'is_organic_approved', label: 'EKO', type: SET_BOOL },
+    { key: 'is_active', label: 'Aktivno', type: SET_BOOL }],
+    blank: () => ({ name: '', nutrient: 'P2O5', content: '', is_organic_approved: false, is_active: true }) },
+  organics: { table: 'fert_organic_fertilizer', section: 'Organska gnojila', addLabel: 'organsko gnojilo', newLabel: 'Novo organsko gnojilo', fields: [
+    { key: 'name', label: 'Ime', type: SET_TEXT, required: true },
+    { key: 'unit', label: 'Enota', type: SET_SELECT, options: [['m3/ha', 'm3/ha'], ['t/ha', 't/ha']] },
+    { key: 'p2o5_per_unit', label: 'P₂O₅/enoto', type: SET_NUM, required: true },
+    { key: 'k2o_per_unit', label: 'K₂O/enoto', type: SET_NUM, required: true },
+    { key: 'is_active', label: 'Aktivno', type: SET_BOOL }],
+    blank: () => ({ name: '', unit: 'm3/ha', p2o5_per_unit: '', k2o_per_unit: '', is_active: true }) },
+  crops: { table: 'fert_crop', section: 'Kulture', addLabel: 'kulturo', newLabel: 'Nova kultura', fields: [
+    { key: 'code', label: 'Št.', type: SET_NUM, required: true },
+    { key: 'name', label: 'Kultura', type: SET_TEXT, required: true },
+    { key: 'p2o5_per_t', label: 'P₂O₅/t', type: SET_NUM },
+    { key: 'k2o_per_t', label: 'K₂O/t', type: SET_NUM },
+    { key: 'p2o5_per_t_straw_removed', label: 'P₂O₅/t brez slame', type: SET_NUM },
+    { key: 'k2o_per_t_straw_removed', label: 'K₂O/t brez slame', type: SET_NUM },
+    { key: 'default_yield_t_per_ha', label: 'Pridelek t/ha', type: SET_NUM },
+    { key: 'is_active', label: 'Aktivna', type: SET_BOOL }],
+    blank: () => ({ code: '', name: '', p2o5_per_t: '', k2o_per_t: '', p2o5_per_t_straw_removed: '', k2o_per_t_straw_removed: '', default_yield_t_per_ha: '', is_active: true }) },
+};
+const SET_DEFAULT_FERTS = [
+  { key: 'default_p_fertilizer_id', label: 'Privzeto fosforno gnojilo', nutrient: 'P2O5' },
+  { key: 'default_k_fertilizer_id', label: 'Privzeto kalijevo gnojilo', nutrient: 'K2O' },
+  { key: 'default_lime_fertilizer_id', label: 'Privzeto apno', nutrient: 'LIME' },
+];
+// the scalar settings = the wizard's parameter groups without the per-crop ones
+const settingsParamGroups = () => PARAM_GROUPS.filter(g => g.fields.every(f => !f.src));
+
+let setState = null; // { orig, draft, editing, review, notice, cropQuery }
+const jsonClone = x => JSON.parse(JSON.stringify(x));
+
 async function loadSettings() {
   els.settingsBody.innerHTML = '<p class="fert-hint">Nalaganje …</p>';
   const [settings, fertilizers, organics, lime, factors, crops] = await Promise.all([
@@ -688,64 +743,350 @@ async function loadSettings() {
   ]);
   const failed = [settings, fertilizers, organics, lime, factors, crops].find(r => r.error);
   if (failed) { els.settingsBody.innerHTML = `<p class="fert-error">Napaka pri nalaganju: ${esc(failed.error.message)}</p>`; return; }
+  if (!settings.data) { els.settingsBody.innerHTML = '<p class="fert-error">Ni aktivnih nastavitev (fert_settings).</p>'; return; }
+  const orig = { settings: settings.data, fertilizers: fertilizers.data, organics: organics.data, lime: lime.data, factors: factors.data, crops: crops.data };
+  setState = { orig, draft: jsonClone(orig), editing: false, review: null, notice: setState?.notice ?? null, cropQuery: '' };
   settingsLoaded = true;
-
-  const s = settings.data;
-  const defaults = new Set([s?.default_p_fertilizer_id, s?.default_k_fertilizer_id, s?.default_lime_fertilizer_id]);
-  const pct = v => `${numFmt.format(Number(v) * 100)} %`;
-  const nutrientLabel = { P2O5: 'P₂O₅', K2O: 'K₂O', LIME: 'apno' };
-  const range = (from, to) => from == null ? `≤ ${fmtNum(to)}` : to == null ? `≥ ${fmtNum(from)}` : from === to ? fmtNum(from) : `${fmtNum(from)}–${fmtNum(to)}`;
-  const factorRange = (from, to) => to == null ? `${from}+` : `${from}–${to}`;
-  const pFactors = factors.data.filter(f => f.nutrient === 'P2O5');
-  const kFactors = factors.data.filter(f => f.nutrient === 'K2O');
-
-  const card = (title, body) => `<section class="fert-card"><h3 class="fert-card-title">${title}</h3>${body}</section>`;
-  const table = (head, rows) => `<div class="reports-table-wrap"><table class="evidenca-table fert-table fert-table--compact"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
-
-  const params = s ? table('<th>Parameter</th><th class="fert-num">Vrednost</th>', [
-    ['Ciljna vrednost P₂O₅ / K₂O (mg/kg)', `${fmtNum(s.target_p2o5)} / ${fmtNum(s.target_k2o)}`],
-    ['Meje P₂O₅ (nizko / optimalno / visoko)', `${fmtNum(s.p_low_max)} / ${fmtNum(s.p_optimal_max)} / ${fmtNum(s.p_high_max)}`],
-    ['Meje K₂O (nizko / optimalno / visoko)', `${fmtNum(s.k_low_max)} / ${fmtNum(s.k_optimal_max)} / ${fmtNum(s.k_high_max)}`],
-    ['Zmanjšanje nad optimalnim', `${fmtNum(s.reduced_factor)} × odvzem`],
-    ['Letna melioracija', pct(s.correction_rate)],
-    ['Faktor tal (gostota)', fmtNum(s.soil_factor)],
-    ['Naslednje leto: dvig pH', `+${fmtNum(s.followup_ph_step)} do pH ${fmtNum(s.followup_ph_cap)}`],
-  ].map(([k, v]) => `<tr><td>${esc(k)}</td><td class="fert-num">${esc(v)}</td></tr>`).join(''))
-    : '<p class="fert-error">Ni aktivnih nastavitev.</p>';
-
-  const fertRows = fertilizers.data.map(f => `<tr><td>${esc(f.name)}</td><td>${esc(nutrientLabel[f.nutrient] ?? f.nutrient)}</td>
-    <td class="fert-num">${f.nutrient === 'LIME' ? '—' : esc(pct(f.content))}</td>
-    <td class="fert-muted">${[defaults.has(f.id) ? 'privzeto' : '', f.is_organic_approved ? 'EKO' : ''].filter(Boolean).join(', ')}</td></tr>`).join('');
-  const orgRows = organics.data.map(o => `<tr><td>${esc(o.name)}</td><td>${esc(o.unit)}</td><td class="fert-num">${esc(fmtNum(o.p2o5_per_unit))}</td><td class="fert-num">${esc(fmtNum(o.k2o_per_unit))}</td></tr>`).join('');
-  const limeTiles = lime.data.map(l => `<div class="fert-tile"><span class="fert-muted">${esc(range(l.ph_from, l.ph_to))}</span><strong>${esc(fmtNum(l.kg_per_ha))}</strong></div>`).join('');
-  const factorRows = Array.from({ length: Math.max(pFactors.length, kFactors.length) }, (_, i) => {
-    const p = pFactors[i], k = kFactors[i];
-    return `<tr><td>${p ? esc(factorRange(p.class_from, p.class_to)) : ''}</td><td class="fert-num">${p ? esc(fmtNum(p.factor)) : ''}</td>
-      <td>${k ? esc(factorRange(k.class_from, k.class_to)) : ''}</td><td class="fert-num">${k ? esc(fmtNum(k.factor)) : ''}</td></tr>`;
-  }).join('');
-  const cropRows = crops.data.map(c => {
-    const v = x => x == null ? '<span class="fert-warn-text">manjka</span>' : esc(fmtNum(x));
-    return `<tr data-crop="${esc(c.name.toLowerCase())}"><td>${esc(c.code)}</td><td>${esc(c.name)}</td>
-      <td class="fert-num">${v(c.p2o5_per_t)}</td><td class="fert-num">${v(c.k2o_per_t)}</td>
-      <td class="fert-num">${v(c.p2o5_per_t_straw_removed)}</td><td class="fert-num">${v(c.k2o_per_t_straw_removed)}</td></tr>`;
-  }).join('');
-
-  els.settingsBody.innerHTML = [
-    card(`Osnovni parametri${s ? ' · ' + esc(s.name) : ''}`, params),
-    card('Mineralna gnojila', table('<th>Gnojilo</th><th>Hranilo</th><th class="fert-num">Vsebnost</th><th></th>', fertRows))
-      + card('Organska gnojila (na enoto)', table('<th>Vrsta</th><th>Enota</th><th class="fert-num">P₂O₅</th><th class="fert-num">K₂O</th>', orgRows)),
-    card('Apnenje po pH (Calciprill kg/ha)', `<div class="fert-tiles">${limeTiles}</div>`),
-    card('Faktorji karte (razred = mg/kg ÷ 10)', table('<th>P₂O₅ razred</th><th class="fert-num">Faktor</th><th>K₂O razred</th><th class="fert-num">Faktor</th>', factorRows)),
-    card(`Kulture · ${crops.data.length}`, `<input type="search" class="field-input fert-input fert-crop-search" placeholder="Išči kulturo" aria-label="Išči kulturo">`
-      + table('<th>Št.</th><th>Kultura</th><th class="fert-num">P₂O₅/t</th><th class="fert-num">K₂O/t</th><th class="fert-num">P₂O₅/t brez slame</th><th class="fert-num">K₂O/t brez slame</th>', cropRows)),
-  ].join('');
-
-  const cropSearch = els.settingsBody.querySelector('.fert-crop-search');
-  cropSearch.addEventListener('input', () => {
-    const q = cropSearch.value.trim().toLowerCase();
-    for (const tr of els.settingsBody.querySelectorAll('tr[data-crop]')) tr.hidden = q && !tr.dataset.crop.includes(q);
-  });
+  renderSettings();
 }
+
+// ── comparing / formatting draft values ──
+function setSame(type, a, b) {
+  if (type === SET_NUM) return sameNum(parseNum(a), parseNum(b));
+  if (type === SET_BOOL) return !!a === !!b;
+  return String(a ?? '').trim() === String(b ?? '').trim();
+}
+function setParse(type, v) {
+  if (type === SET_NUM) return parseNum(v);
+  if (type === SET_BOOL) return !!v;
+  const s = String(v ?? '').trim();
+  return s === '' ? null : s;
+}
+function setShow(field, v) {
+  if (field.type === SET_BOOL) return v ? 'da' : 'ne';
+  if (field.type === SET_SELECT) return field.options?.find(o => o[0] === v)?.[1] ?? (v || '—');
+  const s = field.type === SET_NUM ? fmtInput(v) : String(v ?? '').trim();
+  return s === '' ? '—' : s;
+}
+const limeRangeLabel = r => r.ph_from == null ? `≤ ${fmtInput(r.ph_to)}` : r.ph_to == null ? `≥ ${fmtInput(r.ph_from)}` : sameNum(r.ph_from, r.ph_to) ? fmtInput(r.ph_from) : `${fmtInput(r.ph_from)}–${fmtInput(r.ph_to)}`;
+const factorRangeLabel = r => r.class_to == null ? `${r.class_from}+` : `${r.class_from}–${r.class_to}`;
+const fertNameById = id => setState.draft.fertilizers.find(f => f.id === id)?.name ?? '—';
+
+// every difference between draft and orig: { changes: [{ section, text }], ops: [{ table, id, values, what }] }
+function settingsChanges() {
+  const { orig, draft } = setState;
+  const changes = [], ops = [];
+  // scalar settings + default fertilizers → one update
+  const patch = {};
+  for (const g of settingsParamGroups()) for (const f of g.fields) {
+    if (setSame(SET_NUM, draft.settings[f.key], orig.settings[f.key])) continue;
+    patch[f.key] = parseNum(draft.settings[f.key]);
+    changes.push({ section: 'Osnovni parametri', text: `${g.title} · ${f.label}: ${fmtInput(orig.settings[f.key])} → ${fmtInput(draft.settings[f.key]) || '—'}` });
+  }
+  for (const d of SET_DEFAULT_FERTS) {
+    if ((draft.settings[d.key] ?? null) === (orig.settings[d.key] ?? null)) continue;
+    patch[d.key] = draft.settings[d.key] || null;
+    changes.push({ section: 'Osnovni parametri', text: `${d.label}: ${fertNameById(orig.settings[d.key])} → ${fertNameById(draft.settings[d.key])}` });
+  }
+  if (Object.keys(patch).length) ops.push({ table: 'fert_settings', id: orig.settings.id, values: patch, what: 'osnovni parametri' });
+  // row tables: edits of existing rows + new rows
+  for (const [name, spec] of Object.entries(SET_ROW_TABLES)) {
+    for (const row of draft[name]) {
+      const title = String(row.name ?? '').trim() || '(brez imena)';
+      if (!row.id) {
+        const values = Object.fromEntries(spec.fields.map(f => [f.key, setParse(f.type, row[f.key])]));
+        ops.push({ table: spec.table, id: null, values, what: `novo: ${title}` });
+        const details = spec.fields.filter(f => !['name', 'is_active'].includes(f.key) && values[f.key] != null && values[f.key] !== false)
+          .map(f => `${f.label} ${setShow(f, row[f.key])}`).join(', ');
+        changes.push({ section: spec.section, text: `${spec.newLabel}: ${title}${details ? ` (${details})` : ''}` });
+        continue;
+      }
+      const before = orig[name].find(r => r.id === row.id);
+      const values = {};
+      for (const f of spec.fields) {
+        if (setSame(f.type, row[f.key], before[f.key])) continue;
+        values[f.key] = setParse(f.type, row[f.key]);
+        changes.push({ section: spec.section, text: `${before.name}: ${f.label} ${setShow(f, before[f.key])} → ${setShow(f, row[f.key])}` });
+      }
+      if (Object.keys(values).length) ops.push({ table: spec.table, id: row.id, values, what: before.name });
+    }
+  }
+  // lime table + map factors: values only, the ranges stay
+  for (const row of draft.lime) {
+    const before = orig.lime.find(r => r.id === row.id);
+    if (setSame(SET_NUM, row.kg_per_ha, before.kg_per_ha)) continue;
+    ops.push({ table: 'fert_lime_ph', id: row.id, values: { kg_per_ha: parseNum(row.kg_per_ha) }, what: `apnenje pH ${limeRangeLabel(row)}` });
+    changes.push({ section: 'Apnenje po pH', text: `pH ${limeRangeLabel(row)}: ${fmtInput(before.kg_per_ha)} → ${fmtInput(row.kg_per_ha) || '—'} kg/ha` });
+  }
+  for (const row of draft.factors) {
+    const before = orig.factors.find(r => r.id === row.id);
+    if (setSame(SET_NUM, row.factor, before.factor)) continue;
+    const label = `${SET_NUTRIENTS.find(n => n[0] === row.nutrient)?.[1] ?? row.nutrient} razred ${factorRangeLabel(row)}`;
+    ops.push({ table: 'fert_map_factor', id: row.id, values: { factor: parseNum(row.factor) }, what: `faktor ${label}` });
+    changes.push({ section: 'Faktorji karte', text: `${label}: ${fmtInput(before.factor)} → ${fmtInput(row.factor) || '—'}` });
+  }
+  return { changes, ops };
+}
+
+// what must hold before anything can be saved (the DB checks some of it too)
+function settingsProblems() {
+  const { draft } = setState;
+  const out = [];
+  const s = draft.settings;
+  for (const g of settingsParamGroups()) for (const f of g.fields) if (parseNum(s[f.key]) == null) out.push(`Osnovni parametri: vpiši ${g.title} · ${f.label}.`);
+  const n = k => parseNum(s[k]);
+  if (n('p_low_max') != null && n('p_optimal_max') != null && n('p_high_max') != null && !(n('p_low_max') < n('p_optimal_max') && n('p_optimal_max') < n('p_high_max')))
+    out.push('Meje P₂O₅ morajo naraščati: nizko < optimalno < visoko.');
+  if (n('k_low_max') != null && n('k_optimal_max') != null && n('k_high_max') != null && !(n('k_low_max') < n('k_optimal_max') && n('k_optimal_max') < n('k_high_max')))
+    out.push('Meje K₂O morajo naraščati: nizko < optimalno < visoko.');
+  if (n('correction_rate') != null && !(n('correction_rate') > 0 && n('correction_rate') <= 1)) out.push('Letna melioracija je delež med 0 in 1 (0,1 = 10 %).');
+  for (const k of ['reduced_factor', 'soil_factor', 'target_p2o5', 'target_k2o']) if (n(k) != null && !(n(k) > 0)) out.push('Ciljne vrednosti in faktorji morajo biti večji od 0.');
+  for (const d of SET_DEFAULT_FERTS) {
+    const f = draft.fertilizers.find(x => x.id === s[d.key]);
+    if (f && (!f.is_active || f.nutrient !== d.nutrient)) out.push(`${d.label} (${f.name}) mora biti aktivno in imeti hranilo ${SET_NUTRIENTS.find(x => x[0] === d.nutrient)[1]}.`);
+  }
+  for (const [name, spec] of Object.entries(SET_ROW_TABLES)) {
+    const seen = new Map();
+    draft[name].forEach((row, i) => {
+      const who = String(row.name ?? '').trim() || `vrstica ${i + 1}`;
+      for (const f of spec.fields) {
+        if (f.required && setParse(f.type, row[f.key]) == null) out.push(`${spec.section} · ${who}: vpiši ${f.label}.`);
+        if (f.type === SET_NUM && String(row[f.key] ?? '').trim() !== '' && parseNum(row[f.key]) == null) out.push(`${spec.section} · ${who}: ${f.label} ni število.`);
+        if (f.type === SET_NUM && parseNum(row[f.key]) != null && parseNum(row[f.key]) < 0) out.push(`${spec.section} · ${who}: ${f.label} ne sme biti negativno.`);
+      }
+      const key = String(row.name ?? '').trim().toLowerCase();
+      if (key) { if (seen.has(key)) out.push(`${spec.section}: ime „${row.name}“ je uporabljeno dvakrat.`); seen.set(key, true); }
+    });
+  }
+  for (const f of draft.fertilizers) {
+    const c = parseNum(f.content);
+    if (c != null && !(c > 0 && c <= 1)) out.push(`Mineralna gnojila · ${f.name || 'novo'}: vsebnost vpiši kot delež med 0 in 1 (0,26 = 26 %).`);
+  }
+  const codes = new Map();
+  for (const c of draft.crops) {
+    const code = parseNum(c.code);
+    if (code == null) continue;
+    if (!Number.isInteger(code)) out.push(`Kulture · ${c.name || 'nova'}: številka mora biti celo število.`);
+    if (codes.has(code)) out.push(`Kulture: številka ${code} je uporabljena dvakrat (${codes.get(code)}, ${c.name}).`);
+    codes.set(code, c.name);
+  }
+  for (const r of draft.lime) if (parseNum(r.kg_per_ha) == null || parseNum(r.kg_per_ha) < 0) out.push(`Apnenje pH ${limeRangeLabel(r)}: vpiši količino (0 ali več).`);
+  for (const r of draft.factors) if (!(parseNum(r.factor) > 0)) out.push(`Faktor ${r.nutrient} razred ${factorRangeLabel(r)}: vpiši faktor, večji od 0.`);
+  return [...new Set(out)];
+}
+
+// ── rendering ──
+function renderSettings() {
+  const st = setState;
+  if (!st) return;
+  const { orig, draft, editing } = st;
+  const cls = changed => changed ? ' fert-set-changed' : '';
+  const numIn = (attrs, value, changed, label, extra = '') => `<input type="text" inputmode="decimal" class="field-input fert-input fert-input--num${cls(changed)}${extra}" ${attrs} value="${esc(fmtInput(value))}" aria-label="${esc(label)}">`;
+  const count = editing ? settingsChanges().changes.length : 0;
+
+  const bar = editing
+    ? `<div class="fert-set-bar fert-set-bar--editing">
+        <strong>Urejanje nastavitev</strong>
+        <span class="fert-badge ${count ? 'fert-badge--warn' : ''}" data-set-count>${setCountText(count)}</span>
+        <span class="fert-spacer"></span>
+        <button type="button" class="btn btn-secondary btn-sm" data-set-action="cancel">Prekliči</button>
+        <button type="button" class="btn btn-primary btn-sm" data-set-action="review" ${count ? '' : 'disabled'}>Shrani spremembe …</button>
+      </div>`
+    : `<div class="fert-set-bar">
+        <p class="fert-hint">Privzete vrednosti, s katerimi se začne vsak nov gnojilni načrt. Shranjeni načrti obdržijo vrednosti, s katerimi so bili izračunani.</p>
+        <span class="fert-spacer"></span>
+        <button type="button" class="btn btn-primary btn-sm" data-set-action="edit">Uredi nastavitve</button>
+      </div>`;
+  const notice = st.notice ? `<div class="fert-notice fert-notice--${st.notice.kind}">${esc(st.notice.text)}</div>` : '';
+  const review = st.review ? renderSettingsReview(st.review) : '';
+
+  // osnovni parametri — same groups/labels as the wizard's step 4
+  const paramGroups = settingsParamGroups().map(g => `<div class="fert-param-group"><h4 class="fert-group-title">${g.title}</h4><div class="fert-form-grid">
+      ${g.fields.map(f => `<label class="fert-field"><span class="field-label" title="${esc(f.label)}">${f.label}</span>
+        ${numIn(`data-set="settings" data-key="${f.key}"`, draft.settings[f.key], !setSame(SET_NUM, draft.settings[f.key], orig.settings[f.key]), f.label)}
+        ${f.hint ? `<span class="fert-hint">${esc(f.hint)}</span>` : ''}</label>`).join('')}</div></div>`).join('');
+  const defaultFerts = `<div class="fert-param-group"><h4 class="fert-group-title">Privzeta gnojila za nov načrt</h4><div class="fert-form-grid">
+      ${SET_DEFAULT_FERTS.map(d => `<label class="fert-field"><span class="field-label">${d.label.replace('Privzeto ', '')}</span>
+        <select class="field-input fert-input${cls((draft.settings[d.key] ?? null) !== (orig.settings[d.key] ?? null))}" data-set="settings" data-key="${d.key}" data-type="select">
+          ${draft.fertilizers.filter(f => f.id && f.nutrient === d.nutrient && (f.is_active || f.id === draft.settings[d.key]))
+            .map(f => `<option value="${esc(f.id)}" ${f.id === draft.settings[d.key] ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}
+        </select></label>`).join('')}</div></div>`;
+
+  const rowTable = (name, { search = false } = {}) => {
+    const spec = SET_ROW_TABLES[name];
+    const q = foldText(st.cropQuery ?? '').trim();
+    const rows = draft[name].map((row, i) => {
+      const before = row.id ? orig[name].find(r => r.id === row.id) : null;
+      const hidden = search && q && !foldText(`${row.code ?? ''} ${row.name ?? ''}`).includes(q) && row.id;
+      const cells = spec.fields.map(f => {
+        const changed = !before || !setSame(f.type, row[f.key], before[f.key]);
+        const attrs = `data-set="${name}" data-row="${i}" data-key="${f.key}" data-type="${f.type}"`;
+        if (f.type === SET_BOOL) return `<td class="fert-center"><input type="checkbox" ${attrs} ${row[f.key] ? 'checked' : ''} class="${cls(changed && !!before)}" aria-label="${esc(f.label)}"></td>`;
+        if (f.type === SET_SELECT) return `<td><select class="field-input fert-input fert-input--sm${cls(changed && !!before)}" ${attrs} aria-label="${esc(f.label)}">
+            ${f.options.map(([v, l]) => `<option value="${esc(v)}" ${v === row[f.key] ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></td>`;
+        if (f.type === SET_TEXT) return `<td><input type="text" class="field-input fert-input fert-input--sm fert-input--text${cls(changed && !!before)}" ${attrs} value="${esc(row[f.key] ?? '')}" aria-label="${esc(f.label)}"></td>`;
+        return `<td class="fert-num">${numIn(attrs, row[f.key], changed && !!before, f.label, ` fert-input--sm${f.key === 'code' ? ' fert-input--code' : ''}`)}</td>`;
+      }).join('');
+      const isDefault = name === 'fertilizers' && row.id && SET_DEFAULT_FERTS.some(d => draft.settings[d.key] === row.id);
+      const tail = !row.id ? `<button type="button" class="btn btn-secondary btn-sm" data-set-remove="${name}" data-row="${i}" aria-label="Odstrani novo vrstico">✕</button>`
+        : isDefault ? '<span class="fert-badge fert-badge--mini">privzeto</span>' : '';
+      return `<tr class="${row.id ? '' : 'fert-set-new'}" ${hidden ? 'hidden' : ''}>${cells}<td>${tail}</td></tr>`;
+    }).join('');
+    const head = spec.fields.map(f => `<th class="${f.type === SET_NUM ? 'fert-num' : f.type === SET_BOOL ? 'fert-center' : ''}">${f.label}</th>`).join('');
+    return `<div class="reports-table-wrap"><table class="evidenca-table fert-table fert-set-table"><thead><tr>${head}<th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${editing ? `<div><button type="button" class="btn btn-secondary btn-sm" data-set-add="${name}">+ Dodaj ${spec.addLabel}</button></div>` : ''}`;
+  };
+
+  const limeTiles = draft.lime.map((r, i) => {
+    const before = orig.lime.find(x => x.id === r.id);
+    return `<label class="fert-tile fert-tile--input"><span class="fert-muted">pH ${esc(limeRangeLabel(r))}</span>
+      ${numIn(`data-set="lime" data-row="${i}" data-key="kg_per_ha" data-type="num"`, r.kg_per_ha, !setSame(SET_NUM, r.kg_per_ha, before.kg_per_ha), `kg/ha pri pH ${limeRangeLabel(r)}`)}</label>`;
+  }).join('');
+  const factorTiles = nutrient => draft.factors.map((r, i) => {
+    if (r.nutrient !== nutrient) return '';
+    const before = orig.factors.find(x => x.id === r.id);
+    return `<label class="fert-tile fert-tile--input"><span class="fert-muted">${esc(factorRangeLabel(r))}</span>
+      ${numIn(`data-set="factors" data-row="${i}" data-key="factor" data-type="num"`, r.factor, !setSame(SET_NUM, r.factor, before.factor), `Faktor ${nutrient} razred ${factorRangeLabel(r)}`)}</label>`;
+  }).join('');
+  const limeName = fertNameById(draft.settings.default_lime_fertilizer_id);
+
+  els.settingsBody.innerHTML = `${bar}${notice}${review}
+    <fieldset class="fert-set-body" ${editing && !st.review ? '' : 'disabled'}>
+      <section class="fert-card fert-set-wide"><h3 class="fert-card-title">Osnovni parametri · ${esc(orig.settings.name)}</h3>${paramGroups}${defaultFerts}</section>
+      <section class="fert-card"><h3 class="fert-card-title">Mineralna gnojila</h3>${rowTable('fertilizers')}
+        <p class="fert-hint">Vsebnost je delež (0,26 = 26 %). Neaktivno gnojilo se ne ponudi v novih načrtih; obstoječi načrti ga obdržijo.</p></section>
+      <section class="fert-card"><h3 class="fert-card-title">Organska gnojila (na enoto)</h3>${rowTable('organics')}
+        <p class="fert-hint">kg P₂O₅ in K₂O na enoto (m³ ali t), ki se odštejejo od potrebe.</p></section>
+      <section class="fert-card"><h3 class="fert-card-title">Apnenje po pH (${esc(limeName)} kg/ha)</h3><div class="fert-tiles fert-tiles--inputs">${limeTiles}</div></section>
+      <section class="fert-card"><h3 class="fert-card-title">Faktorji karte (razred = mg/kg ÷ 10)</h3>
+        <h4 class="fert-group-title">P₂O₅</h4><div class="fert-tiles fert-tiles--inputs">${factorTiles('P2O5')}</div>
+        <h4 class="fert-group-title">K₂O</h4><div class="fert-tiles fert-tiles--inputs">${factorTiles('K2O')}</div></section>
+      <section class="fert-card fert-set-wide"><div class="fert-card-head"><h3 class="fert-card-title">Kulture · ${draft.crops.length}</h3>
+          <input type="search" class="field-input fert-input fert-crop-search" data-set-search value="${esc(st.cropQuery ?? '')}" placeholder="Išči kulturo (ime ali številka)" aria-label="Išči kulturo"></div>
+        ${rowTable('crops', { search: true })}
+        <p class="fert-hint">Odvzem v kg na tono pridelka; „brez slame“ velja, ko se slama odpelje. Prazno = ni podatka (kulture ni mogoče izračunati, dokler se ne vpiše).</p></section>
+    </fieldset>`;
+}
+
+function setCountText(n) {
+  return n ? `${n} ${slPlural(n, 'sprememba', 'spremembi', 'spremembe', 'sprememb')}` : 'brez sprememb';
+}
+
+function renderSettingsReview({ changes, problems }) {
+  if (problems.length) {
+    return `<div class="fert-notice fert-notice--warn"><strong>Shranjevanje ni mogoče — popravi:</strong>
+      <ul class="fert-list">${problems.slice(0, 12).map(p => `<li>${esc(p)}</li>`).join('')}${problems.length > 12 ? `<li>… in še ${problems.length - 12}</li>` : ''}</ul>
+      <div class="fert-actions"><button type="button" class="btn btn-secondary btn-sm" data-set-action="back">Nazaj na urejanje</button></div></div>`;
+  }
+  const bySection = new Map();
+  for (const c of changes) { if (!bySection.has(c.section)) bySection.set(c.section, []); bySection.get(c.section).push(c.text); }
+  return `<div class="fert-card fert-set-review" role="alertdialog" aria-labelledby="fertSetReviewTitle">
+    <h3 class="fert-card-title" id="fertSetReviewTitle">Potrdi spremembe nastavitev (${setCountText(changes.length)})</h3>
+    ${[...bySection].map(([section, texts]) => `<div><h4 class="fert-group-title">${esc(section)}</h4><ul class="fert-list">${texts.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('')}
+    <p class="fert-hint">Spremembe veljajo za nove gnojilne načrte. Shranjeni načrti in odprti osnutki obdržijo svoje vrednosti.</p>
+    <div class="fert-actions">
+      <button type="button" class="btn btn-secondary" data-set-action="back">Nazaj na urejanje</button>
+      <span class="fert-spacer"></span>
+      <button type="button" class="btn btn-success" data-set-action="save">Potrdi in shrani</button>
+    </div></div>`;
+}
+
+function settingsDirty() {
+  return !!(setState?.editing && settingsChanges().changes.length);
+}
+
+// ── events ──
+els.settingsBody.addEventListener('click', async event => {
+  if (!setState) return;
+  const st = setState;
+  const t = event.target;
+  const action = t.closest('[data-set-action]')?.dataset.setAction;
+  if (action === 'edit') { st.editing = true; st.notice = null; return renderSettings(); }
+  if (action === 'cancel') {
+    if (settingsDirty() && !confirm('Zavržem neshranjene spremembe nastavitev?')) return;
+    Object.assign(st, { draft: jsonClone(st.orig), editing: false, review: null });
+    return renderSettings();
+  }
+  if (action === 'review') {
+    const problems = settingsProblems();
+    const { changes } = settingsChanges();
+    st.review = { changes, problems };
+    renderSettings();
+    els.settingsBody.querySelector('.fert-set-review, .fert-notice--warn')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    return;
+  }
+  if (action === 'back') { st.review = null; return renderSettings(); }
+  if (action === 'save') {
+    // only reachable from the review panel, i.e. after the admin has seen every change
+    const { changes, ops } = settingsChanges();
+    t.disabled = true;
+    try {
+      for (const op of ops) {
+        const q = op.id ? supabase.from(op.table).update(op.values).eq('id', op.id) : supabase.from(op.table).insert(op.values);
+        const { error } = await q;
+        if (error) throw new Error(`${op.what}: ${error.message}`);
+      }
+      st.notice = { kind: 'ok', text: `Nastavitve shranjene (${setCountText(changes.length)}). Veljajo za nove gnojilne načrte.` };
+    } catch (err) {
+      // some operations may have gone through — reload so the page shows what is really stored
+      st.notice = { kind: 'warn', text: `Shranjevanje ni v celoti uspelo — ${err.message}. Prikazano je trenutno stanje v bazi.` };
+    }
+    defaults = null; // new plans start from what was just saved
+    loadDefaults().catch(() => {});
+    await loadSettings();
+    return;
+  }
+  const add = t.closest('[data-set-add]');
+  if (add) {
+    const name = add.dataset.setAdd;
+    st.draft[name].push(SET_ROW_TABLES[name].blank());
+    renderSettings();
+    const inputs = els.settingsBody.querySelectorAll(`[data-set="${name}"][data-row="${st.draft[name].length - 1}"]`);
+    inputs[0]?.focus();
+    return;
+  }
+  const remove = t.closest('[data-set-remove]');
+  if (remove) { st.draft[remove.dataset.setRemove].splice(Number(remove.dataset.row), 1); return renderSettings(); }
+});
+
+// typing only updates the draft + markers (keeps focus); the review re-reads everything
+function onSettingsEdit(event) {
+  const st = setState;
+  const t = event.target;
+  if (!st) return;
+  if (t.matches('[data-set-search]')) {
+    st.cropQuery = t.value;
+    const q = foldText(t.value).trim();
+    els.settingsBody.querySelectorAll('[data-set="crops"][data-key="name"]').forEach(input => {
+      const row = st.draft.crops[Number(input.dataset.row)];
+      input.closest('tr').hidden = !!(q && row.id && !foldText(`${row.code ?? ''} ${row.name ?? ''}`).includes(q));
+    });
+    return;
+  }
+  if (!st.editing || !t.dataset.set) return;
+  const name = t.dataset.set, key = t.dataset.key;
+  const value = t.type === 'checkbox' ? t.checked : t.value;
+  let changed;
+  if (name === 'settings') {
+    st.draft.settings[key] = value;
+    changed = t.dataset.type === 'select' ? (value || null) !== (st.orig.settings[key] ?? null) : !setSame(SET_NUM, value, st.orig.settings[key]);
+  } else {
+    const row = st.draft[name][Number(t.dataset.row)];
+    row[key] = value;
+    const before = row.id ? st.orig[name].find(r => r.id === row.id) : null;
+    changed = !!before && !setSame(t.dataset.type, value, before[key]);
+  }
+  t.classList.toggle('fert-set-changed', changed);
+  // a nutrient / active change alters which fertilizers the default pickers offer
+  if (name === 'fertilizers' && (key === 'nutrient' || key === 'is_active') && event.type === 'change') return renderSettings();
+  const n = settingsChanges().changes.length;
+  const badge = els.settingsBody.querySelector('[data-set-count]');
+  if (badge) { badge.textContent = setCountText(n); badge.classList.toggle('fert-badge--warn', n > 0); }
+  const saveBtn = els.settingsBody.querySelector('[data-set-action="review"]');
+  if (saveBtn) saveBtn.disabled = !n;
+}
+els.settingsBody.addEventListener('input', onSettingsEdit);
+els.settingsBody.addEventListener('change', onSettingsEdit);
 
 // ══ Načrti: plan list + step-by-step wizard ═════════════════════════════
 // One plan = one field (GERK line of a sampling work order) on one date.

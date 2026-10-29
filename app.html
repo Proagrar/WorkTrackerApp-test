@@ -274,7 +274,7 @@
           </div>
           <div id="fertLabNotice"></div>
           <div class="reports-table-wrap">
-            <table class="evidenca-table fert-table">
+            <table class="evidenca-table fert-table fert-lab-table">
               <!-- sortable header, rendered by fertilization.js (LAB_LINKED_COLUMNS / LAB_UNLINKED_COLUMNS) -->
               <thead><tr id="fertLabHead"></tr></thead>
               <tbody id="fertLabRows"></tbody>
@@ -304,8 +304,8 @@
 
         <!-- Nastavitve — read-only for now (editing comes later) -->
         <div id="fertViewSettings" class="fert-view" hidden>
-          <div class="fert-notice fert-notice--info">Samo za ogled — urejanje nastavitev bo dodano kasneje. Shranjeni načrti obdržijo nastavitve, s katerimi so bili izračunani.</div>
-          <div id="fertSettingsBody" class="fert-settings-grid"></div>
+          <!-- view / edit / review-and-confirm, rendered by fertilization.js (renderSettings) -->
+          <div id="fertSettingsBody"></div>
         </div>
       </section>
     </div>
