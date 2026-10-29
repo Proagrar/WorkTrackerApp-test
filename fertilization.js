@@ -40,7 +40,7 @@ const els = {
   dropzone: document.getElementById('fertDropzone'),
   importPreview: document.getElementById('fertImportPreview'),
   labSearch: document.getElementById('fertLabSearch'),
-  labOnlyUnmatched: document.getElementById('fertLabOnlyUnmatched'),
+  labMode: document.getElementById('fertLabMode'),
   labNotice: document.getElementById('fertLabNotice'),
   labHead: document.getElementById('fertLabHead'),
   labRows: document.getElementById('fertLabRows'),
@@ -55,6 +55,8 @@ els.importNameFilter.value = `proagrar ${new Date().getFullYear()}`;
 let currentView = 'plans';
 let labResults = [];
 let labLoaded = false;
+let labMode = 'linked';   // Analize tal: 'linked' (default) | 'unlinked'
+let labPlans = new Map(); // delovni_nalog_gerk_id → newest live plan; null = failed to load
 let settingsLoaded = false;
 let pendingImport = null; // { files: [...parsed] } between preview and confirm
 let labFlash = '';        // one-shot success message shown above the list after an import
@@ -102,7 +104,10 @@ function showView(view) {
   for (const [name, el] of Object.entries(els.views)) el.hidden = name !== view;
   els.importOpenBtn.hidden = view !== 'lab';
   els.newPlanBtn.hidden = view !== 'plans';
-  if (view === 'lab' && !labLoaded) loadLabResults();
+  if (view === 'lab') {
+    if (!labLoaded) loadLabResults();
+    else loadLabPlans().then(renderLabResults); // a plan may have been made or confirmed meanwhile
+  }
   if (view === 'settings' && !settingsLoaded) loadSettings();
   if (view === 'plans') loadPlans();
 }
@@ -116,17 +121,25 @@ for (const btn of els.subnavBtns) btn.addEventListener('click', () => {
 els.tab.addEventListener('click', () => showView(currentView));
 
 // ── Analize tal: list ────────────────────────────────────────
+// Read in the order the work flows (Matej, 2026-10-29): work order → GERK
+// segment (sample) → lab analysis → gnojilni načrt. By default only results
+// linked to a work-order sample are listed — most lab rows (pre-app sample
+// numbers, other customers) never link and would bury the useful ones; they
+// stay reachable under Prikaz: Nepovezani for manual linking.
 async function loadLabResults() {
-  els.labRows.innerHTML = '<tr><td colspan="13" class="fert-empty">Nalaganje …</td></tr>';
-  const { data, error } = await fetchAll(() => supabase
-    .from('lab_soil_result')
-    .select('id, sample_no, lab_sample_code, ph_kcl, p2o5, k2o, humus_pct, mg, raw_values, notes, analysis_date, created_at, vzorec_id, '
-      + 'lab_import_file(file_name, imported_at), '
-      + 'delovni_nalogi_vzorci(id, sample_no, delovni_nalogi_gerki(gerk_code, delovni_nalogi(stevilka, customers(naziv, company_name))))')
-    .order('created_at', { ascending: false })
-    .order('id'));
+  els.labRows.innerHTML = `<tr><td colspan="${labColumns().length}" class="fert-empty">Nalaganje …</td></tr>`;
+  const [{ data, error }] = await Promise.all([
+    fetchAll(() => supabase
+      .from('lab_soil_result')
+      .select('id, sample_no, lab_sample_code, ph_kcl, p2o5, k2o, humus_pct, mg, raw_values, notes, analysis_date, created_at, vzorec_id, '
+        + 'lab_import_file(file_name, imported_at), '
+        + 'delovni_nalogi_vzorci(id, sample_no, delovni_nalogi_gerki(id, gerk_code, field_id, fields(name), delovni_nalogi(stevilka, customers(id, naziv, company_name))))')
+      .order('created_at', { ascending: false })
+      .order('id')),
+    loadLabPlans(),
+  ]);
   if (error) {
-    els.labRows.innerHTML = `<tr><td colspan="13" class="fert-empty fert-error">Napaka pri nalaganju: ${esc(error.message)}</td></tr>`;
+    els.labRows.innerHTML = `<tr><td colspan="${labColumns().length}" class="fert-empty fert-error">Napaka pri nalaganju: ${esc(error.message)}</td></tr>`;
     return;
   }
   labResults = data ?? [];
@@ -134,32 +147,85 @@ async function loadLabResults() {
   renderLabResults();
 }
 
+// Newest live plan per GERK line of a work order (one plan per field, dated —
+// copies make several, the list shows the latest). null = plans couldn't load.
+async function loadLabPlans() {
+  const { data, error } = await supabase
+    .from('fert_plan')
+    .select('id, status, plan_date, created_at, delovni_nalog_gerk_id')
+    .is('deleted_at', null)
+    .not('delovni_nalog_gerk_id', 'is', null)
+    .order('plan_date', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error) { labPlans = null; return; }
+  labPlans = new Map();
+  for (const p of data ?? []) if (!labPlans.has(p.delovni_nalog_gerk_id)) labPlans.set(p.delovni_nalog_gerk_id, p);
+}
+
+const labGerk = r => r.delovni_nalogi_vzorci?.delovni_nalogi_gerki;
+const labPlan = r => labPlans?.get(labGerk(r)?.id) ?? null;
+
+// raw text wins for display when the lab wrote a qualifier ("<25"), so the
+// list shows what the lab reported, not just the number used in calculations
+function labValueCell(row, key, header) {
+  const raw = row.raw_values?.[header];
+  const shown = raw != null && /[<>]/.test(String(raw)) ? String(raw) : fmtNum(row[key]);
+  return `<td class="fert-num">${esc(shown)}</td>`;
+}
+const noCodeBadge = r => (r.notes || '').includes(NO_CODE_NOTE)
+  ? ` <span class="fert-badge" title="${esc(NO_CODE_NOTE)}">Brez lab. kode</span>` : '';
+
+function labPlanCell(r) {
+  if (!labPlans) return '<td class="fert-muted">—</td>';
+  const p = labPlan(r);
+  if (!p) return `<td class="fert-row-actions"><button type="button" class="btn btn-secondary btn-sm" data-lab-plan-new="${esc(r.id)}">+ Ustvari</button></td>`;
+  const badge = p.status === 'potrjeno'
+    ? '<span class="fert-badge fert-badge--ok">Potrjeno</span>'
+    : '<span class="fert-badge fert-badge--warn">Osnutek</span>';
+  return `<td class="fert-row-actions">${badge} <span class="fert-muted">${esc(fmtDate(p.plan_date))}</span>
+    <button type="button" class="btn btn-secondary btn-sm" data-lab-plan-open="${esc(p.id)}">Odpri</button></td>`;
+}
+
 // Column order = table order. `value` feeds the sort: numbers sort as
 // numbers, text with natural number order ("9087" < "12613"); empty values
 // always go last, whichever direction. Same click behavior as the work-order
 // list header (first click ▲ ascending, second ▼ descending).
-const labGerk = r => r.delovni_nalogi_vzorci?.delovni_nalogi_gerki;
-const LAB_COLUMNS = [
-  { key: 'sample',   label: 'Vzorec',        value: r => r.sample_no },
-  { key: 'customer', label: 'Stranka',       value: r => labGerk(r) ? customerName(labGerk(r).delovni_nalogi?.customers) : null },
-  { key: 'gerk',     label: 'GERK',          value: r => labGerk(r)?.gerk_code },
-  { key: 'order',    label: 'Nalog',         value: r => labGerk(r)?.delovni_nalogi?.stevilka },
-  { key: 'ph',       label: 'pH (KCl)',      value: r => r.ph_kcl, num: true },
-  { key: 'p2o5',     label: 'P₂O₅',          value: r => r.p2o5, num: true },
-  { key: 'k2o',      label: 'K₂O',           value: r => r.k2o, num: true },
-  { key: 'humus',    label: 'Humus %',       value: r => r.humus_pct, num: true },
-  { key: 'mg',       label: 'Mg',            value: r => r.mg, num: true },
-  { key: 'code',     label: 'Lab. koda',     value: r => r.lab_sample_code },
-  { key: 'date',     label: 'Datum analize', value: r => r.analysis_date },
-  { key: 'file',     label: 'Datoteka',      value: r => r.lab_import_file?.file_name },
-  { key: 'state',    label: 'Stanje',        value: r => ({ linked: 'a', multiple: 'b', unmatched: 'c' })[labMatchState(r)] },
+const LAB_VALUE_COLUMNS = [
+  { key: 'ph',    label: 'pH (KCl)', value: r => r.ph_kcl,    num: true, render: r => labValueCell(r, 'ph_kcl', 'pH (KCl)') },
+  { key: 'p2o5',  label: 'P₂O₅',     value: r => r.p2o5,      num: true, render: r => labValueCell(r, 'p2o5', 'P2O5') },
+  { key: 'k2o',   label: 'K₂O',      value: r => r.k2o,       num: true, render: r => labValueCell(r, 'k2o', 'K2O') },
+  { key: 'humus', label: 'Humus %',  value: r => r.humus_pct, num: true, render: r => `<td class="fert-num">${esc(fmtNum(r.humus_pct))}</td>` },
+  { key: 'mg',    label: 'Mg',       value: r => r.mg,        num: true, render: r => `<td class="fert-num">${esc(fmtNum(r.mg))}</td>` },
+  { key: 'date',  label: 'Datum analize', value: r => r.analysis_date, render: r => `<td>${esc(fmtDate(r.analysis_date))}</td>` },
+  { key: 'file',  label: 'Datoteka', value: r => r.lab_import_file?.file_name,
+    render: r => `<td class="fert-muted" title="${esc(r.lab_import_file ? 'Uvoženo ' + fmtDate(r.lab_import_file.imported_at) : '')}">${esc(r.lab_import_file?.file_name ?? '—')}</td>` },
 ];
+const LAB_LINKED_COLUMNS = [
+  { key: 'order',    label: 'Nalog',  value: r => labGerk(r)?.delovni_nalogi?.stevilka, render: r => `<td>${esc(labGerk(r)?.delovni_nalogi?.stevilka ?? '—')}</td>` },
+  { key: 'customer', label: 'Stranka', value: r => customerName(labGerk(r)?.delovni_nalogi?.customers),
+    render: r => `<td class="fert-strong">${esc(customerName(labGerk(r)?.delovni_nalogi?.customers))}</td>` },
+  { key: 'gerk',     label: 'GERK',   value: r => labGerk(r)?.gerk_code, render: r => `<td>${esc(labGerk(r)?.gerk_code ?? '—')}</td>` },
+  { key: 'sample',   label: 'Vzorec', value: r => r.sample_no,
+    render: r => `<td class="fert-strong" title="${esc(r.lab_sample_code ? 'Lab. koda ' + r.lab_sample_code : '')}">${esc(r.sample_no)}${noCodeBadge(r)}</td>` },
+  ...LAB_VALUE_COLUMNS,
+  { key: 'plan',     label: 'Gnojilni načrt', value: r => labPlan(r) ? `${labPlan(r).status === 'potrjeno' ? 'a' : 'b'}${labPlan(r).plan_date}` : null, render: labPlanCell },
+];
+const LAB_UNLINKED_COLUMNS = [
+  { key: 'sample', label: 'Vzorec', value: r => r.sample_no, render: r => `<td class="fert-strong">${esc(r.sample_no)}</td>` },
+  { key: 'code',   label: 'Lab. koda', value: r => r.lab_sample_code, render: r => `<td class="fert-muted">${esc(r.lab_sample_code ?? '—')}</td>` },
+  ...LAB_VALUE_COLUMNS,
+  { key: 'state',  label: 'Stanje', value: r => labMatchState(r),
+    render: r => `<td class="fert-state"><span class="fert-badge fert-badge--warn">${labMatchState(r) === 'multiple' ? 'Več zadetkov' : 'Ni povezan'}</span>
+      <button type="button" class="btn btn-secondary btn-sm fert-link-btn" data-link-id="${esc(r.id)}">Poveži</button>${noCodeBadge(r)}</td>` },
+];
+const labColumns = () => labMode === 'unlinked' ? LAB_UNLINKED_COLUMNS : LAB_LINKED_COLUMNS;
+
 let labSortKey = 'sample'; // default: Vzorec, newest (highest) sample number first (Matej, 2026-10-29)
 let labSortDir = 'desc';
 const textCollator = new Intl.Collator('sl', { numeric: true, sensitivity: 'base' });
 
 function sortLabRows(rows) {
-  const col = LAB_COLUMNS.find(c => c.key === labSortKey);
+  const col = labColumns().find(c => c.key === labSortKey);
   if (!col) return rows;
   const dir = labSortDir === 'asc' ? 1 : -1;
   return rows
@@ -173,7 +239,7 @@ function sortLabRows(rows) {
 }
 
 function renderLabHead() {
-  els.labHead.innerHTML = LAB_COLUMNS.map(col => {
+  els.labHead.innerHTML = labColumns().map(col => {
     const active = labSortKey === col.key;
     const arrow = active ? (labSortDir === 'asc' ? ' ▲' : ' ▼') : '';
     const ariaSort = active ? (labSortDir === 'asc' ? 'ascending' : 'descending') : 'none';
@@ -198,64 +264,43 @@ function labMatchState(row) {
 }
 
 function renderLabResults() {
-  renderLabHead();
   const query = els.labSearch.value.trim().toLowerCase();
-  const onlyUnmatched = els.labOnlyUnmatched.checked;
-  const unmatchedCount = labResults.filter(r => labMatchState(r) !== 'linked').length;
+  const linkedCount = labResults.filter(r => labMatchState(r) === 'linked').length;
+  const unlinkedCount = labResults.length - linkedCount;
+  els.labMode.options[0].textContent = `Povezani z nalogi (${linkedCount})`;
+  els.labMode.options[1].textContent = `Nepovezani (${unlinkedCount})`;
+  if (!labColumns().some(c => c.key === labSortKey)) { labSortKey = 'sample'; labSortDir = 'desc'; }
+  renderLabHead();
 
-  els.labNotice.innerHTML = (labFlash ? `<div class="fert-notice fert-notice--ok">${esc(labFlash)}</div>` : '')
-    + (unmatchedCount
-      ? `<div class="fert-notice fert-notice--warn"><strong>${unmatchedCount} ${unmatchedCount === 1 ? 'rezultat ni povezan' : 'rezultatov ni povezanih'} z vzorcem.</strong> Številka vzorca iz laboratorija se ne ujema z natanko enim vzorcem v delovnih nalogih — preveri številko ali poveži ročno.</div>`
-      : '');
+  const flash = labFlash ? `<div class="fert-notice fert-notice--ok">${esc(labFlash)}</div>` : '';
+  els.labNotice.innerHTML = flash + (labMode === 'unlinked'
+    ? `<div class="fert-notice fert-notice--warn"><strong>${unlinkedCount} ${unlinkedCount === 1 ? 'rezultat ni povezan' : 'rezultatov ni povezanih'} z vzorcem.</strong> Številka vzorca iz laboratorija se ne ujema z natanko enim vzorcem v delovnih nalogih — preveri številko ali poveži ročno.</div>`
+    : (unlinkedCount ? `<p class="fert-hint">${unlinkedCount} ${unlinkedCount === 1 ? 'rezultat ni povezan' : 'rezultatov ni povezanih'} z vzorcem iz delovnega naloga — niso prikazani (Prikaz: Nepovezani).</p>` : '')
+      + (labPlans ? '' : '<div class="fert-notice fert-notice--warn">Gnojilnih načrtov ni bilo mogoče naložiti.</div>'));
 
   const rows = labResults.filter(r => {
-    if (onlyUnmatched && labMatchState(r) === 'linked') return false;
+    if ((labMatchState(r) === 'linked') !== (labMode === 'linked')) return false;
     if (!query) return true;
-    const g = r.delovni_nalogi_vzorci?.delovni_nalogi_gerki;
+    const g = labGerk(r);
     const hay = [r.sample_no, r.lab_sample_code, g?.gerk_code, customerName(g?.delovni_nalogi?.customers), g?.delovni_nalogi?.stevilka, r.lab_import_file?.file_name].join(' ').toLowerCase();
     return hay.includes(query);
   });
 
+  const cols = labColumns();
   if (!rows.length) {
-    els.labRows.innerHTML = `<tr><td colspan="13" class="fert-empty">${labResults.length ? 'Ni zadetkov.' : 'Še ni uvoženih rezultatov — klikni ⬆ Uvoz Excel.'}</td></tr>`;
+    const empty = !labResults.length ? 'Še ni uvoženih rezultatov — klikni ⬆ Uvoz Excel.'
+      : query ? 'Ni zadetkov.'
+      : labMode === 'linked' ? 'Noben rezultat še ni povezan z vzorcem iz delovnega naloga.' : 'Vsi rezultati so povezani z vzorci.';
+    els.labRows.innerHTML = `<tr><td colspan="${cols.length}" class="fert-empty">${empty}</td></tr>`;
     return;
   }
-
-  // raw text wins for display when the lab wrote a qualifier ("<25"), so the
-  // list shows what the lab reported, not just the number used in calculations
-  const cell = (row, key, header) => {
-    const raw = row.raw_values?.[header];
-    const shown = raw != null && /[<>]/.test(String(raw)) ? String(raw) : fmtNum(row[key]);
-    return `<td class="fert-num">${esc(shown)}</td>`;
-  };
-
-  els.labRows.innerHTML = sortLabRows(rows).map(r => {
-    const g = r.delovni_nalogi_vzorci?.delovni_nalogi_gerki;
-    const state = labMatchState(r);
-    const noCode = (r.notes || '').includes(NO_CODE_NOTE)
-      ? `<span class="fert-badge" title="${esc(NO_CODE_NOTE)}">Brez lab. kode</span>` : '';
-    const badge = (state === 'linked'
-      ? '<span class="fert-badge fert-badge--ok">Povezan</span>'
-      : `<span class="fert-badge fert-badge--warn">${state === 'multiple' ? 'Več zadetkov' : 'Ni povezan'}</span>
-         <button type="button" class="btn btn-secondary btn-sm fert-link-btn" data-link-id="${esc(r.id)}">Poveži</button>`) + noCode;
-    const file = r.lab_import_file;
-    return `<tr data-row-id="${esc(r.id)}">
-      <td class="fert-strong">${esc(r.sample_no)}</td>
-      <td>${esc(g ? customerName(g.delovni_nalogi?.customers) : '—')}</td>
-      <td>${esc(g?.gerk_code ?? '—')}</td>
-      <td>${esc(g?.delovni_nalogi?.stevilka ?? '—')}</td>
-      ${cell(r, 'ph_kcl', 'pH (KCl)')}${cell(r, 'p2o5', 'P2O5')}${cell(r, 'k2o', 'K2O')}
-      <td class="fert-num">${esc(fmtNum(r.humus_pct))}</td><td class="fert-num">${esc(fmtNum(r.mg))}</td>
-      <td class="fert-muted">${esc(r.lab_sample_code ?? '—')}</td>
-      <td>${esc(fmtDate(r.analysis_date))}</td>
-      <td class="fert-muted" title="${esc(file ? 'Uvoženo ' + fmtDate(file.imported_at) : '')}">${esc(file?.file_name ?? '—')}</td>
-      <td class="fert-state">${badge}</td>
-    </tr>`;
-  }).join('');
+  els.labRows.innerHTML = sortLabRows(rows)
+    .map(r => `<tr data-row-id="${esc(r.id)}">${cols.map(c => c.render(r)).join('')}</tr>`)
+    .join('');
 }
 
 els.labSearch.addEventListener('input', renderLabResults);
-els.labOnlyUnmatched.addEventListener('change', renderLabResults);
+els.labMode.addEventListener('change', () => { labMode = els.labMode.value; renderLabResults(); });
 
 // Manual link: list every sample carrying this number and let the admin pick.
 els.labRows.addEventListener('click', async event => {
@@ -263,6 +308,18 @@ els.labRows.addEventListener('click', async event => {
   if (btn) return openLinkPicker(btn.dataset.linkId, btn.closest('td'));
   const pick = event.target.closest('[data-pick-vzorec]');
   if (pick) return linkLabResult(pick.dataset.resultId, pick.dataset.pickVzorec);
+  const openBtn = event.target.closest('[data-lab-plan-open]');
+  if (openBtn) return openPlan(openBtn.dataset.labPlanOpen, { copy: false });
+  const newBtn = event.target.closest('[data-lab-plan-new]');
+  if (newBtn) {
+    // new plan for this row's GERK line — the wizard opens on step 1 with
+    // customer and GERK already chosen
+    const g = labGerk(labResults.find(r => r.id === newBtn.dataset.labPlanNew) ?? {});
+    const c = g?.delovni_nalogi?.customers;
+    if (!g || !c) return;
+    return startNewPlan({ customer_id: c.id, customer_name: customerName(c), delovni_nalog_gerk_id: g.id,
+      gerk_code: g.gerk_code, field_id: g.field_id, field_name: g.fields?.name ?? null });
+  }
 });
 
 async function openLinkPicker(resultId, cellEl) {
@@ -707,13 +764,13 @@ const PARAM_GROUPS = [
   { title: 'Ciljne vrednosti (mg/kg)', fields: [
     { key: 'target_p2o5', label: 'Ciljna vrednost P₂O₅' }, { key: 'target_k2o', label: 'Ciljna vrednost K₂O' }] },
   { title: 'Meje P₂O₅ (mg/kg)', fields: [
-    { key: 'p_low_max', label: 'Nizko do' }, { key: 'p_optimal_max', label: 'Optimalno do' }, { key: 'p_high_max', label: 'Visoko do (nad tem 0)' }] },
+    { key: 'p_low_max', label: 'Nizko do' }, { key: 'p_optimal_max', label: 'Optimalno do' }, { key: 'p_high_max', label: 'Visoko do', hint: 'nad tem 0' }] },
   { title: 'Meje K₂O (mg/kg)', fields: [
-    { key: 'k_low_max', label: 'Nizko do' }, { key: 'k_optimal_max', label: 'Optimalno do' }, { key: 'k_high_max', label: 'Visoko do (nad tem 0)' }] },
+    { key: 'k_low_max', label: 'Nizko do' }, { key: 'k_optimal_max', label: 'Optimalno do' }, { key: 'k_high_max', label: 'Visoko do', hint: 'nad tem 0' }] },
   { title: 'Faktorji', fields: [
-    { key: 'reduced_factor', label: 'Zmanjšanje nad optimalnim (× odvzem)' },
-    { key: 'correction_rate', label: 'Letna melioracija (delež, 0,1 = 10 %)' },
-    { key: 'soil_factor', label: 'Faktor tal (kg/ha na 1 mg/100 g)' }] },
+    { key: 'reduced_factor', label: 'Nad optimalnim', hint: '× odvzem' },
+    { key: 'correction_rate', label: 'Letna melioracija', hint: 'delež, 0,1 = 10 %' },
+    { key: 'soil_factor', label: 'Faktor tal', hint: 'kg/ha na 1 mg/100 g' }] },
   { title: 'Naslednje leto', fields: [
     { key: 'followup_ph_step', label: 'Dvig pH na leto' }, { key: 'followup_ph_cap', label: 'Dvig pH samo pod' }] },
   { title: 'Odvzem kulture (kg na tono pridelka)', fields: [
@@ -883,14 +940,17 @@ els.planRows.addEventListener('click', async event => {
   }
 });
 
-els.newPlanBtn.addEventListener('click', async () => {
+// `preset` = customer + GERK line chosen up front (from Analize tal)
+async function startNewPlan(preset) {
   try { await loadDefaults(); } catch (err) { alert('Nastavitev ni bilo mogoče naložiti: ' + err.message); return; }
-  wiz = { plan: blankPlan(), step: 0, maxStep: 0, readOnly: false, dirty: false, fieldSources: null, notice: null, segmentsStale: false, customerQuery: '' };
+  const plan = Object.assign(blankPlan(), preset ?? {});
+  wiz = { plan, step: 0, maxStep: 0, readOnly: false, dirty: !!preset, fieldSources: null, notice: null, segmentsStale: !!preset, customerQuery: '' };
   showView('wizard');
   renderWizard();
   await prepareStep();
   renderWizard();
-});
+}
+els.newPlanBtn.addEventListener('click', () => startNewPlan(null));
 
 async function openPlan(id, { copy }) {
   try { await loadDefaults(); } catch (err) { alert('Nastavitev ni bilo mogoče naložiti: ' + err.message); return; }
@@ -1379,7 +1439,7 @@ function renderStepParams() {
       <span class="field-label">${f.label}</span>
       <span class="fert-param-row"><input type="text" inputmode="decimal" class="field-input fert-input fert-input--num" data-param="${f.key}" value="${esc(fmtInput(plan.params[f.key]))}">
       ${changedMark(changed, `data-param-reset="${f.key}"`)}</span>
-      <span class="fert-hint">privzeto: ${def == null ? '—' : esc(fmtInput(def))}</span></label>`;
+      <span class="fert-hint">${f.hint ? `${esc(f.hint)} · ` : ''}privzeto: ${def == null ? '—' : esc(fmtInput(def))}</span></label>`;
   };
   const groups = PARAM_GROUPS.map(g => `<div class="fert-param-group"><h4 class="fert-group-title">${g.title}</h4><div class="fert-form-grid">${g.fields.map(input).join('')}</div></div>`).join('');
   const fertBlocks = FERT_SLOTS.map(s => {
@@ -1392,10 +1452,10 @@ function renderStepParams() {
           ${options.map(f => `<option value="${esc(f.id)}" ${f.id === plan[`${s.slot}_fertilizer_id`] ? 'selected' : ''}>${esc(f.name)}${f.is_organic_approved ? ' (EKO)' : ''}</option>`).join('')}
         </select></label>
       ${s.slot === 'lime' ? '<p class="fert-hint">Količina apna pride iz tabele apnenja po pH (kg izbranega gnojila na ha) — spodaj v Napredno.</p>' : `
-      <label class="fert-field fert-param ${changed ? 'fert-param--changed' : ''}"><span class="field-label">Vsebnost hranila (delež, 0,26 = 26 %)</span>
+      <label class="fert-field fert-param ${changed ? 'fert-param--changed' : ''}"><span class="field-label">Vsebnost hranila</span>
         <span class="fert-param-row"><input type="text" inputmode="decimal" class="field-input fert-input fert-input--num" data-param="${key}" value="${esc(fmtInput(plan.params[key]))}">
         ${changedMark(changed, `data-param-reset="${key}"`)}</span>
-        <span class="fert-hint">privzeto: ${esc(fmtInput(defaultParam(key, plan)) || '—')}</span></label>`}
+        <span class="fert-hint">delež, 0,26 = 26 % · privzeto: ${esc(fmtInput(defaultParam(key, plan)) || '—')}</span></label>`}
     </div></div>`;
   }).join('');
   const rangeLabel = (from, to) => from == null ? `≤ ${fmtInput(to)}` : to == null ? `≥ ${fmtInput(from)}` : sameNum(from, to) ? fmtInput(from) : `${fmtInput(from)}–${fmtInput(to)}`;

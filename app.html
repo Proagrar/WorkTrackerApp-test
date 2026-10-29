@@ -262,16 +262,20 @@
           <div class="fert-toolbar">
             <label class="fert-field">
               <span class="field-label">Iskanje</span>
-              <input type="search" id="fertLabSearch" class="field-input fert-input" placeholder="Št. vzorca, stranka, GERK">
+              <input type="search" id="fertLabSearch" class="field-input fert-input" placeholder="Št. vzorca, stranka, GERK, nalog">
             </label>
-            <label class="fert-check">
-              <input type="checkbox" id="fertLabOnlyUnmatched"> Samo nepovezani
+            <label class="fert-field fert-field--narrow">
+              <span class="field-label">Prikaz</span>
+              <select id="fertLabMode" class="field-input fert-input">
+                <option value="linked">Povezani z nalogi</option>
+                <option value="unlinked">Nepovezani</option>
+              </select>
             </label>
           </div>
           <div id="fertLabNotice"></div>
           <div class="reports-table-wrap">
             <table class="evidenca-table fert-table">
-              <!-- sortable header, rendered by fertilization.js (LAB_COLUMNS) -->
+              <!-- sortable header, rendered by fertilization.js (LAB_LINKED_COLUMNS / LAB_UNLINKED_COLUMNS) -->
               <thead><tr id="fertLabHead"></tr></thead>
               <tbody id="fertLabRows"></tbody>
             </table>

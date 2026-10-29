@@ -3312,6 +3312,8 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .fert-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5); }
 .fert-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-5); align-items: start; }
 .fert-form-grid .fert-field { min-width: 0; }
+/* one-line labels keep the inputs of a row level */
+.fert-form-grid .field-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fert-input--num { width: 110px; text-align: right; font-variant-numeric: tabular-nums; }
 .fert-textarea { height: auto; padding: var(--space-4) var(--space-6); white-space: pre-wrap; font-family: inherit; resize: vertical; }
 .fert-dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-3) var(--space-7); margin: 0; }
