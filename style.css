@@ -3390,3 +3390,45 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .fert-set-body:disabled .fert-input { background: var(--background); color: var(--text-primary); opacity: 1; -webkit-text-fill-color: var(--text-primary); }
 .fert-set-body .fert-crop-search { max-width: 280px; margin-left: auto; }
 @media (max-width: 520px) { .fert-set-body { grid-template-columns: 1fr; } }
+
+/* Nastavitve, compact (Matej, 2026-10-30: "minimize everything, smaller
+   text"). Desktop only — on phones inputs keep 16px, below that iOS Safari
+   zooms the page on every focus. */
+@media (min-width: 640px) {
+  #fertSettingsBody { font-size: .8125rem; }
+  #fertSettingsBody .fert-set-bar { margin-bottom: var(--space-3); padding: 6px var(--space-5); gap: var(--space-3); }
+  #fertSettingsBody .fert-set-body { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: var(--space-4); }
+  #fertSettingsBody .fert-card { gap: var(--space-2); padding: var(--space-4) var(--space-5); border-radius: var(--radius-sm); }
+  #fertSettingsBody .fert-card-title { font-size: .8125rem; }
+  #fertSettingsBody .fert-card-head { gap: var(--space-3); }
+  #fertSettingsBody .fert-group-title { margin: 0 0 4px; font-size: .625rem; }
+  #fertSettingsBody .fert-hint { font-size: .6875rem; line-height: 1.3; }
+  #fertSettingsBody .field-label { font-size: .625rem; letter-spacing: .01em; }
+  #fertSettingsBody .field-input { height: 28px; padding: 0 7px; font-size: .8125rem; border-width: 1px; border-radius: var(--radius-sm); }
+  #fertSettingsBody select.field-input { padding-right: 20px; }
+  #fertSettingsBody .btn-sm { height: 28px; padding: 0 10px; font-size: .75rem; }
+  /* parameter groups side by side instead of stacked */
+  #fertSettingsBody .fert-set-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: var(--space-3) var(--space-6); }
+  #fertSettingsBody .fert-set-groups .fert-param-group { margin: 0; padding: 0; border: 0; }
+  #fertSettingsBody .fert-form-grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 4px var(--space-3); }
+  #fertSettingsBody .fert-set-groups .fert-param-group:last-child .fert-form-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  #fertSettingsBody .fert-field { gap: 2px; }
+  /* tables */
+  #fertSettingsBody .fert-set-table { font-size: .75rem; }
+  #fertSettingsBody .fert-set-table th { padding: 4px 5px; font-size: .5625rem; }
+  #fertSettingsBody .fert-set-table td { padding: 2px 5px; }
+  #fertSettingsBody .fert-input--sm { height: 24px; padding: 0 5px; font-size: .75rem; }
+  #fertSettingsBody .fert-set-table .fert-input--num { width: 60px; }
+  #fertSettingsBody .fert-set-table .fert-input--code { width: 44px; }
+  #fertSettingsBody .fert-input--text { min-width: 120px; }
+  #fertSettingsBody .fert-set-table input[type="checkbox"] { width: 14px; height: 14px; }
+  /* lime + factor tiles */
+  #fertSettingsBody .fert-tiles--inputs { grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 3px; margin-bottom: var(--space-2); }
+  #fertSettingsBody .fert-tile { padding: 2px 3px; gap: 1px; font-size: .6875rem; }
+  #fertSettingsBody .fert-tile--input .fert-input--num { height: 22px; padding: 0 4px; font-size: .75rem; text-align: center; }
+  #fertSettingsBody .fert-crop-search { height: 26px; max-width: 220px; }
+  #fertSettingsBody .fert-set-review .fert-list { font-size: .75rem; }
+}
+/* 69 crops: own scroll area with a sticky header instead of a 2000px card */
+#fertSettingsBody .fert-set-crops .reports-table-wrap { max-height: 55vh; overflow: auto; }
+#fertSettingsBody .fert-set-crops thead th { position: sticky; top: 0; z-index: 1; background: var(--surface); }

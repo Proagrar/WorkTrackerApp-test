@@ -959,7 +959,7 @@ function renderSettings() {
 
   els.settingsBody.innerHTML = `${bar}${notice}${review}
     <fieldset class="fert-set-body" ${editing && !st.review ? '' : 'disabled'}>
-      <section class="fert-card fert-set-wide"><h3 class="fert-card-title">Osnovni parametri · ${esc(orig.settings.name)}</h3>${paramGroups}${defaultFerts}</section>
+      <section class="fert-card fert-set-wide"><h3 class="fert-card-title">Osnovni parametri · ${esc(orig.settings.name)}</h3><div class="fert-set-groups">${paramGroups}${defaultFerts}</div></section>
       <section class="fert-card"><h3 class="fert-card-title">Mineralna gnojila</h3>${rowTable('fertilizers')}
         <p class="fert-hint">Vsebnost je delež (0,26 = 26 %). Neaktivno gnojilo se ne ponudi v novih načrtih; obstoječi načrti ga obdržijo.</p></section>
       <section class="fert-card"><h3 class="fert-card-title">Organska gnojila (na enoto)</h3>${rowTable('organics')}
@@ -968,7 +968,7 @@ function renderSettings() {
       <section class="fert-card"><h3 class="fert-card-title">Faktorji karte (razred = mg/kg ÷ 10)</h3>
         <h4 class="fert-group-title">P₂O₅</h4><div class="fert-tiles fert-tiles--inputs">${factorTiles('P2O5')}</div>
         <h4 class="fert-group-title">K₂O</h4><div class="fert-tiles fert-tiles--inputs">${factorTiles('K2O')}</div></section>
-      <section class="fert-card fert-set-wide"><div class="fert-card-head"><h3 class="fert-card-title">Kulture · ${draft.crops.length}</h3>
+      <section class="fert-card fert-set-wide fert-set-crops"><div class="fert-card-head"><h3 class="fert-card-title">Kulture · ${draft.crops.length}</h3>
           <input type="search" class="field-input fert-input fert-crop-search" data-set-search value="${esc(st.cropQuery ?? '')}" placeholder="Išči kulturo (ime ali številka)" aria-label="Išči kulturo"></div>
         ${rowTable('crops', { search: true })}
         <p class="fert-hint">Odvzem v kg na tono pridelka; „brez slame“ velja, ko se slama odpelje. Prazno = ni podatka (kulture ni mogoče izračunati, dokler se ne vpiše).</p></section>
