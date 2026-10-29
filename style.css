@@ -3292,6 +3292,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .fert-center { text-align: center !important; }
 .fert-col-sep { border-left: 1px solid var(--border-light); }
 .fert-total-row td { font-weight: 700; border-top: 2px solid var(--border) !important; }
+.fert-subtotal-row td { font-weight: 600; background: var(--background); }
 .fert-row--selected td { background: var(--blue-50); }
 .fert-row--off td { color: var(--text-muted); }
 .fert-list { margin: var(--space-2) 0 0; padding-left: 18px; }
@@ -3312,6 +3313,13 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .fert-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5); }
 .fert-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-5); align-items: start; }
 .fert-form-grid .fert-field { min-width: 0; }
+/* Kultura type-to-search picker */
+.fert-combo { position: relative; }
+.fert-combo-list { position: absolute; z-index: 30; top: 100%; left: 0; right: 0; margin: 4px 0 0; padding: 4px; list-style: none; max-height: 300px; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); }
+.fert-combo-opt { padding: 8px 10px; border-radius: var(--radius-sm); font-size: .9375rem; line-height: 1.3; cursor: pointer; }
+.fert-combo-opt:hover, .fert-combo-opt--active { background: var(--blue-50); }
+.fert-combo-opt--current { font-weight: 600; color: var(--blue-800); }
+.fert-combo-empty { padding: 8px 10px; font-size: .875rem; color: var(--text-secondary); }
 /* one-line labels keep the inputs of a row level */
 .fert-form-grid .field-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fert-input--num { width: 110px; text-align: right; font-variant-numeric: tabular-nums; }
