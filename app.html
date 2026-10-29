@@ -249,14 +249,8 @@
           <div id="fertLabNotice"></div>
           <div class="reports-table-wrap">
             <table class="evidenca-table fert-table">
-              <thead>
-                <tr>
-                  <th>Vzorec</th><th>Stranka</th><th>GERK</th><th>Nalog</th>
-                  <th class="fert-num">pH (KCl)</th><th class="fert-num">P₂O₅</th><th class="fert-num">K₂O</th>
-                  <th class="fert-num">Humus %</th><th class="fert-num">Mg</th>
-                  <th>Lab. koda</th><th>Datum analize</th><th>Datoteka</th><th>Stanje</th>
-                </tr>
-              </thead>
+              <!-- sortable header, rendered by fertilization.js (LAB_COLUMNS) -->
+              <thead><tr id="fertLabHead"></tr></thead>
               <tbody id="fertLabRows"></tbody>
             </table>
           </div>

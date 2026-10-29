@@ -36,6 +36,7 @@ const els = {
   labSearch: document.getElementById('fertLabSearch'),
   labOnlyUnmatched: document.getElementById('fertLabOnlyUnmatched'),
   labNotice: document.getElementById('fertLabNotice'),
+  labHead: document.getElementById('fertLabHead'),
   labRows: document.getElementById('fertLabRows'),
   settingsBody: document.getElementById('fertSettingsBody'),
 };
@@ -109,12 +110,71 @@ async function loadLabResults() {
   renderLabResults();
 }
 
+// Column order = table order. `value` feeds the sort: numbers sort as
+// numbers, text with natural number order ("9087" < "12613"); empty values
+// always go last, whichever direction. Same click behavior as the work-order
+// list header (first click ▲ ascending, second ▼ descending).
+const labGerk = r => r.delovni_nalogi_vzorci?.delovni_nalogi_gerki;
+const LAB_COLUMNS = [
+  { key: 'sample',   label: 'Vzorec',        value: r => r.sample_no },
+  { key: 'customer', label: 'Stranka',       value: r => labGerk(r) ? customerName(labGerk(r).delovni_nalogi?.customers) : null },
+  { key: 'gerk',     label: 'GERK',          value: r => labGerk(r)?.gerk_code },
+  { key: 'order',    label: 'Nalog',         value: r => labGerk(r)?.delovni_nalogi?.stevilka },
+  { key: 'ph',       label: 'pH (KCl)',      value: r => r.ph_kcl, num: true },
+  { key: 'p2o5',     label: 'P₂O₅',          value: r => r.p2o5, num: true },
+  { key: 'k2o',      label: 'K₂O',           value: r => r.k2o, num: true },
+  { key: 'humus',    label: 'Humus %',       value: r => r.humus_pct, num: true },
+  { key: 'mg',       label: 'Mg',            value: r => r.mg, num: true },
+  { key: 'code',     label: 'Lab. koda',     value: r => r.lab_sample_code },
+  { key: 'date',     label: 'Datum analize', value: r => r.analysis_date },
+  { key: 'file',     label: 'Datoteka',      value: r => r.lab_import_file?.file_name },
+  { key: 'state',    label: 'Stanje',        value: r => ({ linked: 'a', multiple: 'b', unmatched: 'c' })[labMatchState(r)] },
+];
+let labSortKey = null; // null = load order (newest import first)
+let labSortDir = 'asc';
+const textCollator = new Intl.Collator('sl', { numeric: true, sensitivity: 'base' });
+
+function sortLabRows(rows) {
+  const col = LAB_COLUMNS.find(c => c.key === labSortKey);
+  if (!col) return rows;
+  const dir = labSortDir === 'asc' ? 1 : -1;
+  return rows
+    .map(r => ({ r, v: col.value(r) }))
+    .sort((a, b) => {
+      const aEmpty = a.v == null || a.v === '', bEmpty = b.v == null || b.v === '';
+      if (aEmpty || bEmpty) return aEmpty === bEmpty ? 0 : aEmpty ? 1 : -1;
+      return dir * (col.num ? Number(a.v) - Number(b.v) : textCollator.compare(String(a.v), String(b.v)));
+    })
+    .map(x => x.r);
+}
+
+function renderLabHead() {
+  els.labHead.innerHTML = LAB_COLUMNS.map(col => {
+    const active = labSortKey === col.key;
+    const arrow = active ? (labSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    const ariaSort = active ? (labSortDir === 'asc' ? 'ascending' : 'descending') : 'none';
+    return `<th class="${col.num ? 'fert-num' : ''}" aria-sort="${ariaSort}">`
+      + `<button type="button" class="fert-sort-btn${active ? ' fert-sort-btn--active' : ''}" data-sort="${col.key}">${col.label}${arrow}</button></th>`;
+  }).join('');
+}
+
+els.labHead.addEventListener('click', event => {
+  const btn = event.target.closest('[data-sort]');
+  if (!btn) return;
+  const key = btn.dataset.sort;
+  labSortDir = (labSortKey === key && labSortDir === 'asc') ? 'desc' : 'asc';
+  labSortKey = key;
+  renderLabResults();
+});
+renderLabHead();
+
 function labMatchState(row) {
   if (row.vzorec_id) return 'linked';
   return (row.notes || '').includes('Več vzorcev') ? 'multiple' : 'unmatched';
 }
 
 function renderLabResults() {
+  renderLabHead();
   const query = els.labSearch.value.trim().toLowerCase();
   const onlyUnmatched = els.labOnlyUnmatched.checked;
   const unmatchedCount = labResults.filter(r => labMatchState(r) !== 'linked').length;
@@ -145,7 +205,7 @@ function renderLabResults() {
     return `<td class="fert-num">${esc(shown)}</td>`;
   };
 
-  els.labRows.innerHTML = rows.map(r => {
+  els.labRows.innerHTML = sortLabRows(rows).map(r => {
     const g = r.delovni_nalogi_vzorci?.delovni_nalogi_gerki;
     const state = labMatchState(r);
     const noCode = (r.notes || '').includes(NO_CODE_NOTE)

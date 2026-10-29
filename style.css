@@ -3274,3 +3274,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
    on a phone let them wrap into two rows instead of squeezing four labels
    into one; operators' two tabs still sit side by side. */
 @media (max-width: 520px) { .tab-bar { flex-wrap: wrap; } .tab-btn { flex: 1 1 40%; } }
+/* Analize tal: sortable column headers — same look/behavior as the work-order list's .wo-th buttons */
+#fertLabHead th { padding: 0; }
+.fert-sort-btn { display: block; width: 100%; padding: 10px 14px; border: 0; background: transparent; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; text-align: inherit; white-space: nowrap; cursor: pointer; }
+.fert-sort-btn:hover, .fert-sort-btn:focus-visible, .fert-sort-btn--active { color: var(--blue-800); }
