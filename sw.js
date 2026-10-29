@@ -1,4 +1,4 @@
-const CACHE = 'worktracker-v4.02';
+const CACHE = 'worktracker-v4.1';
 const SHELL = [
   './index.html',
   './app.html',
@@ -8,6 +8,7 @@ const SHELL = [
   './app.js',
   './planning.js',
   './fertilization.js',
+  './fert-calc.js',
   './manifest.json',
   './icons/icon.svg',
   './icons/Proagrar_LOGO.png',

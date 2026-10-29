@@ -226,14 +226,36 @@
             <button type="button" class="fert-subnav-btn" role="tab" aria-selected="false" data-fert-view="settings">Nastavitve</button>
           </div>
           <div class="fert-head-actions">
+            <button type="button" id="fertNewPlanBtn" class="btn btn-primary btn-sm">+ Nov načrt</button>
             <button type="button" id="fertImportOpenBtn" class="btn btn-primary btn-sm" hidden>⬆ Uvoz Excel</button>
           </div>
         </div>
 
-        <!-- Načrti — built in the next step (needs migration_fert_plans.sql). -->
+        <!-- Načrti — one plan per field (GERK) and date (fert_plan*) -->
         <div id="fertViewPlans" class="fert-view">
-          <div class="fert-notice fert-notice--info">Načrti za polja bodo dodani v naslednjem koraku. Najprej uvozi laboratorijske rezultate v zavihku <strong>Analize tal</strong>.</div>
+          <div class="fert-toolbar">
+            <label class="fert-field">
+              <span class="field-label">Iskanje</span>
+              <input type="search" id="fertPlanSearch" class="field-input fert-input" placeholder="Stranka, GERK ali kultura">
+            </label>
+            <label class="fert-field fert-field--narrow">
+              <span class="field-label">Status</span>
+              <select id="fertPlanStatus" class="field-input fert-input">
+                <option value="">Vsi</option><option value="osnutek">Osnutek</option><option value="potrjeno">Potrjeno</option>
+              </select>
+            </label>
+          </div>
+          <div class="reports-table-wrap">
+            <table class="evidenca-table fert-table">
+              <thead><tr><th>Datum načrta</th><th>Stranka</th><th>GERK / polje</th><th>Kultura</th><th class="fert-num">ha</th><th class="fert-num">Segmenti</th><th>Status</th><th></th></tr></thead>
+              <tbody id="fertPlanRows"></tbody>
+            </table>
+          </div>
+          <p class="fert-hint">En načrt = eno polje (GERK) na določen datum. Vrednosti iz Nastavitev so privzete — v posameznem načrtu jih lahko spremeniš, shranijo se samo za ta načrt.</p>
         </div>
+
+        <!-- Načrt — step-by-step wizard, rendered by fertilization.js -->
+        <div id="fertViewWizard" class="fert-view" hidden></div>
 
         <!-- Analize tal — lab_soil_result list -->
         <div id="fertViewLab" class="fert-view" hidden>

@@ -3278,3 +3278,73 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 #fertLabHead th { padding: 0; }
 .fert-sort-btn { display: block; width: 100%; padding: 10px 14px; border: 0; background: transparent; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; text-align: inherit; white-space: nowrap; cursor: pointer; }
 .fert-sort-btn:hover, .fert-sort-btn:focus-visible, .fert-sort-btn--active { color: var(--blue-800); }
+
+/* ── Gnojilni načrt: plan list + wizard ───────────────────── */
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover:not(:disabled) { background: #15803D; }
+.fert-field--narrow { min-width: 160px; flex: 0 1 200px; }
+.fert-field--wide { flex: 1 1 320px; }
+.fert-field--full { min-width: 0; width: 100%; }
+.fert-row-actions { display: flex; gap: var(--space-2); }
+.fert-row-actions .btn { height: 30px; padding: 0 10px; }
+.fert-danger-text { color: var(--danger); }
+.fert-spacer { flex: 1 1 auto; }
+.fert-center { text-align: center !important; }
+.fert-col-sep { border-left: 1px solid var(--border-light); }
+.fert-total-row td { font-weight: 700; border-top: 2px solid var(--border) !important; }
+.fert-row--selected td { background: var(--blue-50); }
+.fert-row--off td { color: var(--text-muted); }
+.fert-list { margin: var(--space-2) 0 0; padding-left: 18px; }
+.fert-value { font-size: .9375rem; font-weight: 600; padding-top: var(--space-3); }
+
+.fert-wiz-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5); }
+.fert-stepper { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.fert-step { display: inline-flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: 0 var(--space-6) 0 var(--space-3); border: 1.5px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-secondary); font-size: .8125rem; font-weight: 600; }
+.fert-step:disabled { opacity: .55; cursor: default; }
+.fert-step-num { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--border-light); font-weight: 700; flex: 0 0 auto; }
+.fert-step--done { color: var(--blue-800); border-color: var(--blue-100); }
+.fert-step--done .fert-step-num { background: var(--blue-100); color: var(--blue-800); }
+.fert-step--current { background: var(--blue-800); border-color: var(--blue-800); color: #fff; }
+.fert-step--current .fert-step-num { background: #fff; color: var(--blue-800); }
+.fert-wiz-body { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; margin: 0; padding: 0; border: 0; }
+.fert-wiz-nav { position: sticky; bottom: 0; padding: var(--space-5) 0; background: var(--background); border-top: 1px solid var(--border-light); z-index: 2; }
+
+.fert-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5); }
+.fert-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-5); align-items: start; }
+.fert-form-grid .fert-field { min-width: 0; }
+.fert-input--num { width: 110px; text-align: right; font-variant-numeric: tabular-nums; }
+.fert-textarea { height: auto; padding: var(--space-4) var(--space-6); white-space: pre-wrap; font-family: inherit; resize: vertical; }
+.fert-dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-3) var(--space-7); margin: 0; }
+.fert-dl dt { color: var(--text-secondary); font-size: .8125rem; font-weight: 600; }
+.fert-dl dd { margin: 0; font-weight: 600; }
+
+.fert-seg { display: inline-flex; gap: 3px; padding: 3px; background: var(--background); border: 1.5px solid var(--border); border-radius: var(--radius-md); }
+.fert-seg-btn { min-height: 36px; padding: 0 var(--space-6); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-size: .875rem; font-weight: 600; }
+.fert-seg-btn--on { background: var(--surface); color: var(--blue-800); font-weight: 700; box-shadow: var(--shadow-sm); }
+.fert-seg-btn:disabled { cursor: default; }
+
+.fert-org-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); border: 1px solid var(--border-light); border-radius: var(--radius-sm); }
+.fert-org-row > select { width: auto; flex: 0 1 260px; }
+.fert-inline { display: inline-flex; align-items: center; gap: var(--space-3); font-size: .8125rem; color: var(--text-secondary); }
+.fert-org-total { flex: 1 1 200px; text-align: right; font-size: .8125rem; }
+.fert-actions--start { justify-content: flex-start; align-items: center; }
+
+.fert-param-group + .fert-param-group { margin-top: var(--space-7); padding-top: var(--space-7); border-top: 1px solid var(--border-light); }
+.fert-group-title { margin: 0 0 var(--space-4); font-size: .8125rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .04em; }
+.fert-param-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.fert-param--changed .fert-input, .fert-tile.fert-param--changed { border-color: #D97706; background: var(--warning-bg); }
+.fert-changed { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--warning-bg); color: var(--warning); font-size: .6875rem; font-weight: 700; text-transform: none; letter-spacing: 0; }
+.fert-reset { width: 32px; height: 32px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--warning); font-size: 1rem; line-height: 1; }
+.fert-reset:hover { background: var(--warning-bg); }
+.fert-details summary { cursor: pointer; }
+.fert-details[open] summary { margin-bottom: var(--space-5); }
+.fert-tiles--inputs { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); margin-bottom: var(--space-7); }
+.fert-tile--input { border: 1.5px solid transparent; }
+.fert-tile--input .fert-input--num { width: 100%; height: 34px; padding: 0 8px; font-size: .875rem; }
+
+@media (max-width: 640px) {
+  .fert-step-label { display: none; }
+  .fert-step { padding: 0 var(--space-3); }
+  .fert-step--current .fert-step-label { display: inline; }
+  .fert-org-total { text-align: left; }
+}
