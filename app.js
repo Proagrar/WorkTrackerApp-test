@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.22';
+const APP_VERSION = 'v4.23';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -32,6 +32,9 @@ let reportsCustomerValues = new Set();
 let selectedReportIds   = new Set();
 let reportsChartGrouping = 'week'; // 'day' | 'week' — toggle above the chart, see renderReportsChart()
 let reportsChartMetric   = 'time'; // 'time' | 'ha' — second toggle above the chart
+// Rates divide by Vzorčeni ha (no "ne pobereš" segments) instead of Izvedeni ha
+// — checkbox in the filter row, remembered per browser (Matej, 2026-10-30).
+let reportsUseSampledHa  = (() => { try { return localStorage.getItem('reportsUseSampledHa') === '1'; } catch { return false; } })();
 let workOrders       = [];
 let workOrdersLoaded = false;
 let workOrderCenterPoints = {}; // work_order_id -> {lat, lng}, from get_work_orders_center_points
@@ -224,6 +227,7 @@ const reportsStatusFilterMenu = document.getElementById('reportsStatusFilterMenu
 const reportsOperatorFilter   = document.getElementById('reportsOperatorFilter');
 const reportsDateFrom         = document.getElementById('reportsDateFrom');
 const reportsDateTo           = document.getElementById('reportsDateTo');
+const reportsSampledHaCb      = document.getElementById('reportsSampledHaCb');
 const reportsCustomerFilterBtn   = document.getElementById('reportsCustomerFilterBtn');
 const reportsCustomerFilterMenu  = document.getElementById('reportsCustomerFilterMenu');
 const reportsCustomerFilterList  = document.getElementById('reportsCustomerFilterList');
@@ -4158,14 +4162,30 @@ async function loadReportsData() {
   reportsListWrap.innerHTML = '<div class="state-loading"><div class="spinner"></div><p>Nalaganje...</p></div>';
   selectedReportIds = new Set();
   resetReportsStatusFilterDefault();
-  const { data, error } = await supabase.rpc('get_work_orders_report');
+  // second call: area of segments marked "ne pobereš" on completed GERKs
+  // (migration_report_not_sampled_ha.sql) — if it fails the report still
+  // works, only Vzorčeni ha falls back to Izvedeni ha
+  const [{ data, error }, notSampled] = await Promise.all([
+    supabase.rpc('get_work_orders_report'),
+    supabase.rpc('get_work_orders_not_sampled_ha'),
+  ]);
   if (error) {
     reportsError.textContent = 'Napaka pri nalaganju poročila: ' + error.message;
     reportsError.hidden = false;
     reportsListWrap.innerHTML = '';
     return;
   }
-  reportsData = data || [];
+  const skipped = new Map((notSampled.data || []).map(x => [x.work_order_id, x]));
+  if (notSampled.error) console.warn('get_work_orders_not_sampled_ha failed', notSampled.error);
+  reportsSampledHaCb.disabled = !!notSampled.error;
+  reportsSampledHaCb.checked = reportsUseSampledHa && !notSampled.error;
+  reportsData = (data || []).map(r => {
+    const x = skipped.get(r.work_order_id);
+    const notSampledHa = Number(x?.not_sampled_ha) || 0;
+    return { ...r, not_sampled_ha: notSampledHa, not_sampled_segments: x?.not_sampled_segments || 0,
+      missing_area_segments: x?.missing_area_segments || 0,
+      sampled_ha: Math.max((Number(r.executed_ha) || 0) - notSampledHa, 0) };
+  });
   populateReportsOperatorFilter();
   populateReportsCustomerFilter();
   renderReportsTable();
@@ -4235,11 +4255,17 @@ function updateReportsCustomerFilterButtonLabel() {
   reportsCustomerFilterBtn.title = n > 1 ? [...reportsCustomerValues].join(', ') : '';
 }
 
+// the ha the rates divide by — see reportsUseSampledHa
+function reportsHaBase(r) {
+  return Number(reportsUseSampledHa && !reportsSampledHaCb.disabled ? r.sampled_ha : r.executed_ha) || 0;
+}
+
 // Derived ratios shared by each order row and the totals row — totals
 // recompute these from the summed fields rather than averaging each row's
 // own ratio (averaging rates would be wrong), same principle already used
 // in updateReportsSummary(). Every ha-based rate uses executed_ha (GERKs
-// actually completed — start AND end time logged), not total_ha (every
+// with a completed time entry) — or sampled_ha, executed minus segments
+// marked "ne pobereš", when the checkbox is on — not total_ha (every
 // GERK assigned, including ones a "V delu" order hasn't touched yet) —
 // otherwise a part-done order's rates would be diluted by ha nobody has
 // worked. total_ha itself stays visible as its own column for context.
@@ -4248,7 +4274,7 @@ function reportsRowMetrics(r) {
   const roadMinutes = (r.road_traktor_minutes || 0) + (r.road_avto_minutes || 0);
   const hoursWithRoad = (r.tracked_minutes + roadMinutes) / 60;
   const workRoadTotal = r.tracked_minutes + roadMinutes;
-  const executedHa = r.executed_ha || 0;
+  const executedHa = reportsHaBase(r);
   return {
     perHour: hours > 0 ? (r.captures_count / hours).toFixed(2) : '—',
     perHa: executedHa > 0 ? (r.captures_count / executedHa).toFixed(2) : '—',
@@ -4265,10 +4291,13 @@ function reportsRowMetrics(r) {
 // rows are currently "in scope" (selected, or filtered if none selected) —
 // reportsRowMetrics() then turns this into the same ratio columns.
 function reportsAggregateRow(rowsForTotal) {
-  const agg = { total_ha: 0, executed_ha: 0, tracked_minutes: 0, gap_minutes: 0, total_minutes: 0, captures_count: 0, road_traktor_minutes: 0, road_avto_minutes: 0, strosek: 0 };
+  const agg = { total_ha: 0, executed_ha: 0, sampled_ha: 0, not_sampled_segments: 0, missing_area_segments: 0, tracked_minutes: 0, gap_minutes: 0, total_minutes: 0, captures_count: 0, road_traktor_minutes: 0, road_avto_minutes: 0, strosek: 0 };
   for (const r of rowsForTotal) {
     agg.total_ha += Number(r.total_ha) || 0;
     agg.executed_ha += Number(r.executed_ha) || 0;
+    agg.sampled_ha += Number(r.sampled_ha) || 0;
+    agg.not_sampled_segments += r.not_sampled_segments || 0;
+    agg.missing_area_segments += r.missing_area_segments || 0;
     agg.tracked_minutes += r.tracked_minutes || 0;
     agg.gap_minutes += r.gap_minutes || 0;
     agg.total_minutes += r.total_minutes || 0;
@@ -4387,7 +4416,7 @@ function renderReportsChart(rows) {
     const bucket = byDate.get(key) || { tracked: 0, gap: 0, ha: 0 };
     bucket.tracked += r.tracked_minutes || 0;
     bucket.gap += r.gap_minutes || 0;
-    bucket.ha += r.executed_ha || 0; // executed, not assigned — see reportsRowMetrics()' comment
+    bucket.ha += reportsHaBase(r); // executed (or sampled, per the checkbox), not assigned — see reportsRowMetrics()' comment
     byDate.set(key, bucket);
   });
   const dates = [...byDate.keys()].sort();
@@ -4558,6 +4587,14 @@ function wireReportsChartToolbar() {
   });
 }
 
+function reportsHaBaseIsSampled() { return reportsUseSampledHa && !reportsSampledHaCb.disabled; }
+// tooltip on Vzorčeni ha: how many skipped segments it leaves out
+function sampledTitle(r) {
+  if (!r.not_sampled_segments) return 'Brez segmentov »ne pobereš«';
+  return `Odšteto ${r.not_sampled_segments} segmentov »ne pobereš« (${((Number(r.executed_ha) || 0) - (Number(r.sampled_ha) || 0)).toFixed(2)} ha)`
+    + (r.missing_area_segments ? ` — ${r.missing_area_segments} brez znane površine (ni odšteto)` : '');
+}
+
 function renderReportsTable() {
   const rows = filteredReportsRows();
   updateReportsSummary(rows);
@@ -4568,6 +4605,8 @@ function renderReportsTable() {
     return;
   }
 
+  const haWord = reportsHaBaseIsSampled() ? 'vzorčeni ha' : 'izvedeni ha';
+  const haWordCap = haWord[0].toUpperCase() + haWord.slice(1);
   reportsListWrap.innerHTML = `
     <div class="reports-table-wrap">
       <table class="evidenca-table reports-data-table">
@@ -4579,17 +4618,18 @@ function renderReportsTable() {
             <th>Status</th>
             <th>Izvajalec</th>
             <th>Ha</th>
-            <th title="Ha od dodeljenih GERK-ov, ki imajo zabeležen začetni IN končni čas — pri delno opravljenem nalogu manj kot Ha">Izvedeni ha</th>
+            <th class="${reportsHaBaseIsSampled() ? '' : 'reports-col--base'}" title="Ha od dodeljenih GERK-ov, ki imajo zabeležen začetni IN končni čas — pri delno opravljenem nalogu manj kot Ha">Izvedeni ha</th>
+            <th class="${reportsHaBaseIsSampled() ? 'reports-col--base' : ''}" title="Izvedeni ha brez segmentov, označenih »ne pobereš« (Vzorčenje ali opomba)">Vzorčeni ha</th>
             <th title="Zabeležen čas">Zabeležen</th>
             <th title="Čas med GERK-i">Med GERK-i</th>
             <th title="Skupni čas">Skupaj</th>
             <th title="Zajete točke">Točke</th>
             <th>Točk / h</th>
-            <th title="Zajete točke / izvedeni ha">Točk / ha</th>
-            <th title="Izvedeni ha / zajeto točko">Ha / točko</th>
-            <th title="Zabeležen čas / izvedeni ha">Čas / ha</th>
-            <th title="Izvedeni ha na uro zabeleženega časa, brez poti">Ha/h</th>
-            <th title="Izvedeni ha na uro zabeleženega časa + poti (traktor + avto)">Ha/h s potjo</th>
+            <th title="Zajete točke / ${haWord}">Točk / ha</th>
+            <th title="${haWordCap} / zajeto točko">Ha / točko</th>
+            <th title="Zabeležen čas / ${haWord}">Čas / ha</th>
+            <th title="${haWordCap} na uro zabeleženega časa, brez poti">Ha/h</th>
+            <th title="${haWordCap} na uro zabeleženega časa + poti (traktor + avto)">Ha/h s potjo</th>
             <th title="Prevoz s traktorjem (čas na poti)">Prevoz traktor</th>
             <th title="Prevoz z avtom (čas na poti)">Prevoz avto</th>
             <th title="Delež zabeleženega časa v skupnem času (delo + pot)">Delo / pot</th>
@@ -4607,6 +4647,7 @@ function renderReportsTable() {
               <td colspan="4">${escHtml(totalsLabel)}</td>
               <td>${totals.total_ha.toFixed(2)}</td>
               <td>${totals.executed_ha.toFixed(2)}</td>
+              <td title="${escHtml(sampledTitle(totals))}">${totals.sampled_ha.toFixed(2)}</td>
               <td>${fmtHM(totals.tracked_minutes)}</td>
               <td>${fmtHM(totals.gap_minutes)}</td>
               <td>${fmtHM(totals.total_minutes)}</td>
@@ -4634,6 +4675,7 @@ function renderReportsTable() {
               <td>${escHtml(r.izvajalec_name)}</td>
               <td>${Number(r.total_ha).toFixed(2)}</td>
               <td>${Number(r.executed_ha || 0).toFixed(2)}</td>
+              <td title="${escHtml(sampledTitle(r))}">${Number(r.sampled_ha || 0).toFixed(2)}</td>
               <td>${fmtHM(r.tracked_minutes)}</td>
               <td>${fmtHM(r.gap_minutes)}</td>
               <td>${fmtHM(r.total_minutes)}</td>
@@ -4693,6 +4735,11 @@ reportsStatusFilterMenu.querySelectorAll('.reports-status-filter-cb').forEach(cb
 reportsOperatorFilter.addEventListener('change', renderReportsTable);
 reportsDateFrom.addEventListener('change', renderReportsTable);
 reportsDateTo.addEventListener('change', renderReportsTable);
+reportsSampledHaCb.addEventListener('change', () => {
+  reportsUseSampledHa = reportsSampledHaCb.checked;
+  try { localStorage.setItem('reportsUseSampledHa', reportsUseSampledHa ? '1' : '0'); } catch { /* private mode */ }
+  renderReportsTable();
+});
 
 reportsCustomerFilterBtn.addEventListener('click', e => {
   e.stopPropagation();

@@ -3448,3 +3448,10 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   #fertSettingsBody .fert-form-grid .field-label { display: flex; align-items: flex-end; min-height: 2.5em; line-height: 1.25; white-space: normal; overflow: visible; text-overflow: clip; }
   #fertSettingsBody .fert-set-groups { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 }
+
+/* Poročila: "Brez »ne pobereš«" — which ha the rates divide by */
+.reports-check { display: inline-flex; align-items: center; gap: 6px; font-size: .75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .02em; flex-shrink: 0; cursor: pointer; }
+.reports-check input { width: 16px; height: 16px; accent-color: var(--blue-800); }
+.reports-check:has(input:disabled) { opacity: .5; cursor: not-allowed; }
+/* the ha column the rates currently use */
+.reports-data-table th.reports-col--base { color: var(--blue-800); box-shadow: inset 0 -2px 0 var(--blue-800); }

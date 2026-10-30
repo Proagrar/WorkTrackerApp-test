@@ -385,6 +385,12 @@
               <div class="wo-gerk-checklist" id="reportsCustomerFilterList"></div>
             </div>
           </div>
+          <!-- Which ha the rates (Točk/ha, Čas/ha, Ha/h …) divide by: Izvedeni ha
+               (whole completed GERKs) or Vzorčeni ha (minus segments marked
+               "ne pobereš") — see reportsHaBase() in app.js. -->
+          <label class="reports-check" title="Razmerja (Točk/ha, Ha/točko, Čas/ha, Ha/h) računaj z vzorčenimi ha — brez segmentov, označenih »ne pobereš«">
+            <input type="checkbox" id="reportsSampledHaCb"> Brez »ne pobereš«
+          </label>
         </div>
 
         <!-- Bar chart: per day/week/month (toggle, default weekly), measure
