@@ -1992,11 +1992,21 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   transition: opacity var(--duration-base) var(--ease-standard), visibility 0s linear 0s;
 }
 
-.wo-map-expand-btn {
+/* Groups the expand + layers-toggle buttons in the detail map's top-left
+   corner so their vertical order comes from flex layout, not a second
+   button's top offset guessed to clear the first one's rendered height. */
+.wo-map-top-left-controls {
   position: absolute;
   top: 8px;
   left: 8px;
   z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.wo-map-expand-btn {
   padding: 5px 10px;
   border: none;
   border-radius: 20px;
@@ -2013,11 +2023,10 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 /* Toggles the roads/borders/place-names overlay on top of the satellite
    imagery — off by default (satellite detail matters more here, see
    ensureWoMap's own comment), same pill styling as .wo-map-expand-btn.
-   --detail sits just below the expand button (which already occupies
-   top:8px there); --overview has that top-left slot to itself. */
+   --detail is a plain flex child of .wo-map-top-left-controls (position
+   left unset → static); --overview isn't in that wrapper, so it still
+   positions itself. */
 .wo-map-layers-btn {
-  position: absolute;
-  left: 8px;
   z-index: 1000;
   padding: 5px 10px;
   border: none;
@@ -2035,7 +2044,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .wo-map-layers-btn[aria-pressed="true"]:hover { background: var(--blue-800); }
 /* left:54px clears Leaflet's zoom +/- control (10px margin + 34px wide)
    in the same top-left corner — at left:8px the two overlapped. */
-.wo-map-layers-btn--overview { top: 10px; left: 54px; }
+.wo-map-layers-btn--overview { position: absolute; top: 10px; left: 54px; }
 
 /* Close (✕) in the overview map's top-right corner — same action as the
    "Skrij zemljevid" toolbar button, so the map can be closed without
@@ -2058,12 +2067,6 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   cursor: pointer;
 }
 .wo-map-close-btn:hover { background: #fff; }
-/* 44px (36px below the expand button's own top:8px) was too tight —
-   the two pills' actual rendered height left them touching/overlapping,
-   shadows merging into one blob. A few px more margin fixes it for
-   real instead of relying on a razor-thin calculated gap. */
-.wo-map-layers-btn--detail { top: 50px; }
-
 /* Expanded map mode — the button toggles this class on .wo-detail-layout.
    Width only, never height — height stays whatever the normal (non-
    expanded) sizing already gives it (fixed on mobile, stretch-to-
@@ -2496,7 +2499,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
      of this exact button already uses to clear the same zoom control
      (see .wo-map-layers-btn--overview above). */
   #woMapExpandBtn { display: none; }
-  .wo-map-layers-btn--detail { top: 10px; left: 54px; }
+  .wo-map-top-left-controls { top: 10px; left: 54px; }
   /* The Leaflet/Esri attribution strip along the bottom edge — not
      worth the vertical space it eats on a phone-width map. */
   #woDetailMap .leaflet-control-attribution { display: none; }

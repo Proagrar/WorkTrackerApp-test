@@ -509,12 +509,18 @@
       <div class="wo-detail-layout">
         <div class="wo-detail-map-wrap">
           <div id="woDetailMap" class="wo-detail-map"></div>
-          <!-- Shrinks the GERK list to a compact code+segment reference
-               (see renderCompactGerkList()) and grows the map — for
-               desktop side-by-side viewing where the full form isn't
-               needed, just orientation on the map. -->
-          <button type="button" id="woMapExpandBtn" class="wo-map-expand-btn">⛶ Razširi zemljevid</button>
-          <button type="button" id="woMapLayersBtn" class="wo-map-layers-btn wo-map-layers-btn--detail" aria-pressed="false" title="Prikaži/skrij ceste in imena krajev">🛣 Ceste/imena</button>
+          <!-- Stacked in a flex column instead of each on its own magic-
+               number top offset — the two previously drifted into
+               overlapping/touching each other whenever either button's
+               rendered height changed slightly. -->
+          <div class="wo-map-top-left-controls">
+            <!-- Shrinks the GERK list to a compact code+segment reference
+                 (see renderCompactGerkList()) and grows the map — for
+                 desktop side-by-side viewing where the full form isn't
+                 needed, just orientation on the map. -->
+            <button type="button" id="woMapExpandBtn" class="wo-map-expand-btn">⛶ Razširi zemljevid</button>
+            <button type="button" id="woMapLayersBtn" class="wo-map-layers-btn wo-map-layers-btn--detail" aria-pressed="false" title="Prikaži/skrij ceste in imena krajev">🛣 Ceste/imena</button>
+          </div>
           <!-- Set by highlightGerkOnWoMap() when a GERK row is clicked —
                just a name label, so it's clear which GERK is highlighted
                while panning/zooming, not an interactive control. -->
