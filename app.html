@@ -571,8 +571,10 @@
               <input type="checkbox" id="wlgSelectAllCheckbox" aria-label="Izberi vse GERKE">
             </label>
             <label class="field-label">GERKI</label>
+            <input type="text" id="wlgSearchInput" class="wlg-search-input" placeholder="Išči GERK..." aria-label="Išči GERK" autocomplete="off">
           </div>
           <div id="workLogGerkRows" class="wlg-table"></div>
+          <p class="field-hint" id="wlgSearchNoResults" hidden>Ni najdenih GERKOV.</p>
           <!-- Phone only (CSS): pages through .wlg-row elements one at a
                time instead of scrolling the whole list — see
                updateGerkPaging() in app.js. Inert (hidden) on desktop and
@@ -958,6 +960,95 @@
           <button type="button" id="addCustomerCancelBtn" class="btn btn-secondary btn-flex">Prekliči</button>
           <button type="submit" id="addCustomerSaveBtn" class="btn btn-primary btn-flex">
             <span class="btn-label">Dodaj</span>
+            <span class="btn-spinner" hidden aria-hidden="true"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Edit customer (admin) ───────────────────────────────── -->
+  <div id="editCustomerModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="editCustomerModalTitle">
+    <div class="modal-sheet modal-sheet-wide">
+      <div class="modal-handle" aria-hidden="true"></div>
+      <div class="modal-head">
+        <h3 id="editCustomerModalTitle" class="modal-title">Uredi stranko</h3>
+        <button id="editCustomerModalClose" class="btn btn-icon" aria-label="Zapri">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <form id="editCustomerForm" class="work-form" novalidate>
+        <div class="edit-customer-grid">
+          <div class="field">
+            <label class="field-label" for="editCustNaziv">Naziv</label>
+            <input class="field-input" type="text" id="editCustNaziv" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="editCustCompanyName">Uradni naziv (firma) <span class="required">*</span></label>
+            <input class="field-input" type="text" id="editCustCompanyName" autocomplete="off" required />
+          </div>
+          <div class="field">
+            <label class="field-label" for="editCustContact">Kontaktna oseba</label>
+            <input class="field-input" type="text" id="editCustContact" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="editCustEmail">E-pošta</label>
+            <input class="field-input" type="email" id="editCustEmail" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="editCustPhone">Telefon</label>
+            <input class="field-input" type="text" id="editCustPhone" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="editCustVat">ID za DDV</label>
+            <input class="field-input" type="text" id="editCustVat" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="editCustStreet">Naslov (ulica, št.)</label>
+            <input class="field-input" type="text" id="editCustStreet" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="editCustPostCode">Poštna št.</label>
+            <input class="field-input" type="text" id="editCustPostCode" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="editCustCity">Kraj</label>
+            <input class="field-input" type="text" id="editCustCity" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="editCustCountry">Država</label>
+            <select class="field-input field-select" id="editCustCountry">
+              <option value="Slovenija">Slovenija</option>
+              <option value="Hrvaška">Hrvaška</option>
+              <option value="Bosna in Hercegovina">Bosna in Hercegovina</option>
+              <option value="Avstrija">Avstrija</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label" for="editCustRegion">Regija</label>
+            <input class="field-input" type="text" id="editCustRegion" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="editCustSalesPerson">Prodajnik</label>
+            <input class="field-input" type="text" id="editCustSalesPerson" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="editCustPartnerId">ID partnerja</label>
+            <input class="field-input" type="text" id="editCustPartnerId" autocomplete="off" />
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="editCustNotes">Opombe</label>
+          <textarea class="field-input" id="editCustNotes" rows="3"></textarea>
+        </div>
+        <div id="editCustomerError" class="alert alert-error" hidden role="alert"></div>
+        <div class="form-actions">
+          <button type="button" id="editCustomerCancelBtn" class="btn btn-secondary btn-flex">Prekliči</button>
+          <button type="submit" id="editCustomerSaveBtn" class="btn btn-primary btn-flex">
+            <span class="btn-label">Shrani</span>
             <span class="btn-spinner" hidden aria-hidden="true"></span>
           </button>
         </div>

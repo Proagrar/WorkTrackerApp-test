@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.32';
+const APP_VERSION = 'v4.34';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -127,6 +127,8 @@ const roadTimeListEl = document.getElementById('roadTimeList');
 const workLogGerkRowsEl = document.getElementById('workLogGerkRows');
 const wlgSelectAllWrap = document.getElementById('wlgSelectAllWrap');
 const wlgSelectAllCheckbox = document.getElementById('wlgSelectAllCheckbox');
+const wlgSearchInput = document.getElementById('wlgSearchInput');
+const wlgSearchNoResults = document.getElementById('wlgSearchNoResults');
 const woGerkPagerEl       = document.getElementById('woGerkPager'); // phone-only — see updateGerkPaging()
 const woGerkPagerLabelEl  = document.getElementById('woGerkPagerLabel');
 const woGerkPagerPrevBtn  = document.getElementById('woGerkPagerPrev');
@@ -218,6 +220,28 @@ const declLinksList          = document.getElementById('declLinksList');
 const declTableWrap          = document.getElementById('declTableWrap');
 const declAddCustomerBtn     = document.getElementById('declAddCustomerBtn');
 let declCustomerId = null;
+
+const editCustomerModal      = document.getElementById('editCustomerModal');
+const editCustomerModalClose = document.getElementById('editCustomerModalClose');
+const editCustomerForm       = document.getElementById('editCustomerForm');
+const editCustomerErrorEl    = document.getElementById('editCustomerError');
+const editCustomerSaveBtn    = document.getElementById('editCustomerSaveBtn');
+const editCustomerCancelBtn  = document.getElementById('editCustomerCancelBtn');
+const editCustNaziv        = document.getElementById('editCustNaziv');
+const editCustCompanyName  = document.getElementById('editCustCompanyName');
+const editCustContact      = document.getElementById('editCustContact');
+const editCustEmail        = document.getElementById('editCustEmail');
+const editCustPhone        = document.getElementById('editCustPhone');
+const editCustVat          = document.getElementById('editCustVat');
+const editCustStreet       = document.getElementById('editCustStreet');
+const editCustPostCode     = document.getElementById('editCustPostCode');
+const editCustCity         = document.getElementById('editCustCity');
+const editCustCountry      = document.getElementById('editCustCountry');
+const editCustRegion       = document.getElementById('editCustRegion');
+const editCustSalesPerson  = document.getElementById('editCustSalesPerson');
+const editCustPartnerId    = document.getElementById('editCustPartnerId');
+const editCustNotes        = document.getElementById('editCustNotes');
+let editCustomerId = null;
 
 // ── Poročila (reports) full-screen view refs ────────────────────
 const panelReports            = document.getElementById('panelReports');
@@ -1199,7 +1223,10 @@ function layoutWoDetailSections() {
 // admin multi-select) keeps working completely unchanged.
 let woGerkPageIndex = 0;
 function updateGerkPaging() {
-  const rows = Array.from(workLogGerkRowsEl.querySelectorAll('.wlg-row'));
+  // Rows hidden by the search filter (.wlg-row--search-hidden) are excluded
+  // from paging entirely — they stay hidden via CSS regardless of what this
+  // sets on `hidden` below.
+  const rows = Array.from(workLogGerkRowsEl.querySelectorAll('.wlg-row:not(.wlg-row--search-hidden)'));
   const n = rows.length;
   if (!isMobile() || woMapExpanded || !n) {
     rows.forEach(r => { r.hidden = false; });
@@ -1213,6 +1240,25 @@ function updateGerkPaging() {
   woGerkPagerPrevBtn.disabled = woGerkPageIndex === 0;
   woGerkPagerNextBtn.disabled = woGerkPageIndex === n - 1;
 }
+
+// Filters the current order's own GERK list by code or name — scoped to
+// workLogGerkRowsEl only, never touches any other GERK list in the app.
+function applyGerkSearch() {
+  const term = wlgSearchInput.value.trim().toLowerCase();
+  const rows = Array.from(workLogGerkRowsEl.querySelectorAll('.wlg-row'));
+  let visibleCount = 0;
+  rows.forEach(r => {
+    const code = (r.dataset.code || '').toLowerCase();
+    const name = (r.querySelector('.wlg-name')?.textContent || '').toLowerCase();
+    const matches = !term || code.includes(term) || name.includes(term);
+    r.classList.toggle('wlg-row--search-hidden', !matches);
+    if (matches) visibleCount++;
+  });
+  wlgSearchNoResults.hidden = !(term && visibleCount === 0);
+  woGerkPageIndex = 0;
+  updateGerkPaging();
+}
+wlgSearchInput.addEventListener('input', applyGerkSearch);
 woGerkPagerPrevBtn.addEventListener('click', () => {
   if (woGerkPageIndex > 0) { woGerkPageIndex--; updateGerkPaging(); }
 });
@@ -1230,6 +1276,7 @@ function renderWorkLogGerkRows(rows) {
   if (!rows.length) {
     workLogGerkRowsEl.innerHTML = `<p class="field-hint">Ta delovni nalog nima dodanih GERKOV.</p>`;
     updateGerkSelectionBar();
+    wlgSearchNoResults.hidden = true;
     updateGerkPaging();
     return;
   }
@@ -1300,8 +1347,7 @@ function renderWorkLogGerkRows(rows) {
   wlgSelectAllWrap.hidden = !isAdminView();
   updateWlgSelectAllCheckbox();
   if (woMapExpanded) renderCompactGerkList();
-  woGerkPageIndex = 0;
-  updateGerkPaging();
+  applyGerkSearch();
 }
 
 // Keeps the "Izberi vse" checkbox's checked/indeterminate state matching
@@ -1591,6 +1637,8 @@ async function openWorkOrderDetail(workOrder, planId = null) {
   setWorkLogDate(currentDetailDate);
 
   woAddExistingGerkPaste.value = '';
+  wlgSearchInput.value = '';
+  wlgSearchNoResults.hidden = true;
   if (isAdminView()) loadPlanDateForDetail(workOrder.id, planId); // fire-and-forget, re-renders the header itself once resolved
   if (isAdminView()) loadIzvajalecEditOptions(); // fire-and-forget, same — see below
 
@@ -6318,12 +6366,18 @@ function renderDeclCustomerList() {
     return;
   }
 
-  declCustomerList.innerHTML = matches.map(c =>
-    `<div class="decl-customer-row" data-id="${c.id}">${escHtml(c.name)}</div>`
+  declCustomerList.innerHTML = matches.map(c => `
+    <div class="decl-customer-row" data-id="${c.id}">
+      <span class="decl-customer-row-name">${escHtml(c.name)}</span>
+      <button type="button" class="btn btn-icon decl-customer-edit-btn" data-id="${c.id}" aria-label="Uredi stranko" title="Uredi stranko">✎</button>
+    </div>`
   ).join('');
 
   declCustomerList.querySelectorAll('.decl-customer-row').forEach(row => {
     row.addEventListener('click', () => openDeclDetail(row.dataset.id));
+  });
+  declCustomerList.querySelectorAll('.decl-customer-edit-btn').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); openEditCustomerModal(btn.dataset.id); });
   });
 }
 
@@ -6365,6 +6419,115 @@ function openDeclDetail(customerId) {
   loadDeclCustomerLinks();
   loadDeclCustomerTable();
 }
+
+// Edit-customer form — fetches the full row on demand (the list's own
+// `customers` array only carries the few fields the rest of the app
+// needs: id/name/contactName/email/deletedAt).
+async function openEditCustomerModal(customerId) {
+  editCustomerId = customerId;
+  editCustomerErrorEl.hidden = true;
+  editCustomerForm.reset();
+  editCustomerSaveBtn.disabled = true;
+  showModalAnimated(editCustomerModal);
+  document.body.style.overflow = 'hidden';
+
+  const { data, error } = await supabase
+    .from('customers')
+    .select('naziv, company_name, contact_name, email, phone, address_street, address_city, address_post_code, country, vat_number, region, sales_person, partner_id, notes')
+    .eq('id', customerId)
+    .single();
+
+  editCustomerSaveBtn.disabled = false;
+  if (error || !data) {
+    editCustomerErrorEl.textContent = error?.message || 'Napaka pri nalaganju stranke.';
+    editCustomerErrorEl.hidden = false;
+    return;
+  }
+
+  editCustNaziv.value       = data.naziv || '';
+  editCustCompanyName.value = data.company_name || '';
+  editCustContact.value     = data.contact_name || '';
+  editCustEmail.value       = data.email || '';
+  editCustPhone.value       = data.phone || '';
+  editCustVat.value         = data.vat_number || '';
+  editCustStreet.value      = data.address_street || '';
+  editCustPostCode.value    = data.address_post_code || '';
+  editCustCity.value        = data.address_city || '';
+  editCustCountry.value     = data.country || 'Slovenija';
+  editCustRegion.value      = data.region || '';
+  editCustSalesPerson.value = data.sales_person || '';
+  editCustPartnerId.value   = data.partner_id || '';
+  editCustNotes.value       = data.notes || '';
+}
+
+function closeEditCustomerModal() {
+  hideModalAnimated(editCustomerModal);
+  document.body.style.overflow = '';
+  editCustomerId = null;
+}
+
+editCustomerForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const companyName = editCustCompanyName.value.trim();
+  if (!companyName) {
+    editCustomerErrorEl.textContent = 'Uradni naziv je obvezen.';
+    editCustomerErrorEl.hidden = false;
+    return;
+  }
+
+  editCustomerErrorEl.hidden = true;
+  editCustomerSaveBtn.disabled = true;
+  editCustomerSaveBtn.querySelector('.btn-label').hidden = true;
+  editCustomerSaveBtn.querySelector('.btn-spinner').hidden = false;
+  try {
+    const { data, error } = await supabase
+      .from('customers')
+      .update({
+        naziv: editCustNaziv.value.trim() || null,
+        company_name: companyName,
+        contact_name: editCustContact.value.trim() || null,
+        email: editCustEmail.value.trim() || null,
+        phone: editCustPhone.value.trim() || null,
+        vat_number: editCustVat.value.trim() || null,
+        address_street: editCustStreet.value.trim() || null,
+        address_post_code: editCustPostCode.value.trim() || null,
+        address_city: editCustCity.value.trim() || null,
+        country: editCustCountry.value,
+        region: editCustRegion.value.trim() || null,
+        sales_person: editCustSalesPerson.value.trim() || null,
+        partner_id: editCustPartnerId.value.trim() || null,
+        notes: editCustNotes.value.trim() || null,
+      })
+      .eq('id', editCustomerId)
+      .select('id, naziv, company_name, contact_name, email')
+      .single();
+    if (error) throw error;
+
+    const local = customers.find(c => c.id === editCustomerId);
+    if (local) {
+      local.name = data.naziv || data.company_name || '—';
+      local.contactName = data.contact_name || null;
+      local.email = data.email || null;
+    }
+    customers.sort((a, b) => a.name.localeCompare(b.name));
+
+    const savedId = editCustomerId;
+    closeEditCustomerModal();
+    renderDeclCustomerList();
+    if (declCustomerId === savedId) openDeclDetail(savedId);
+  } catch (err) {
+    editCustomerErrorEl.textContent = err.message || 'Napaka pri shranjevanju stranke.';
+    editCustomerErrorEl.hidden = false;
+  } finally {
+    editCustomerSaveBtn.disabled = false;
+    editCustomerSaveBtn.querySelector('.btn-label').hidden = false;
+    editCustomerSaveBtn.querySelector('.btn-spinner').hidden = true;
+  }
+});
+
+editCustomerModalClose.addEventListener('click', closeEditCustomerModal);
+editCustomerCancelBtn.addEventListener('click', closeEditCustomerModal);
+editCustomerModal.addEventListener('click', e => { if (e.target === editCustomerModal) closeEditCustomerModal(); });
 
 // "Izbriši stranko" = archive (deleted_at), cascading to the
 // customer's fields and work orders too (soft_delete_customer RPC) —

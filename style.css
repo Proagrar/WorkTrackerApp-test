@@ -1146,6 +1146,20 @@ input, select, textarea { font-family: inherit; }
 
 .wlg-gerk-label-row { display: flex; align-items: center; gap: 8px; }
 .wlg-select-all-label { display: flex; align-items: center; cursor: pointer; }
+.wlg-search-input {
+  margin-left: auto;
+  width: 140px;
+  max-width: 45%;
+  padding: 4px 8px;
+  font-size: .8125rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+/* Hidden by the search filter — !important so it wins over the mobile
+   pager's own `hidden` toggling on the same .wlg-row elements. */
+.wlg-row--search-hidden { display: none !important; }
 
 /* Both ways to add more GERKs to an existing order, grouped at the end of
    the GERK list: the shared paste textarea on top, both trigger buttons
@@ -3049,6 +3063,9 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 }
 
 .decl-customer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 12px 14px;
   font-size: .9375rem;
   color: var(--text-primary);
@@ -3058,6 +3075,10 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .decl-customer-row:last-child { border-bottom: none; }
 .decl-customer-row:hover,
 .decl-customer-row:active { background: var(--blue-50); }
+.decl-customer-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.decl-customer-edit-btn { flex-shrink: 0; width: 32px; height: 32px; font-size: .9375rem; }
+
+.edit-customer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-5); align-items: start; }
 
 .decl-customer-info {
   margin: 4px 0 16px;
