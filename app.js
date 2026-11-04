@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.25';
+const APP_VERSION = 'v4.26';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2061,7 +2061,7 @@ async function removeGerkSegmentation(btn) {
 function renderCapturedPointsList() {
   woCaptureList.innerHTML = currentCapturedPoints.map(p => `
     <div class="wo-capture-item" data-id="${escHtml(p.id)}" data-lat="${p.lat}" data-lng="${p.lng}">
-      <span>Točka ${p.point_no}${p.segment_label ? ` · ${escHtml(p.segment_label)}` : ''}</span>
+      <span>Točka ${p.point_no}</span>
       <button type="button" class="wo-capture-item-remove" data-action="wo-capture-remove" aria-label="Izbriši točko">✕</button>
     </div>`).join('');
 }
