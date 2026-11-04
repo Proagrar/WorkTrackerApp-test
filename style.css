@@ -1990,8 +1990,8 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
    button's top offset guessed to clear the first one's rendered height. */
 .wo-map-top-left-controls {
   position: absolute;
-  top: 8px;
-  left: 28px;
+  top: 13px;
+  left: 58px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
