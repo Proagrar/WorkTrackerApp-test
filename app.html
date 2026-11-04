@@ -564,14 +564,13 @@
         <!-- GERKs: one row per planned field, Start/Stop logs start/end time -->
         <div class="field wo-gerk-field">
           <div class="wlg-gerk-label-row">
-            <label class="field-label">GERKI</label>
             <!-- Admin only: toggles every GERK's own selection checkbox at
                  once — rebuilt per render in renderWorkLogGerkRows(), same
                  reasoning as the main list's woSelectAllCheckbox. -->
             <label class="wlg-select-all-label" id="wlgSelectAllWrap" hidden>
               <input type="checkbox" id="wlgSelectAllCheckbox" aria-label="Izberi vse GERKE">
-              Izberi vse
             </label>
+            <label class="field-label">GERKI</label>
           </div>
           <div id="workLogGerkRows" class="wlg-table"></div>
           <!-- Phone only (CSS): pages through .wlg-row elements one at a

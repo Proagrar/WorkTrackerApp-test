@@ -1144,16 +1144,8 @@ input, select, textarea { font-family: inherit; }
   color: var(--text-primary);
 }
 
-.wlg-gerk-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.wlg-select-all-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: .78125rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
+.wlg-gerk-label-row { display: flex; align-items: center; gap: 8px; }
+.wlg-select-all-label { display: flex; align-items: center; cursor: pointer; }
 
 /* Both ways to add more GERKs to an existing order, grouped together at
    the end of the GERK list instead of KML import sitting up at the top. */
