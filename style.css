@@ -1147,18 +1147,19 @@ input, select, textarea { font-family: inherit; }
 .wlg-gerk-label-row { display: flex; align-items: center; gap: 8px; }
 .wlg-select-all-label { display: flex; align-items: center; cursor: pointer; }
 
-/* Both ways to add more GERKs to an existing order, grouped together at
-   the end of the GERK list instead of KML import sitting up at the top. */
-.wlg-gerk-add-actions {
+/* Both ways to add more GERKs to an existing order, grouped at the end of
+   the GERK list: the shared paste textarea on top, both trigger buttons
+   side by side in a row below it instead of each sitting in its own
+   column (which left the KML button oddly offset from "+ Dodaj GERK-e"). */
+.wlg-gerk-add-buttons-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 12px;
   margin-top: 8px;
 }
-.wlg-gerk-add-actions > #woAddExistingGerkWrap { flex: 1; min-width: 220px; }
 
-.wlg-import-zones { margin-top: 8px; margin-bottom: 8px; }
+.wlg-import-zones { margin: 0; }
 
 .wlg-import-zones-form {
   display: flex;
