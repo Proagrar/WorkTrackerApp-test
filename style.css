@@ -1991,7 +1991,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .wo-map-top-left-controls {
   position: absolute;
   top: 8px;
-  left: 8px;
+  left: 28px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
