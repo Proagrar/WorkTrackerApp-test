@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.24';
+const APP_VERSION = 'v4.25';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -125,6 +125,8 @@ const roadAddBtn  = document.getElementById('roadAddBtn');
 const roadCommentInput = document.getElementById('roadComment');
 const roadTimeListEl = document.getElementById('roadTimeList');
 const workLogGerkRowsEl = document.getElementById('workLogGerkRows');
+const wlgSelectAllWrap = document.getElementById('wlgSelectAllWrap');
+const wlgSelectAllCheckbox = document.getElementById('wlgSelectAllCheckbox');
 const woGerkPagerEl       = document.getElementById('woGerkPager'); // phone-only — see updateGerkPaging()
 const woGerkPagerLabelEl  = document.getElementById('woGerkPagerLabel');
 const woGerkPagerPrevBtn  = document.getElementById('woGerkPagerPrev');
@@ -1295,9 +1297,21 @@ function renderWorkLogGerkRows(rows) {
 
   wireGerkRowButtons();
   updateGerkSelectionBar();
+  wlgSelectAllWrap.hidden = !isAdminView();
+  updateWlgSelectAllCheckbox();
   if (woMapExpanded) renderCompactGerkList();
   woGerkPageIndex = 0;
   updateGerkPaging();
+}
+
+// Keeps the "Izberi vse" checkbox's checked/indeterminate state matching
+// selectedGerkCodes vs. every GERK currently in the list — same reasoning
+// as the main list's updateSelectAllCheckboxState().
+function updateWlgSelectAllCheckbox() {
+  const codes = Array.from(workLogGerkRowsEl.querySelectorAll('.wlg-row')).map(r => r.dataset.code);
+  const selectedCount = codes.filter(c => selectedGerkCodes.has(c)).length;
+  wlgSelectAllCheckbox.checked = codes.length > 0 && selectedCount === codes.length;
+  wlgSelectAllCheckbox.indeterminate = selectedCount > 0 && selectedCount < codes.length;
 }
 
 // Compact code + segment-numbers + Start/Konec view, shown in place of
@@ -2590,6 +2604,7 @@ function wireGerkRowButtons() {
       if (cb.checked) selectedGerkCodes.add(cb.dataset.code);
       else selectedGerkCodes.delete(cb.dataset.code);
       updateGerkSelectionBar();
+      updateWlgSelectAllCheckbox();
     });
   });
   workLogGerkRowsEl.querySelectorAll('[data-action="wlg-start"]').forEach(btn => {
@@ -2808,7 +2823,20 @@ function clearGerkSelection() {
   selectedGerkCodes = new Set();
   workLogGerkRowsEl.querySelectorAll('[data-action="wlg-select"]').forEach(cb => { cb.checked = false; });
   updateGerkSelectionBar();
+  updateWlgSelectAllCheckbox();
 }
+
+wlgSelectAllCheckbox.addEventListener('click', () => {
+  const codes = Array.from(workLogGerkRowsEl.querySelectorAll('.wlg-row')).map(r => r.dataset.code);
+  const anySelected = codes.some(c => selectedGerkCodes.has(c));
+  if (anySelected) codes.forEach(c => selectedGerkCodes.delete(c));
+  else codes.forEach(c => selectedGerkCodes.add(c));
+  workLogGerkRowsEl.querySelectorAll('[data-action="wlg-select"]').forEach(cb => {
+    cb.checked = selectedGerkCodes.has(cb.dataset.code);
+  });
+  updateGerkSelectionBar();
+  updateWlgSelectAllCheckbox();
+});
 
 // Same reasoning as the single-row remove: segments/samples cascade-
 // delete automatically via the DB's own FK, no guard needed. Logged

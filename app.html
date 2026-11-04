@@ -557,37 +557,15 @@
 
         <!-- GERKs: one row per planned field, Start/Stop logs start/end time -->
         <div class="field wo-gerk-field">
-          <label class="field-label">GERKI</label>
-          <!-- Admin only: import a KML file — enriches the matching GERK's
-               row if it's already on this order, adds it first if not. -->
-          <div class="wlg-import-zones" id="woImportZonesWrap" hidden>
-            <input type="file" accept=".kml" multiple class="wlg-kml-input" id="woKmlInput" hidden>
-            <button type="button" class="btn btn-secondary btn-sm" id="woImportZonesPickBtn">Uvozi cone (KML)</button>
-            <div class="wlg-import-zones-form" id="woImportZonesForm" hidden>
-              <div class="wlg-import-zones-files" id="woImportZonesFiles"></div>
-              <datalist id="woImportZonesGerkList"></datalist>
-              <select class="sample-field-input" id="woImportZonesType">
-                <option value="vzorčenje">Vzorčenje</option>
-                <option value="gnojenje">Gnojenje</option>
-                <option value="setev">Setev</option>
-              </select>
-              <!-- Globina only makes sense for Vzorčenje — shown/hidden to
-                   match the Tip segmentacije selection above. One value
-                   here applies to every segment this import creates. -->
-              <select class="sample-field-input" id="woImportZonesGlobina">
-                <option value="">Globina…</option>
-                <option value="12">12 cm</option>
-                <option value="20">20 cm</option>
-                <option value="25">25 cm</option>
-                <option value="30">30 cm</option>
-                <option value="60">60 cm</option>
-                <option value="90">90 cm</option>
-              </select>
-              <input type="date" class="sample-field-input" id="woImportZonesDate">
-              <button type="button" class="btn btn-secondary btn-sm" id="woImportZonesConfirmBtn">Uvozi</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="woImportZonesCancelBtn">Prekliči</button>
-            </div>
-            <div class="alert alert-error" id="woImportZonesError" hidden role="alert"></div>
+          <div class="wlg-gerk-label-row">
+            <label class="field-label">GERKI</label>
+            <!-- Admin only: toggles every GERK's own selection checkbox at
+                 once — rebuilt per render in renderWorkLogGerkRows(), same
+                 reasoning as the main list's woSelectAllCheckbox. -->
+            <label class="wlg-select-all-label" id="wlgSelectAllWrap" hidden>
+              <input type="checkbox" id="wlgSelectAllCheckbox" aria-label="Izberi vse GERKE">
+              Izberi vse
+            </label>
           </div>
           <div id="workLogGerkRows" class="wlg-table"></div>
           <!-- Phone only (CSS): pages through .wlg-row elements one at a
@@ -603,12 +581,47 @@
                woMapExpandBtn) — code + segment numbers only, click to
                highlight on the map, no edit controls. -->
           <div id="wlgCompactList" class="wlg-compact-list" hidden></div>
-          <!-- Admin only: add a GERK to an already-created order — the create
-               form's own +/− only works before the first save. -->
-          <div class="field" id="woAddExistingGerkWrap" hidden>
-            <label class="field-label" for="woAddExistingGerkPaste">Ali prilepite GERK šifre (vejica, ali direktno iz Excela — vrstica/stolpec, ali lab. listo GERK/Ha/FMS/Št. segmenta)</label>
-            <textarea class="field-input field-textarea" id="woAddExistingGerkPaste" rows="3" placeholder="npr. 830635, 1367184, 1319486&#10;ali prilepite stolpec/vrstice iz Excela"></textarea>
-            <button type="button" class="btn btn-secondary btn-sm" id="woAddExistingGerkBtn">+ Dodaj GERK-e</button>
+          <!-- Admin only: both ways to add more GERKs to this order sit
+               together at the end of the list, next to each other. -->
+          <div class="wlg-gerk-add-actions">
+            <!-- Import a KML file — enriches the matching GERK's row if
+                 it's already on this order, adds it first if not. -->
+            <div class="wlg-import-zones" id="woImportZonesWrap" hidden>
+              <input type="file" accept=".kml" multiple class="wlg-kml-input" id="woKmlInput" hidden>
+              <button type="button" class="btn btn-secondary btn-sm" id="woImportZonesPickBtn">Uvozi cone (KML)</button>
+              <div class="wlg-import-zones-form" id="woImportZonesForm" hidden>
+                <div class="wlg-import-zones-files" id="woImportZonesFiles"></div>
+                <datalist id="woImportZonesGerkList"></datalist>
+                <select class="sample-field-input" id="woImportZonesType">
+                  <option value="vzorčenje">Vzorčenje</option>
+                  <option value="gnojenje">Gnojenje</option>
+                  <option value="setev">Setev</option>
+                </select>
+                <!-- Globina only makes sense for Vzorčenje — shown/hidden to
+                     match the Tip segmentacije selection above. One value
+                     here applies to every segment this import creates. -->
+                <select class="sample-field-input" id="woImportZonesGlobina">
+                  <option value="">Globina…</option>
+                  <option value="12">12 cm</option>
+                  <option value="20">20 cm</option>
+                  <option value="25">25 cm</option>
+                  <option value="30">30 cm</option>
+                  <option value="60">60 cm</option>
+                  <option value="90">90 cm</option>
+                </select>
+                <input type="date" class="sample-field-input" id="woImportZonesDate">
+                <button type="button" class="btn btn-secondary btn-sm" id="woImportZonesConfirmBtn">Uvozi</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="woImportZonesCancelBtn">Prekliči</button>
+              </div>
+              <div class="alert alert-error" id="woImportZonesError" hidden role="alert"></div>
+            </div>
+            <!-- Add a GERK to an already-created order — the create form's
+                 own +/− only works before the first save. -->
+            <div class="field" id="woAddExistingGerkWrap" hidden>
+              <label class="field-label" for="woAddExistingGerkPaste">Ali prilepite GERK šifre (vejica, ali direktno iz Excela — vrstica/stolpec, ali lab. listo GERK/Ha/FMS/Št. segmenta)</label>
+              <textarea class="field-input field-textarea" id="woAddExistingGerkPaste" rows="3" placeholder="npr. 830635, 1367184, 1319486&#10;ali prilepite stolpec/vrstice iz Excela"></textarea>
+              <button type="button" class="btn btn-secondary btn-sm" id="woAddExistingGerkBtn">+ Dodaj GERK-e</button>
+            </div>
           </div>
         </div>
 
