@@ -1173,6 +1173,10 @@ input, select, textarea { font-family: inherit; }
   margin-top: 8px;
 }
 
+/* Obnovi/Izbriši nalog — same row as the two buttons above, pushed to
+   the far right (only one of the two is ever visible at once). */
+.wlg-gerk-row-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
 .wlg-import-zones { margin: 0; }
 
 .wlg-import-zones-form {
@@ -2511,16 +2515,12 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
      worth the vertical space it eats on a phone-width map. */
   #woDetailMap .leaflet-control-attribution { display: none; }
 
-  /* GERK list admin tools (KML import, paste-to-add, sampling export)
-     and the bottom action row (Zaključi delo/Izbriši nalog) all assume
-     real screen width and don't fit the phone's one-GERK-at-a-time
-     card — hidden here. Nothing is left below the map except the
-     opomba field (relocated right below it, see
+  /* GERK list admin tools (KML import, paste-to-add, Obnovi/Izbriši
+     nalog) assume real screen width and don't fit the phone's
+     one-GERK-at-a-time card — hidden here. Nothing is left below the
+     map except the opomba field (relocated right below it, see
      .wo-detail-layout > #roadComment above) and the GERK list itself. */
-  #woImportZonesWrap,
-  #woAddExistingGerkWrap,
-  #woExportSamplingWrap,
-  #formModal .form-actions {
+  #woAddExistingGerkWrap {
     display: none;
   }
 

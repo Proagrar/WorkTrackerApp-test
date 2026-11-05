@@ -628,6 +628,13 @@
                 </div>
                 <div class="alert alert-error" id="woImportZonesError" hidden role="alert"></div>
               </div>
+              <!-- Admin only: same row as "+ Dodaj GERK-e" / "Uvozi cone
+                   (KML)", pushed to the far right — only one of the two
+                   is ever visible at once (see openWorkOrderDetail()). -->
+              <div class="wlg-gerk-row-actions">
+                <button type="button" id="woRestoreBtn" class="btn btn-secondary btn-sm" hidden>Obnovi</button>
+                <button type="button" id="woDeleteBtn" class="btn btn-danger btn-sm" hidden>Izbriši nalog</button>
+              </div>
             </div>
           </div>
         </div>
@@ -653,16 +660,6 @@
 
         <div id="formError"   class="alert alert-error"   hidden role="alert"></div>
         <div id="formSuccess" class="alert alert-success" hidden role="status"></div>
-
-        <div class="form-actions">
-          <button type="button" id="cancelBtn" class="btn btn-secondary btn-flex">Zaključi delo</button>
-          <!-- Admin only: "Izbriši" archives the order (deleted_at) — no
-               guard, always reversible via "Obnovi" in the "Izbrisani"
-               list. No separate hard-delete anymore, same action either
-               way regardless of logged time. -->
-          <button type="button" id="woRestoreBtn" class="btn btn-secondary btn-sm" hidden>Obnovi</button>
-          <button type="button" id="woDeleteBtn" class="btn btn-danger btn-sm" hidden>Izbriši nalog</button>
-        </div>
         </div>
       </div>
     </div>

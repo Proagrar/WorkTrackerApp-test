@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.34';
+const APP_VERSION = 'v4.36';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -138,7 +138,6 @@ const tractorInput = document.getElementById('tractor');
 const descInput   = document.getElementById('description');
 const formError   = document.getElementById('formError');
 const formSuccess = document.getElementById('formSuccess');
-const cancelBtn   = document.getElementById('cancelBtn');
 
 // ── Tabs ───────────────────────────────────────────────────────
 const tabBarEl        = document.querySelector('.tab-bar');
@@ -3890,20 +3889,18 @@ async function confirmKmlImport(btn) {
         });
         if (importError) throw importError;
 
-        // Backfill Ha from the imported zones' own area (gerk_segment.area_ha
-        // is a generated column computed from the actual polygon geometry —
-        // no registry lookup needed) when this GERK has none yet. Covers
-        // custom/sub-divided codes with no registry match at all (e.g. a
-        // large field split into "1526437_CH1", "1526437_MO7"...), which
-        // otherwise show no Ha despite the zone geometry being right there.
+        // Ha priority: KML import (actual measured geometry) > manual entry
+        // > fields registry — a freshly imported zone's own area
+        // (gerk_segment.area_ha, a generated column computed from the real
+        // polygon) is the most trustworthy number there is, so it always
+        // overwrites whatever kolicina_ha was before (manual or registry),
+        // not just when it was empty.
         const { data: segRows } = await supabase.from('gerk_segment').select('label, area_ha').eq('segmentation_id', segmentationId);
         const areaByLabel = new Map((segRows || []).map(r => [r.label, Number(r.area_ha) || null]));
-        if (!gerk.kolicina_ha) {
-          const importedHa = (segRows || []).reduce((s, r) => s + (Number(r.area_ha) || 0), 0);
-          if (importedHa > 0) {
-            const { error: haError } = await supabase.from('delovni_nalogi_gerki').update({ kolicina_ha: importedHa }).eq('id', gerk.id);
-            if (!haError) gerk.kolicina_ha = importedHa;
-          }
+        const importedHa = (segRows || []).reduce((s, r) => s + (Number(r.area_ha) || 0), 0);
+        if (importedHa > 0) {
+          const { error: haError } = await supabase.from('delovni_nalogi_gerki').update({ kolicina_ha: importedHa }).eq('id', gerk.id);
+          if (!haError) gerk.kolicina_ha = importedHa;
         }
 
         // Each imported zone also becomes its own segment (delovni_nalogi_vzorci
@@ -4130,7 +4127,7 @@ woAddExistingGerkBtn.addEventListener('click', async () => {
       .insert(entries.map(({ code, hectares }) => ({
         delovni_nalog_id: currentDetailWorkOrder.id,
         gerk_code:        code,
-        kolicina_ha:      knownByCode.get(code)?.area_ha ?? (hectares ? parseFloat(hectares) : null),
+        kolicina_ha:      (hectares ? parseFloat(hectares) : null) ?? knownByCode.get(code)?.area_ha ?? null,
       })))
       .select('id, gerk_code, kolicina_ha, lokacija, tip_lab_analize');
     if (error) throw error;
@@ -4208,7 +4205,6 @@ fabMenu.querySelectorAll('.fab-menu-item').forEach(btn => {
 
 modalClose.addEventListener('click', closeModal);
 woBackBtn.addEventListener('click', closeModal);
-cancelBtn.addEventListener('click', closeModal);
 
 formModal.addEventListener('click', e => { if (e.target === formModal) closeModal(); });
 declModal.addEventListener('click', e => { if (e.target === declModal) closeDeclModal(); });
@@ -6285,17 +6281,11 @@ async function confirmNewKmlImport(btn) {
         });
         if (error) throw error;
 
-        // Same Ha fallback as the detail-view import — gerk_segment.area_ha
-        // is computed from the actual imported geometry, so a custom/
-        // sub-divided code with no registry match still gets a real Ha
-        // instead of showing nothing.
-        const known = fields.find(f => f.code === gerkCode);
-        let hectares = known?.area ?? null;
+        // Same Ha priority as the detail-view import — KML geometry first,
+        // fields registry only as a fallback when the import has no area.
         const { data: segRows } = await supabase.from('gerk_segment').select('label, area_ha').eq('segmentation_id', segmentationId);
-        if (!hectares) {
-          const importedHa = (segRows || []).reduce((s, r) => s + (Number(r.area_ha) || 0), 0);
-          if (importedHa > 0) hectares = importedHa;
-        }
+        const importedHa = (segRows || []).reduce((s, r) => s + (Number(r.area_ha) || 0), 0);
+        let hectares = importedHa > 0 ? importedHa : (fields.find(f => f.code === gerkCode)?.area ?? null);
         const areaByLabel = new Map((segRows || []).map(r => [r.label, Number(r.area_ha) || null]));
         const row = ensureGerkRowForPaste(gerkCode, hectares);
         if (row) addGerkSegments(row, imp.segments.map(s => ({ fms: null, sampleNo: s.label, vzorcenje: null, areaHa: areaByLabel.get(s.label) ?? null })));
