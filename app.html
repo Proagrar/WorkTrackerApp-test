@@ -504,16 +504,6 @@
              to give it its own interactive slot, so it's just one
              concatenated line — see updateOrderHeader(). -->
         <p id="woHeaderMeta" class="wo-header-meta"></p>
-        <!-- Admin only — "Pripravi račun" flow. The app never talks to
-             Minimax directly: this only writes racun_zahtevan_at/by, a
-             separate script picks that up and fills in minimax_racun_*.
-             See updateInvoiceBox() in app.js for the state table. -->
-        <div id="woInvoiceBox" class="wo-invoice-box" hidden>
-          <span id="woInvoiceStatus" class="wo-invoice-status"></span>
-          <button type="button" id="woInvoiceBtn" class="btn btn-secondary btn-sm" hidden>Pripravi račun</button>
-          <button type="button" id="woInvoiceRetryBtn" class="btn btn-secondary btn-sm" hidden>Poskusi znova</button>
-          <button type="button" id="woInvoiceCancelBtn" class="btn btn-secondary btn-sm" hidden>Prekliči</button>
-        </div>
       </div>
 
       <div class="wo-detail-layout">

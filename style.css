@@ -674,6 +674,33 @@ input, select, textarea { font-family: inherit; }
 .wo-c-maps { display: none; }
 .wo-c-maps--empty { color: var(--text-muted); }
 
+/* Invoice column — same desktop-only treatment as .wo-c-maps above, and
+   for the same reason (keeps the mobile grid-template-columns track
+   count accurate while the element stays in the DOM). */
+.wo-c-invoice { display: none; }
+.wo-c-invoice--empty { color: var(--text-muted); }
+.wo-invoice-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: .9375rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.wo-invoice-btn--pending { opacity: .7; }
+.wo-invoice-btn--error { color: var(--danger); }
+.wo-invoice-number {
+  font-size: .75rem;
+  font-weight: 600;
+  color: #6D28D9;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wo-invoice-number--storniran { color: var(--danger); text-decoration: line-through; }
+
 
 /* ── Work log: work-order label + compact GERK entry table ──── */
 .wo-order-label {
@@ -1271,19 +1298,6 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   color: var(--text-secondary);
 }
 .wo-header-meta:empty { display: none; }
-
-.wo-invoice-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 4px;
-}
-.wo-invoice-status {
-  font-size: .8125rem;
-  color: var(--text-secondary);
-}
-.wo-invoice-status--error { color: var(--danger); }
 
 /* ── "Pripravi račun" review modal ───────────────────────────── */
 .invoice-preview-fields {
@@ -2694,6 +2708,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
      specificity — see the base rule's comment further up for why
      that matters here. */
   .wo-c-maps { display: flex; align-items: center; justify-content: center; }
+  .wo-c-invoice { display: flex; align-items: center; justify-content: center; }
 
   /* fr-weighted (not fixed px) on every column except the icon-only
      ones — otherwise Stranka's 1fr soaks up 100% of the extra width on
@@ -2702,11 +2717,11 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
      cramped together at the right edge. */
   .wo-lc-header.wo-lc-header--enhanced,
   .wo-compact.wo-compact--enhanced {
-    grid-template-columns: 48px minmax(64px,.6fr) minmax(140px,1.6fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(90px,.8fr) minmax(100px,.9fr) 44px;
+    grid-template-columns: 48px minmax(64px,.6fr) minmax(140px,1.6fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(90px,.8fr) minmax(100px,.9fr) 48px 44px;
   }
   .wo-lc-header.wo-lc-header.wo-lc-header--enhanced.wo-lc-header--selectable,
   .wo-compact.wo-compact.wo-compact--enhanced.wo-compact--selectable {
-    grid-template-columns: 28px 48px minmax(64px,.6fr) minmax(140px,1.6fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(90px,.8fr) minmax(100px,.9fr) 44px;
+    grid-template-columns: 28px 48px minmax(64px,.6fr) minmax(140px,1.6fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(90px,.8fr) minmax(100px,.9fr) 48px 44px;
   }
 
   /* Modals read as centered desktop dialogs instead of mobile bottom sheets. */

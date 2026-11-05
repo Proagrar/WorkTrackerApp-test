@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.37';
+const APP_VERSION = 'v4.38';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -118,11 +118,6 @@ const woCaptureToast = document.getElementById('woCaptureToast');
 const woCaptureShowPoints = document.getElementById('woCaptureShowPoints');
 const woCaptureList = document.getElementById('woCaptureList');
 const woHeaderMeta = document.getElementById('woHeaderMeta');
-const woInvoiceBox = document.getElementById('woInvoiceBox');
-const woInvoiceStatus = document.getElementById('woInvoiceStatus');
-const woInvoiceBtn = document.getElementById('woInvoiceBtn');
-const woInvoiceRetryBtn = document.getElementById('woInvoiceRetryBtn');
-const woInvoiceCancelBtn = document.getElementById('woInvoiceCancelBtn');
 const invoicePreviewModal = document.getElementById('invoicePreviewModal');
 const invoicePreviewClose = document.getElementById('invoicePreviewClose');
 const invoicePreviewWarning = document.getElementById('invoicePreviewWarning');
@@ -1614,62 +1609,22 @@ function updateOrderHeader() {
   if (totalMin > 0) metaParts.push(`Skupaj: ${fmtHM(totalMin)}`);
   woHeaderMeta.textContent = metaParts.join(' · ');
   buildWoHeaderSummary();
-  updateInvoiceBox();
 }
 
-// "Pripravi račun" — the app only ever writes racun_zahtevan_at/by here;
-// a separate script (not this app) polls that, creates the Minimax draft,
-// and fills in minimax_racun_*/racun_napaka. See the feature spec for the
-// full state machine this mirrors.
-function updateInvoiceBox() {
-  const wo = currentDetailWorkOrder;
-  const isAdmin = isAdminView();
-  const eligible = wo.status === 'Izvedeno' && !wo.deleted_at && !wo.minimax_racun_id && !wo.racun_zahtevan_at;
+// "Pripravi račun" lives in the work-orders list (one icon/number cell
+// per row — see renderWoInvoiceCell()), not in the detail view. The app
+// only ever writes racun_zahtevan_at/by: a separate script (not this
+// app) polls that, creates the Minimax draft, and fills in
+// minimax_racun_*/racun_napaka.
+let invoicePreviewWorkOrder = null;
 
-  woInvoiceBox.hidden = !isAdmin;
-  if (!isAdmin) return;
-
-  woInvoiceBtn.hidden = true;
-  woInvoiceRetryBtn.hidden = true;
-  woInvoiceCancelBtn.hidden = true;
-  woInvoiceStatus.textContent = '';
-  woInvoiceStatus.classList.remove('wo-invoice-status--error');
-
-  if (wo.minimax_racun_status === 'izstavljen') {
-    woInvoiceBox.hidden = false;
-    woInvoiceStatus.textContent = `Račun ${wo.minimax_racun_stevilka || ''}`.trim();
-  } else if (wo.minimax_racun_status === 'storniran') {
-    woInvoiceBox.hidden = false;
-    woInvoiceStatus.textContent = `Račun ${wo.minimax_racun_stevilka || ''} je storniran`.trim();
-  } else if (wo.minimax_racun_status === 'osnutek') {
-    woInvoiceBox.hidden = false;
-    woInvoiceStatus.textContent = `Osnutek računa v Minimaxu (ID ${wo.minimax_racun_id}), dopolni in izstavi v Minimaxu`;
-  } else if (wo.racun_napaka) {
-    woInvoiceBox.hidden = false;
-    woInvoiceStatus.textContent = wo.racun_napaka;
-    woInvoiceStatus.classList.add('wo-invoice-status--error');
-    woInvoiceRetryBtn.hidden = false;
-  } else if (wo.racun_zahtevan_at) {
-    woInvoiceBox.hidden = false;
-    woInvoiceStatus.textContent = `Račun v pripravi (zahtevano ${fmtDateTimeSl(wo.racun_zahtevan_at)})`;
-    woInvoiceCancelBtn.hidden = false;
-  } else if (eligible) {
-    woInvoiceBox.hidden = false;
-    woInvoiceBtn.hidden = false;
-  } else {
-    woInvoiceBox.hidden = true;
-  }
-}
-
-// "Pripravi račun" no longer writes straight away — it opens a review
-// modal first (see openInvoicePreviewModal()) summarizing exactly what
-// the separate Minimax sync script will have to work with, so an admin
-// can catch a wrong order/missing Minimax customer match before a draft
-// gets created.
-woInvoiceBtn.addEventListener('click', openInvoicePreviewModal);
-
-function openInvoicePreviewModal() {
-  const wo = currentDetailWorkOrder;
+// First-time request only — opens a review modal summarizing exactly
+// what the separate Minimax sync script will have to work with, so an
+// admin can catch a wrong order/missing Minimax customer match before a
+// draft gets created. A retry after an error reuses the same write but
+// skips the modal (already reviewed once — see wo-invoice-retry below).
+function openInvoicePreviewModal(wo) {
+  invoicePreviewWorkOrder = wo;
   const customerName = wo.customers?.naziv || wo.customers?.company_name || '—';
   const minimaxId = wo.customers?.minimax_customer_id;
 
@@ -1680,7 +1635,7 @@ function openInvoicePreviewModal() {
 
   invoicePreviewWarning.hidden = !!minimaxId;
   if (!minimaxId) {
-    invoicePreviewWarning.textContent = 'Kupec v Minimaxu ni določen — priprava osnutka bo verjetno spodletela. Nastavite "Minimax ID kupca" na kartici stranke (Seznam strank → uredi), ali nadaljujte in popravite kasneje prek "Poskusi znova".';
+    invoicePreviewWarning.textContent = 'Kupec v Minimaxu ni določen — priprava osnutka bo verjetno spodletela. Nastavite "Minimax ID kupca" na kartici stranke (Seznam strank → uredi), ali nadaljujte in popravite kasneje.';
   }
 
   const gerks = wo.delovni_nalogi_gerki || [];
@@ -1690,9 +1645,17 @@ function openInvoicePreviewModal() {
   const totalHa = gerks.reduce((s, g) => s + (Number(g.kolicina_ha) || 0), 0);
   ipGerkTotal.textContent = fmtHa(totalHa);
 
-  const rows = Array.from(workLogGerkRowsEl.querySelectorAll('.wlg-row'));
-  const totalMin = Math.round(rows.reduce((s, r) => s + (parseInt(r.dataset.duration, 10) || 0), 0) / 60);
-  const contributors = [...new Set(currentAllGerkEntries.map(e => e.work_logs.profiles?.full_name).filter(Boolean))];
+  // Accurate per-GERK duration only exists once the detail view has
+  // loaded it (currentAllGerkEntries); triggered straight from the list,
+  // the list's own already-computed total (workOrderDurations) is close
+  // enough for a last-look summary — this isn't the source of truth for
+  // anything, just a sanity check before the request goes out.
+  const totalMin = currentDetailWorkOrder?.id === wo.id
+    ? Math.round(Array.from(workLogGerkRowsEl.querySelectorAll('.wlg-row')).reduce((s, r) => s + (parseInt(r.dataset.duration, 10) || 0), 0) / 60)
+    : (workOrderDurations[wo.id] || 0);
+  const contributors = currentDetailWorkOrder?.id === wo.id
+    ? [...new Set(currentAllGerkEntries.map(e => e.work_logs.profiles?.full_name).filter(Boolean))]
+    : [wo.profiles?.full_name].filter(Boolean);
   ipMeta.textContent = [
     contributors.length ? `Izvaja: ${contributors.join(', ')}` : null,
     totalMin > 0 ? `Skupaj ur: ${fmtHM(totalMin)}` : null,
@@ -1703,6 +1666,7 @@ function openInvoicePreviewModal() {
 
 function closeInvoicePreviewModal() {
   hideModalAnimated(invoicePreviewModal);
+  invoicePreviewWorkOrder = null;
 }
 
 invoicePreviewClose.addEventListener('click', closeInvoicePreviewModal);
@@ -1710,7 +1674,8 @@ invoicePreviewCancelBtn.addEventListener('click', closeInvoicePreviewModal);
 invoicePreviewModal.addEventListener('click', e => { if (e.target === invoicePreviewModal) closeInvoicePreviewModal(); });
 
 invoicePreviewConfirmBtn.addEventListener('click', async () => {
-  const wo = currentDetailWorkOrder;
+  const wo = invoicePreviewWorkOrder;
+  if (!wo) return;
   invoicePreviewConfirmBtn.disabled = true;
   invoicePreviewConfirmBtn.querySelector('.btn-label').hidden = true;
   invoicePreviewConfirmBtn.querySelector('.btn-spinner').hidden = false;
@@ -1724,41 +1689,75 @@ invoicePreviewConfirmBtn.addEventListener('click', async () => {
   invoicePreviewConfirmBtn.disabled = false;
   invoicePreviewConfirmBtn.querySelector('.btn-label').hidden = false;
   invoicePreviewConfirmBtn.querySelector('.btn-spinner').hidden = true;
-  if (error) { closeInvoicePreviewModal(); return showFormError('Napaka pri zahtevi za račun.'); }
+  if (error) { closeInvoicePreviewModal(); return alert('Napaka pri zahtevi za račun.'); }
   wo.racun_zahtevan_at = new Date().toISOString();
   wo.racun_napaka = null;
   closeInvoicePreviewModal();
-  updateInvoiceBox();
+  renderWorkOrders();
 });
 
-woInvoiceRetryBtn.addEventListener('click', async () => {
-  const wo = currentDetailWorkOrder;
-  woInvoiceRetryBtn.disabled = true;
+// Direct (no modal) — already reviewed once via the preview modal; this
+// just resubmits the same request after Minimax sync reported an error.
+async function retryInvoiceRequest(wo) {
   const { error } = await supabase
     .from('delovni_nalogi')
     .update({ racun_napaka: null, racun_zahtevan_at: new Date().toISOString() })
     .eq('id', wo.id);
-  woInvoiceRetryBtn.disabled = false;
-  if (error) return showFormError('Napaka pri ponovnem poskusu.');
+  if (error) return alert('Napaka pri ponovnem poskusu.');
   wo.racun_napaka = null;
   wo.racun_zahtevan_at = new Date().toISOString();
-  updateInvoiceBox();
-});
+  renderWorkOrders();
+}
 
-woInvoiceCancelBtn.addEventListener('click', async () => {
-  const wo = currentDetailWorkOrder;
-  woInvoiceCancelBtn.disabled = true;
+// Direct (no modal) — withdraws a not-yet-processed request; blocked by
+// the is('minimax_racun_id', null) once the sync script has picked it up.
+async function cancelInvoiceRequest(wo) {
+  if (!confirm(`Preklicati zahtevo za račun za nalog ${wo.stevilka}?`)) return;
   const { error } = await supabase
     .from('delovni_nalogi')
     .update({ racun_zahtevan_at: null, racun_zahtevan_by: null })
     .eq('id', wo.id)
     .is('minimax_racun_id', null);
-  woInvoiceCancelBtn.disabled = false;
-  if (error) return showFormError('Napaka pri preklicu.');
+  if (error) return alert('Napaka pri preklicu.');
   wo.racun_zahtevan_at = null;
   wo.racun_zahtevan_by = null;
-  updateInvoiceBox();
-});
+  renderWorkOrders();
+}
+
+// One cell in the work-orders list (see renderWorkOrders()) — an icon
+// to request an invoice, the real invoice number once Minimax has one,
+// or an interim state in between. Interactive states are admin-only;
+// everyone else gets the same information as plain, non-clickable text.
+function renderWoInvoiceCell(wo) {
+  const admin = isAdminView();
+  if (wo.minimax_racun_status === 'izstavljen') {
+    const num = escHtml(wo.minimax_racun_stevilka || `#${wo.minimax_racun_id}`);
+    return `<span class="wo-c-invoice wo-invoice-number" title="Račun ${num}">${num}</span>`;
+  }
+  if (wo.minimax_racun_status === 'storniran') {
+    const num = escHtml(wo.minimax_racun_stevilka || `#${wo.minimax_racun_id}`);
+    return `<span class="wo-c-invoice wo-invoice-number wo-invoice-number--storniran" title="Račun ${num} je storniran">${num} ⨯</span>`;
+  }
+  if (wo.minimax_racun_status === 'osnutek') {
+    return `<span class="wo-c-invoice wo-invoice-number" title="Osnutek računa v Minimaxu (ID ${wo.minimax_racun_id}) — dopolni in izstavi v Minimaxu">Osnutek</span>`;
+  }
+  if (wo.racun_napaka) {
+    return admin
+      ? `<button type="button" class="wo-c-invoice wo-invoice-btn wo-invoice-btn--error" data-action="wo-invoice-retry" data-id="${escHtml(wo.id)}" title="${escHtml(wo.racun_napaka)} — klikni za ponovni poskus" aria-label="Napaka pri računu, ponovno poskusi">⚠</button>`
+      : `<span class="wo-c-invoice wo-invoice-number" title="${escHtml(wo.racun_napaka)}">⚠</span>`;
+  }
+  if (wo.racun_zahtevan_at) {
+    const title = `Račun v pripravi (zahtevano ${fmtDateTimeSl(wo.racun_zahtevan_at)})`;
+    return admin
+      ? `<button type="button" class="wo-c-invoice wo-invoice-btn wo-invoice-btn--pending" data-action="wo-invoice-cancel" data-id="${escHtml(wo.id)}" title="${title} — klikni za preklic" aria-label="Račun v pripravi, prekliči">⏳</button>`
+      : `<span class="wo-c-invoice wo-invoice-number" title="${title}">⏳</span>`;
+  }
+  const eligible = wo.status === 'Izvedeno' && !wo.deleted_at && !wo.minimax_racun_id;
+  if (eligible && admin) {
+    return `<button type="button" class="wo-c-invoice wo-invoice-btn" data-action="wo-invoice-request" data-id="${escHtml(wo.id)}" title="Pripravi račun" aria-label="Pripravi račun">🧾</button>`;
+  }
+  return `<span class="wo-c-invoice wo-c-invoice--empty">—</span>`;
+}
 
 // ── Modal ──────────────────────────────────────────────────────
 let currentDetailWorkOrder = null;
@@ -5652,6 +5651,7 @@ function renderWorkOrders() {
       deleted:      !!wo.deleted_at,
       lat:          point?.lat ?? null,
       lng:          point?.lng ?? null,
+      raw:          wo, // full row — renderWoInvoiceCell() needs fields not flattened above
     };
   });
 
@@ -5663,11 +5663,13 @@ function renderWorkOrders() {
         const arrow  = active ? (woSortDir === 'asc' ? ' ▲' : ' ▼') : '';
         return `<button type="button" class="wo-th${col.center ? ' wo-th-center' : ''}${active ? ' wo-th--active' : ''}" data-sort="${col.key}">${col.label}${arrow}</button>`;
       }).join('')}
+      <span class="wo-th wo-th-center wo-c-invoice" title="Račun">🧾</span>
       <span class="wo-th wo-th-center wo-c-maps" title="Zemljevid">📍</span>
     </div>`;
 
   const rows = sortWorkOrderRows(rowData).map(r => {
     const haStr = r.totalHa > 0 ? r.totalHa.toFixed(2) : '—';
+    const invoiceCell = renderWoInvoiceCell(r.raw);
     const mapsCell = r.lat != null && r.lng != null
       ? `<a class="wo-c-maps" href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener" aria-label="Odpri na zemljevidu">📍</a>`
       : `<span class="wo-c-maps wo-c-maps--empty">—</span>`;
@@ -5685,6 +5687,7 @@ function renderWorkOrders() {
         <span class="lc-ha">${haStr}</span>
         <span class="wo-c-izvajalec">${escHtml(r.izvajalec)}</span>
         <span class="wo-status-badge wo-status--${slugStatus(r.status)}">${escHtml(r.status)}</span>
+        ${invoiceCell}
         ${mapsCell}
       </div>`;
   }).join('');
@@ -5713,6 +5716,29 @@ function wireWorkOrderButtons() {
       woSortDir = (woSortKey === key && woSortDir === 'asc') ? 'desc' : 'asc';
       woSortKey = key;
       renderWorkOrders();
+    });
+  });
+  // stopPropagation on all three — same reasoning as the select checkbox
+  // below, these sit inside the clickable row and must not also open it.
+  workOrdersList.querySelectorAll('[data-action="wo-invoice-request"]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const wo = workOrders.find(w => w.id === btn.dataset.id);
+      if (wo) openInvoicePreviewModal(wo);
+    });
+  });
+  workOrdersList.querySelectorAll('[data-action="wo-invoice-retry"]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const wo = workOrders.find(w => w.id === btn.dataset.id);
+      if (wo) retryInvoiceRequest(wo);
+    });
+  });
+  workOrdersList.querySelectorAll('[data-action="wo-invoice-cancel"]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const wo = workOrders.find(w => w.id === btn.dataset.id);
+      if (wo) cancelInvoiceRequest(wo);
     });
   });
   // stopPropagation so checking the box doesn't also trigger the row's
