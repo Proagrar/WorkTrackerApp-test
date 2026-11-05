@@ -1272,6 +1272,52 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 }
 .wo-header-meta:empty { display: none; }
 
+.wo-invoice-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.wo-invoice-status {
+  font-size: .8125rem;
+  color: var(--text-secondary);
+}
+.wo-invoice-status--error { color: var(--danger); }
+
+/* ── "Pripravi račun" review modal ───────────────────────────── */
+.invoice-preview-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 12px;
+  margin: 0;
+}
+.invoice-preview-fields > div { display: contents; }
+.invoice-preview-fields dt { color: var(--text-secondary); font-size: .8125rem; }
+.invoice-preview-fields dd { margin: 0; font-weight: 600; }
+.invoice-preview-note {
+  font-size: .8125rem;
+  color: var(--text-secondary);
+  background: var(--bg-subtle, var(--border-light));
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+.invoice-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .8125rem;
+}
+.invoice-preview-table th, .invoice-preview-table td {
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border-light);
+}
+.invoice-preview-table tfoot td { font-weight: 700; border-bottom: none; }
+.invoice-preview-meta {
+  font-size: .8125rem;
+  color: var(--text-secondary);
+}
+
 /* ── Greeting ───────────────────────────────────────────────── */
 .greeting-section {
   background: linear-gradient(135deg, var(--blue-800) 0%, var(--blue-700) 100%);

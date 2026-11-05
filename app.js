@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.36';
+const APP_VERSION = 'v4.37';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -118,6 +118,23 @@ const woCaptureToast = document.getElementById('woCaptureToast');
 const woCaptureShowPoints = document.getElementById('woCaptureShowPoints');
 const woCaptureList = document.getElementById('woCaptureList');
 const woHeaderMeta = document.getElementById('woHeaderMeta');
+const woInvoiceBox = document.getElementById('woInvoiceBox');
+const woInvoiceStatus = document.getElementById('woInvoiceStatus');
+const woInvoiceBtn = document.getElementById('woInvoiceBtn');
+const woInvoiceRetryBtn = document.getElementById('woInvoiceRetryBtn');
+const woInvoiceCancelBtn = document.getElementById('woInvoiceCancelBtn');
+const invoicePreviewModal = document.getElementById('invoicePreviewModal');
+const invoicePreviewClose = document.getElementById('invoicePreviewClose');
+const invoicePreviewWarning = document.getElementById('invoicePreviewWarning');
+const ipNalog = document.getElementById('ipNalog');
+const ipStranka = document.getElementById('ipStranka');
+const ipMinimaxId = document.getElementById('ipMinimaxId');
+const ipSklic = document.getElementById('ipSklic');
+const ipGerkRows = document.getElementById('ipGerkRows');
+const ipGerkTotal = document.getElementById('ipGerkTotal');
+const ipMeta = document.getElementById('ipMeta');
+const invoicePreviewCancelBtn = document.getElementById('invoicePreviewCancelBtn');
+const invoicePreviewConfirmBtn = document.getElementById('invoicePreviewConfirmBtn');
 const roadTypeSel = document.getElementById('roadType');
 const roadHourSel = document.getElementById('roadHour');
 const roadMinSel  = document.getElementById('roadMin');
@@ -240,6 +257,7 @@ const editCustRegion       = document.getElementById('editCustRegion');
 const editCustSalesPerson  = document.getElementById('editCustSalesPerson');
 const editCustPartnerId    = document.getElementById('editCustPartnerId');
 const editCustNotes        = document.getElementById('editCustNotes');
+const editCustMinimaxId    = document.getElementById('editCustMinimaxId');
 let editCustomerId = null;
 
 // ── Poročila (reports) full-screen view refs ────────────────────
@@ -981,6 +999,13 @@ function fmtClock(iso) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+// d.m.yyyy HH:MM, local time — used for the invoice-request timestamp.
+function fmtDateTimeSl(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()} ${fmtClock(iso)}`;
+}
+
 // Short d.m.yyyy for the samples panel; dash for unset dates (common in
 // the historical import — sampling/sending dates weren't always recorded).
 function fmtSampleDate(isoDate) {
@@ -1589,7 +1614,151 @@ function updateOrderHeader() {
   if (totalMin > 0) metaParts.push(`Skupaj: ${fmtHM(totalMin)}`);
   woHeaderMeta.textContent = metaParts.join(' · ');
   buildWoHeaderSummary();
+  updateInvoiceBox();
 }
+
+// "Pripravi račun" — the app only ever writes racun_zahtevan_at/by here;
+// a separate script (not this app) polls that, creates the Minimax draft,
+// and fills in minimax_racun_*/racun_napaka. See the feature spec for the
+// full state machine this mirrors.
+function updateInvoiceBox() {
+  const wo = currentDetailWorkOrder;
+  const isAdmin = isAdminView();
+  const eligible = wo.status === 'Izvedeno' && !wo.deleted_at && !wo.minimax_racun_id && !wo.racun_zahtevan_at;
+
+  woInvoiceBox.hidden = !isAdmin;
+  if (!isAdmin) return;
+
+  woInvoiceBtn.hidden = true;
+  woInvoiceRetryBtn.hidden = true;
+  woInvoiceCancelBtn.hidden = true;
+  woInvoiceStatus.textContent = '';
+  woInvoiceStatus.classList.remove('wo-invoice-status--error');
+
+  if (wo.minimax_racun_status === 'izstavljen') {
+    woInvoiceBox.hidden = false;
+    woInvoiceStatus.textContent = `Račun ${wo.minimax_racun_stevilka || ''}`.trim();
+  } else if (wo.minimax_racun_status === 'storniran') {
+    woInvoiceBox.hidden = false;
+    woInvoiceStatus.textContent = `Račun ${wo.minimax_racun_stevilka || ''} je storniran`.trim();
+  } else if (wo.minimax_racun_status === 'osnutek') {
+    woInvoiceBox.hidden = false;
+    woInvoiceStatus.textContent = `Osnutek računa v Minimaxu (ID ${wo.minimax_racun_id}), dopolni in izstavi v Minimaxu`;
+  } else if (wo.racun_napaka) {
+    woInvoiceBox.hidden = false;
+    woInvoiceStatus.textContent = wo.racun_napaka;
+    woInvoiceStatus.classList.add('wo-invoice-status--error');
+    woInvoiceRetryBtn.hidden = false;
+  } else if (wo.racun_zahtevan_at) {
+    woInvoiceBox.hidden = false;
+    woInvoiceStatus.textContent = `Račun v pripravi (zahtevano ${fmtDateTimeSl(wo.racun_zahtevan_at)})`;
+    woInvoiceCancelBtn.hidden = false;
+  } else if (eligible) {
+    woInvoiceBox.hidden = false;
+    woInvoiceBtn.hidden = false;
+  } else {
+    woInvoiceBox.hidden = true;
+  }
+}
+
+// "Pripravi račun" no longer writes straight away — it opens a review
+// modal first (see openInvoicePreviewModal()) summarizing exactly what
+// the separate Minimax sync script will have to work with, so an admin
+// can catch a wrong order/missing Minimax customer match before a draft
+// gets created.
+woInvoiceBtn.addEventListener('click', openInvoicePreviewModal);
+
+function openInvoicePreviewModal() {
+  const wo = currentDetailWorkOrder;
+  const customerName = wo.customers?.naziv || wo.customers?.company_name || '—';
+  const minimaxId = wo.customers?.minimax_customer_id;
+
+  ipNalog.textContent = wo.stevilka || '—';
+  ipStranka.textContent = customerName;
+  ipMinimaxId.textContent = minimaxId || 'ni nastavljen';
+  ipSklic.textContent = `DN ${wo.stevilka || ''}`.trim();
+
+  invoicePreviewWarning.hidden = !!minimaxId;
+  if (!minimaxId) {
+    invoicePreviewWarning.textContent = 'Kupec v Minimaxu ni določen — priprava osnutka bo verjetno spodletela. Nastavite "Minimax ID kupca" na kartici stranke (Seznam strank → uredi), ali nadaljujte in popravite kasneje prek "Poskusi znova".';
+  }
+
+  const gerks = wo.delovni_nalogi_gerki || [];
+  ipGerkRows.innerHTML = gerks.map(g => `
+    <tr><td>${escHtml(g.gerk_code || '—')}</td><td>${fmtHa(g.kolicina_ha)}</td></tr>`
+  ).join('') || '<tr><td colspan="2">Brez GERK-ov.</td></tr>';
+  const totalHa = gerks.reduce((s, g) => s + (Number(g.kolicina_ha) || 0), 0);
+  ipGerkTotal.textContent = fmtHa(totalHa);
+
+  const rows = Array.from(workLogGerkRowsEl.querySelectorAll('.wlg-row'));
+  const totalMin = Math.round(rows.reduce((s, r) => s + (parseInt(r.dataset.duration, 10) || 0), 0) / 60);
+  const contributors = [...new Set(currentAllGerkEntries.map(e => e.work_logs.profiles?.full_name).filter(Boolean))];
+  ipMeta.textContent = [
+    contributors.length ? `Izvaja: ${contributors.join(', ')}` : null,
+    totalMin > 0 ? `Skupaj ur: ${fmtHM(totalMin)}` : null,
+  ].filter(Boolean).join(' · ');
+
+  showModalAnimated(invoicePreviewModal);
+}
+
+function closeInvoicePreviewModal() {
+  hideModalAnimated(invoicePreviewModal);
+}
+
+invoicePreviewClose.addEventListener('click', closeInvoicePreviewModal);
+invoicePreviewCancelBtn.addEventListener('click', closeInvoicePreviewModal);
+invoicePreviewModal.addEventListener('click', e => { if (e.target === invoicePreviewModal) closeInvoicePreviewModal(); });
+
+invoicePreviewConfirmBtn.addEventListener('click', async () => {
+  const wo = currentDetailWorkOrder;
+  invoicePreviewConfirmBtn.disabled = true;
+  invoicePreviewConfirmBtn.querySelector('.btn-label').hidden = true;
+  invoicePreviewConfirmBtn.querySelector('.btn-spinner').hidden = false;
+  const { error } = await supabase
+    .from('delovni_nalogi')
+    .update({ racun_zahtevan_at: new Date().toISOString(), racun_zahtevan_by: currentUser.id, racun_napaka: null })
+    .eq('id', wo.id)
+    .eq('status', 'Izvedeno')
+    .is('deleted_at', null)
+    .is('minimax_racun_id', null);
+  invoicePreviewConfirmBtn.disabled = false;
+  invoicePreviewConfirmBtn.querySelector('.btn-label').hidden = false;
+  invoicePreviewConfirmBtn.querySelector('.btn-spinner').hidden = true;
+  if (error) { closeInvoicePreviewModal(); return showFormError('Napaka pri zahtevi za račun.'); }
+  wo.racun_zahtevan_at = new Date().toISOString();
+  wo.racun_napaka = null;
+  closeInvoicePreviewModal();
+  updateInvoiceBox();
+});
+
+woInvoiceRetryBtn.addEventListener('click', async () => {
+  const wo = currentDetailWorkOrder;
+  woInvoiceRetryBtn.disabled = true;
+  const { error } = await supabase
+    .from('delovni_nalogi')
+    .update({ racun_napaka: null, racun_zahtevan_at: new Date().toISOString() })
+    .eq('id', wo.id);
+  woInvoiceRetryBtn.disabled = false;
+  if (error) return showFormError('Napaka pri ponovnem poskusu.');
+  wo.racun_napaka = null;
+  wo.racun_zahtevan_at = new Date().toISOString();
+  updateInvoiceBox();
+});
+
+woInvoiceCancelBtn.addEventListener('click', async () => {
+  const wo = currentDetailWorkOrder;
+  woInvoiceCancelBtn.disabled = true;
+  const { error } = await supabase
+    .from('delovni_nalogi')
+    .update({ racun_zahtevan_at: null, racun_zahtevan_by: null })
+    .eq('id', wo.id)
+    .is('minimax_racun_id', null);
+  woInvoiceCancelBtn.disabled = false;
+  if (error) return showFormError('Napaka pri preklicu.');
+  wo.racun_zahtevan_at = null;
+  wo.racun_zahtevan_by = null;
+  updateInvoiceBox();
+});
 
 // ── Modal ──────────────────────────────────────────────────────
 let currentDetailWorkOrder = null;
@@ -5363,7 +5532,7 @@ async function loadWorkOrders() {
   const [{ data, error }, { data: centerPoints }, { data: durations }] = await Promise.all([
     supabase
       .from('delovni_nalogi')
-      .select('*, customers(naziv, company_name), profiles(full_name), delovni_nalogi_gerki(id, gerk_code, kolicina_ha, lokacija, tip_lab_analize, delovni_nalogi_vzorci(id, sample_no, sampling_date, sending_date, sampling_note, sending_note, sampling_depth_cm, area_ha, comment))')
+      .select('*, customers(naziv, company_name, minimax_customer_id), profiles(full_name), delovni_nalogi_gerki(id, gerk_code, kolicina_ha, lokacija, tip_lab_analize, delovni_nalogi_vzorci(id, sample_no, sampling_date, sending_date, sampling_note, sending_note, sampling_depth_cm, area_ha, comment))')
       .order('ustvarjen', { ascending: false }),
     // One batched call for every row's map point, instead of one RPC
     // round trip per row — see get_work_orders_center_points.
@@ -6423,7 +6592,7 @@ async function openEditCustomerModal(customerId) {
 
   const { data, error } = await supabase
     .from('customers')
-    .select('naziv, company_name, contact_name, email, phone, address_street, address_city, address_post_code, country, vat_number, region, sales_person, partner_id, notes')
+    .select('naziv, company_name, contact_name, email, phone, address_street, address_city, address_post_code, country, vat_number, region, sales_person, partner_id, notes, minimax_customer_id')
     .eq('id', customerId)
     .single();
 
@@ -6448,6 +6617,7 @@ async function openEditCustomerModal(customerId) {
   editCustSalesPerson.value = data.sales_person || '';
   editCustPartnerId.value   = data.partner_id || '';
   editCustNotes.value       = data.notes || '';
+  editCustMinimaxId.value   = data.minimax_customer_id ?? '';
 }
 
 function closeEditCustomerModal() {
@@ -6487,6 +6657,7 @@ editCustomerForm.addEventListener('submit', async (e) => {
         sales_person: editCustSalesPerson.value.trim() || null,
         partner_id: editCustPartnerId.value.trim() || null,
         notes: editCustNotes.value.trim() || null,
+        minimax_customer_id: editCustMinimaxId.value.trim() ? parseInt(editCustMinimaxId.value, 10) : null,
       })
       .eq('id', editCustomerId)
       .select('id, naziv, company_name, contact_name, email')

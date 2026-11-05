@@ -504,6 +504,16 @@
              to give it its own interactive slot, so it's just one
              concatenated line — see updateOrderHeader(). -->
         <p id="woHeaderMeta" class="wo-header-meta"></p>
+        <!-- Admin only — "Pripravi račun" flow. The app never talks to
+             Minimax directly: this only writes racun_zahtevan_at/by, a
+             separate script picks that up and fills in minimax_racun_*.
+             See updateInvoiceBox() in app.js for the state table. -->
+        <div id="woInvoiceBox" class="wo-invoice-box" hidden>
+          <span id="woInvoiceStatus" class="wo-invoice-status"></span>
+          <button type="button" id="woInvoiceBtn" class="btn btn-secondary btn-sm" hidden>Pripravi račun</button>
+          <button type="button" id="woInvoiceRetryBtn" class="btn btn-secondary btn-sm" hidden>Poskusi znova</button>
+          <button type="button" id="woInvoiceCancelBtn" class="btn btn-secondary btn-sm" hidden>Prekliči</button>
+        </div>
       </div>
 
       <div class="wo-detail-layout">
@@ -1036,6 +1046,13 @@
             <label class="field-label" for="editCustPartnerId">ID partnerja</label>
             <input class="field-input" type="text" id="editCustPartnerId" autocomplete="off" />
           </div>
+          <!-- Used by the Minimax invoice-prep flow to match this customer
+               in Minimax when the auto-match (by davčna/naziv) fails — see
+               the "Pripravi račun" button's "Poskusi znova" error state. -->
+          <div class="field">
+            <label class="field-label" for="editCustMinimaxId">Minimax ID kupca</label>
+            <input class="field-input" type="number" id="editCustMinimaxId" autocomplete="off" />
+          </div>
         </div>
         <div class="field">
           <label class="field-label" for="editCustNotes">Opombe</label>
@@ -1050,6 +1067,50 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ── "Pripravi račun" review modal ───────────────────────────────
+       Shown before the actual racun_zahtevan_at write — lets the admin
+       confirm the customer/Minimax match and double-check this is the
+       right order before a request goes out. The app itself never talks
+       to Minimax; this is just a last look at what the separate sync
+       script will have to work with. -->
+  <div id="invoicePreviewModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="invoicePreviewTitle">
+    <div class="modal-sheet">
+      <div class="modal-handle" aria-hidden="true"></div>
+      <div class="modal-head">
+        <h3 id="invoicePreviewTitle" class="modal-title">Pregled pred pripravo računa</h3>
+        <button id="invoicePreviewClose" class="btn btn-icon" aria-label="Zapri">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="invoice-preview-body work-form">
+        <div id="invoicePreviewWarning" class="alert alert-error" hidden role="alert"></div>
+        <dl class="invoice-preview-fields">
+          <div><dt>Nalog</dt><dd id="ipNalog"></dd></div>
+          <div><dt>Stranka</dt><dd id="ipStranka"></dd></div>
+          <div><dt>Minimax ID kupca</dt><dd id="ipMinimaxId"></dd></div>
+          <div><dt>Sklic (v Minimaxu)</dt><dd id="ipSklic"></dd></div>
+        </dl>
+        <p class="invoice-preview-note">Aplikacija ne pošlje ničesar neposredno v Minimax — zabeleži se samo ta zahteva. Ločena skripta nato v Minimaxu ustvari <strong>prazen osnutek</strong> računa za zgornjega kupca s tem sklicem; artikle in cene dopolni Matej ročno v Minimaxu. Spodaj je povzetek opravljenega dela na tem nalogu, da lahko preverite, da gre za pravi nalog.</p>
+        <table class="invoice-preview-table">
+          <thead><tr><th>GERK</th><th>Ha</th></tr></thead>
+          <tbody id="ipGerkRows"></tbody>
+          <tfoot><tr><td>Skupaj</td><td id="ipGerkTotal"></td></tr></tfoot>
+        </table>
+        <p class="invoice-preview-meta" id="ipMeta"></p>
+        <div class="form-actions">
+          <button type="button" id="invoicePreviewCancelBtn" class="btn btn-secondary btn-flex">Prekliči</button>
+          <button type="button" id="invoicePreviewConfirmBtn" class="btn btn-primary btn-flex">
+            <span class="btn-label">Potrdi in zahtevaj račun</span>
+            <span class="btn-spinner" hidden aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
