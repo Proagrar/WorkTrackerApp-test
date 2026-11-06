@@ -51,13 +51,13 @@
     <!-- Tabs -->
     <nav class="tab-bar" aria-label="Zavihki">
       <button id="tabNalogi" class="tab-btn tab-btn--active" data-tab="nalogi">Delovni Nalogi</button>
+      <!-- Admin-only — same gate as Planiranje/Gnojilni načrt below (updateFabVisibility()). -->
+      <button id="tabSledenje" class="tab-btn" data-tab="sledenje" hidden>Sledenje naročilom</button>
       <button id="tabEvidenca" class="tab-btn" data-tab="evidenca">Evidenca dela</button>
       <!-- Admin-only, like the FAB — see updateFabVisibility() in app.js. -->
       <button id="tabPlaniranje" class="tab-btn" data-tab="planiranje" hidden>Planiranje</button>
       <!-- Admin-only too — same gate as Planiranje (updateFabVisibility()). -->
       <button id="tabGnojilni" class="tab-btn" data-tab="gnojilni" hidden>Gnojilni načrt</button>
-      <!-- Admin-only too — same gate (updateFabVisibility()). -->
-      <button id="tabSledenje" class="tab-btn" data-tab="sledenje" hidden>Sledenje naročilom</button>
     </nav>
 
     <!-- ── Tab: Evidenca dela (original view) ────────────────── -->
@@ -339,19 +339,23 @@
               <input type="search" id="sledOrderSearch" class="field-input fert-input" placeholder="Nalog ali stranka">
             </label>
             <label class="fert-field fert-field--narrow">
-              <span class="field-label">Prikaz</span>
+              <span class="field-label">Status</span>
               <select id="sledOrderMode" class="field-input fert-input">
-                <option value="all">Vsa naročila</option>
-                <option value="none">Ni v škatli</option>
-                <option value="boxed">V škatli</option>
-                <option value="sent">Poslano laboratoriju</option>
-                <option value="results">Prejeti lab. rezultati</option>
+                <option value="all">Vsi statusi</option>
+                <option value="Plan">Plan</option>
+                <option value="V delu">V delu</option>
+                <option value="Izvedeno">Izvedeno</option>
+                <option value="Pakiranje vzorcev">Pakiranje vzorcev</option>
+                <option value="Pripravljeni na pošiljanje">Pripravljeni na pošiljanje</option>
+                <option value="Poslani">Poslani</option>
+                <option value="Delno prejeta analiza">Delno prejeta analiza</option>
+                <option value="Analiza prejeta">Analiza prejeta</option>
               </select>
             </label>
           </div>
           <div class="reports-table-wrap">
             <table class="evidenca-table fert-table">
-              <thead><tr><th>Nalog</th><th>Stranka</th><th class="fert-num">Vzorcev</th><th class="fert-num">V škatli</th><th class="fert-num">Poslano</th><th class="fert-num">Rezultati</th><th>Status vzorčenja</th><th></th></tr></thead>
+              <thead><tr><th>Nalog</th><th>Stranka</th><th class="fert-num">GERK-ov</th><th class="fert-num">Vzorcev</th><th class="fert-num">Ha</th><th>Datum vzorčenja</th><th>Datum pošiljanja</th><th>Datum prejetja</th><th>Status</th><th></th></tr></thead>
               <tbody id="sledOrderRows"></tbody>
             </table>
           </div>

@@ -3367,6 +3367,8 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .sled-seg-sample { font-weight: 600; min-width: 90px; }
 .sled-seg-box-select { flex: 1; max-width: 280px; }
 .sled-row-actions { display: flex; gap: var(--space-2); justify-content: flex-end; }
+.sled-status-cell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.sled-status-stepper { display: block; }
 .fert-link-btn { height: 30px; padding: 0 10px; }
 .fert-pick-list { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); white-space: normal; }
 

@@ -78,19 +78,19 @@ function downloadTextFile(filename, content, mimeType) {
 const LAB_COLS = 'id, lab_sample_code, analysis_date, ph_kcl, ka, caco3_pct, humus_pct, no3_no2_n, p2o5, k2o, mg, na, zn, cu, mn, salts_pct, so4_s, fe, notes';
 
 async function loadAll() {
-  els.orderRows.innerHTML = `<tr><td colspan="8" class="fert-empty">Nalaganje …</td></tr>`;
+  els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty">Nalaganje …</td></tr>`;
   const [{ data: orderData, error: orderError }, { data: boxData, error: boxError }] = await Promise.all([
     supabase.from('delovni_nalogi')
       .select(`id, stevilka, status, customers(naziv, company_name),
-        delovni_nalogi_gerki(id, gerk_code,
-          delovni_nalogi_vzorci(id, sample_no, box_id, sample_boxes(id, label, status), lab_soil_result(${LAB_COLS})))`)
+        delovni_nalogi_gerki(id, gerk_code, kolicina_ha,
+          delovni_nalogi_vzorci(id, sample_no, box_id, sampling_date, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS})))`)
       .is('deleted_at', null)
       .order('ustvarjen', { ascending: false }),
     supabase.from('sample_boxes').select('*').order('created_at', { ascending: false }),
   ]);
   const error = orderError || boxError;
   if (error) {
-    els.orderRows.innerHTML = `<tr><td colspan="8" class="fert-empty fert-error">Napaka pri nalaganju: ${esc(error.message)}</td></tr>`;
+    els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty fert-error">Napaka pri nalaganju: ${esc(error.message)}</td></tr>`;
     return;
   }
   orders = orderData ?? [];
@@ -98,34 +98,83 @@ async function loadAll() {
   renderCurrentView();
 }
 
-// ── Sample-pipeline stage (per segment / per order) ───────────────
-const STAGE_LABELS = ['Ni v škatli', 'V škatli', 'Poslano laboratoriju', 'Prejeti lab. rezultati'];
-const STAGE_KEYS = ['none', 'boxed', 'sent', 'results'];
-
+// ── Sample-pipeline status ────────────────────────────────────────
+// Statuses deliberately link up with the work order's own status (Matej,
+// 2026-11-06): Plan/V delu are shown as-is (nothing to track yet); once
+// the order is Izvedeno (or already invoiced), the label switches to this
+// packing/shipping/lab pipeline, driven purely by the segments' own
+// box_id/box.status/lab_soil_result — nothing stored on the order itself.
 function allSegments(order) {
   return (order.delovni_nalogi_gerki || []).flatMap(g =>
     (g.delovni_nalogi_vzorci || []).map(s => ({ ...s, gerk_code: g.gerk_code })));
 }
-function segmentStage(seg) {
-  if (seg.lab_soil_result?.length) return 3;
-  if (seg.sample_boxes?.status === 'Poslano') return 2;
-  if (seg.box_id) return 1;
-  return 0;
+function segmentBoxed(seg) { return !!seg.box_id; }
+function segmentSent(seg) { return seg.sample_boxes?.status === 'Poslano'; }
+function segmentHasResult(seg) { return !!seg.lab_soil_result?.length; }
+
+const PIPELINE_BADGE = {
+  'Plan': 'fert-badge--neutral',
+  'V delu': 'fert-badge--warn',
+  'Izvedeno': 'fert-badge--neutral',
+  'Pakiranje vzorcev': 'fert-badge--warn',
+  'Pripravljeni na pošiljanje': 'fert-badge--ok',
+  'Poslani': 'fert-badge--sent',
+  'Delno prejeta analiza': 'fert-badge--warn',
+  'Analiza prejeta': 'fert-badge--ok',
+};
+
+// Full start-to-finish ladder, in order — the stepper below always has
+// this many segments (Matej, 2026-11-06: "št. stageov prilagodi številu
+// statusov"), filled up to and including the current status's position.
+const STATUS_SEQUENCE = [
+  'Plan', 'V delu', 'Izvedeno', 'Pakiranje vzorcev',
+  'Pripravljeni na pošiljanje', 'Poslani', 'Delno prejeta analiza', 'Analiza prejeta',
+];
+
+function statusStepperSvg(label) {
+  const n = STATUS_SEQUENCE.length;
+  const idx = STATUS_SEQUENCE.indexOf(label);
+  const filled = idx >= 0 ? idx + 1 : 0;
+  const w = 10, gap = 2, h = 7;
+  const totalW = n * w + (n - 1) * gap + 1;
+  const rects = STATUS_SEQUENCE.map((_, i) => {
+    const x = (i * (w + gap) + 0.5).toFixed(1);
+    return i < filled
+      ? `<rect x="${x}" y="0.5" width="${w}" height="${h}" rx="1.5" fill="#378ADD"/>`
+      : `<rect x="${x}" y="0.5" width="${w}" height="${h}" rx="1.5" fill="#8C8C8C" fill-opacity="0.3" stroke="#8C8C8C"/>`;
+  }).join('');
+  return `<svg width="${totalW}" height="8" viewBox="0 0 ${totalW} 8" class="sled-status-stepper" role="img" aria-label="${esc(label)} (${filled}/${n})"><title>${esc(label)} (${filled}/${n})</title>${rects}</svg>`;
 }
-function orderStageRange(order) {
-  const segs = allSegments(order);
-  if (!segs.length) return null;
-  const stages = segs.map(segmentStage);
-  return { min: Math.min(...stages), max: Math.max(...stages), segs };
-}
+
 function orderStatusLabel(order) {
-  const range = orderStageRange(order);
-  if (!range) return 'Brez vzorcev';
-  return range.min === range.max ? STAGE_LABELS[range.min] : `${STAGE_LABELS[range.min]} → ${STAGE_LABELS[range.max]}`;
+  // Plan/V delu: nothing sampling-related to show yet — the order's own
+  // status IS the status. Izdan Račun is treated like Izvedeno (invoicing
+  // can happen before or after sampling wraps up, doesn't gate it).
+  if (order.status !== 'Izvedeno' && order.status !== 'Izdan Račun') return order.status;
+  const segs = allSegments(order);
+  if (!segs.length) return 'Izvedeno';
+  const n = segs.length;
+  const results = segs.filter(segmentHasResult).length;
+  if (results === n) return 'Analiza prejeta';
+  if (results > 0) return 'Delno prejeta analiza';
+  const sent = segs.filter(segmentSent).length;
+  if (sent === n) return 'Poslani';
+  const boxed = segs.filter(segmentBoxed).length;
+  if (boxed === n) return 'Pripravljeni na pošiljanje';
+  if (boxed > 0) return 'Pakiranje vzorcev';
+  return 'Izvedeno';
 }
-function stageBadgeClass(stage) {
-  return ['fert-badge--neutral', 'fert-badge--warn', 'fert-badge--sent', 'fert-badge--ok'][stage];
+
+// d. m. yyyy for a plain DATE column (sampling_date, analysis_date) —
+// split the string directly instead of `new Date(iso)`, which parses a
+// bare date as UTC midnight and can shift a day under local time.
+function fmtPlainDate(isoDate) {
+  if (!isoDate) return '—';
+  const [y, m, d] = isoDate.split('-');
+  return `${parseInt(d, 10)}. ${parseInt(m, 10)}. ${y}`;
 }
+function earliest(dates) { return dates.length ? dates.slice().sort()[0] : null; }
+function latest(dates) { return dates.length ? dates.slice().sort().at(-1) : null; }
 
 // ── Naročila view ──────────────────────────────────────────────
 function filteredOrders() {
@@ -136,11 +185,7 @@ function filteredOrders() {
       const hay = `${o.stevilka ?? ''} ${customerName(o.customers)}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
-    if (mode !== 'all') {
-      const range = orderStageRange(o);
-      const idx = STAGE_KEYS.indexOf(mode);
-      if (!range || !range.segs.some(s => segmentStage(s) === idx)) return false;
-    }
+    if (mode !== 'all' && orderStatusLabel(o) !== mode) return false;
     return true;
   });
 }
@@ -148,27 +193,28 @@ function filteredOrders() {
 function renderOrders() {
   const rows = filteredOrders();
   if (!rows.length) {
-    els.orderRows.innerHTML = `<tr><td colspan="8" class="fert-empty">${orders.length ? 'Ni zadetkov.' : 'Ni naročil.'}</td></tr>`;
+    els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty">${orders.length ? 'Ni zadetkov.' : 'Ni naročil.'}</td></tr>`;
     return;
   }
   els.orderRows.innerHTML = rows.map(o => {
     const segs = allSegments(o);
-    const boxed = segs.filter(s => segmentStage(s) >= 1).length;
-    const sent = segs.filter(s => segmentStage(s) >= 2).length;
-    const results = segs.filter(s => segmentStage(s) >= 3).length;
-    const range = orderStageRange(o);
+    const gerkCount = (o.delovni_nalogi_gerki || []).length;
+    const totalHa = (o.delovni_nalogi_gerki || []).reduce((s, g) => s + (Number(g.kolicina_ha) || 0), 0);
+    const samplingDate = earliest(segs.map(s => s.sampling_date).filter(Boolean));
+    const sendingDate = latest(segs.map(s => s.sample_boxes?.sent_at).filter(Boolean));
+    const receivedDate = earliest(segs.flatMap(s => (s.lab_soil_result || []).map(r => r.analysis_date)).filter(Boolean));
     const label = orderStatusLabel(o);
-    // mixed-progress orders (min !== max) are shown with the lowest
-    // (least-advanced) stage's color — that's the one still needing work.
-    const cls = range ? stageBadgeClass(range.min) : 'fert-badge--neutral';
+    const cls = PIPELINE_BADGE[label] ?? 'fert-badge--neutral';
     return `<tr>
       <td>${esc(o.stevilka)}</td>
       <td class="fert-strong fert-wrap">${esc(customerName(o.customers))}</td>
+      <td class="fert-num">${gerkCount}</td>
       <td class="fert-num">${segs.length}</td>
-      <td class="fert-num">${boxed}</td>
-      <td class="fert-num">${sent}</td>
-      <td class="fert-num">${results}</td>
-      <td><span class="fert-badge ${cls}">${esc(label)}</span></td>
+      <td class="fert-num">${totalHa > 0 ? totalHa.toFixed(2) : '—'}</td>
+      <td>${fmtPlainDate(samplingDate)}</td>
+      <td>${sendingDate ? fmtDate(sendingDate) : '—'}</td>
+      <td>${fmtPlainDate(receivedDate)}</td>
+      <td><div class="sled-status-cell"><span class="fert-badge ${cls}">${esc(label)}</span>${statusStepperSvg(label)}</div></td>
       <td><button type="button" class="btn btn-secondary btn-sm" data-open-order="${esc(o.id)}">Odpri</button></td>
     </tr>`;
   }).join('');
@@ -196,6 +242,22 @@ function boxSelectHtml(seg) {
   return options.join('');
 }
 
+// Per-segment label inside the modal — simpler than the order-level
+// pipeline (no Plan/V delu passthrough here, this view only ever opens
+// on an order that already has segments to assign).
+function segmentLabel(seg) {
+  if (segmentHasResult(seg)) return 'Analiza prejeta';
+  if (segmentSent(seg)) return 'Poslano';
+  if (segmentBoxed(seg)) return 'V škatli';
+  return 'Ni v škatli';
+}
+function segmentBadgeClass(seg) {
+  if (segmentHasResult(seg)) return 'fert-badge--ok';
+  if (segmentSent(seg)) return 'fert-badge--sent';
+  if (segmentBoxed(seg)) return 'fert-badge--warn';
+  return 'fert-badge--neutral';
+}
+
 function renderOrderModal(order) {
   els.orderModalTitle.textContent = `Nalog ${order.stevilka ?? ''} · ${customerName(order.customers)}`;
   const gerks = order.delovni_nalogi_gerki || [];
@@ -205,11 +267,10 @@ function renderOrderModal(order) {
     return `<div class="sled-gerk-group">
       <h4 class="sled-gerk-title">GERK ${esc(g.gerk_code || '—')}</h4>
       ${segs.map(s => {
-        const stage = segmentStage(s);
-        const locked = stage >= 2; // sent, or already has results — box assignment frozen
+        const locked = segmentSent(s) || segmentHasResult(s); // box assignment frozen once shipped
         return `<div class="sled-seg-row" data-seg-id="${esc(s.id)}">
           <span class="sled-seg-sample">${esc(s.sample_no)}</span>
-          <span class="fert-badge ${stageBadgeClass(stage)}">${esc(STAGE_LABELS[stage])}</span>
+          <span class="fert-badge ${segmentBadgeClass(s)}">${esc(segmentLabel(s))}</span>
           <select class="field-input sled-seg-box-select" data-box-select="${esc(s.id)}" ${locked ? 'disabled' : ''}>${boxSelectHtml(s)}</select>
         </div>`;
       }).join('')}
