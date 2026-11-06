@@ -177,7 +177,11 @@ function orderStatusLabel(order) {
   // status IS the status. Izdan Račun is treated like Izvedeno (invoicing
   // can happen before or after sampling wraps up, doesn't gate it).
   if (order.status !== 'Izvedeno' && order.status !== 'Izdan Račun') return order.status;
-  const segs = allSegments(order);
+  // A segment marked "ne vzorčimo" never gets a box/result and shouldn't
+  // hold the whole order back — it's excluded from the pipeline entirely
+  // (Matej, 2026-11-06): "Analiza prejeta" only needs every SAMPLED
+  // segment to have a result, not literally every segment on the order.
+  const segs = allSegments(order).filter(s => !segmentSkipped(s));
   if (!segs.length) return 'Izvedeno';
   const n = segs.length;
   const results = segs.filter(segmentHasResult).length;
