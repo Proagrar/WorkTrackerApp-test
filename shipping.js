@@ -42,7 +42,7 @@ function fmtDate(iso) {
   const d = new Date(iso);
   return `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}`;
 }
-// d. m. yyyy for a plain DATE column (sampling_date, analysis_date) —
+// d. m. yyyy for a plain DATE column (analysis_date) —
 // split the string directly instead of `new Date(iso)`, which parses a
 // bare date as UTC midnight and can shift a day under local time.
 function fmtPlainDate(isoDate) {
@@ -97,7 +97,8 @@ async function loadAll() {
     supabase.from('delovni_nalogi')
       .select(`id, stevilka, status, customers(naziv, company_name),
         delovni_nalogi_gerki(id, gerk_code, kolicina_ha,
-          delovni_nalogi_vzorci(id, sample_no, box_id, sampling_date, sampling_note, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS})))`)
+          delovni_nalogi_vzorci(id, sample_no, box_id, sampling_note, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS}))),
+        work_logs(work_log_gerks(start_time))`)
       .is('deleted_at', null)
       .order('ustvarjen', { ascending: false }),
     supabase.from('sample_boxes').select('*').order('created_at', { ascending: false }),
@@ -128,6 +129,14 @@ function segmentBoxed(seg) { return !!seg.box_id; }
 function segmentSent(seg) { return seg.sample_boxes?.status === 'Poslano'; }
 function segmentHasResult(seg) { return !!seg.lab_soil_result?.length; }
 function segmentSkipped(seg) { return seg.sampling_note === 'ne pobereš'; }
+
+// "Datum vzorčenja" = when work on this order's first field actually
+// began (Matej, 2026-11-06) — the earliest work_log_gerks.start_time
+// across every work_logs row tied to this order, not a per-segment field.
+function firstFieldStart(order) {
+  const times = (order.work_logs || []).flatMap(wl => (wl.work_log_gerks || []).map(g => g.start_time)).filter(Boolean);
+  return earliest(times);
+}
 
 const PIPELINE_BADGE = {
   'Plan': 'fert-badge--neutral',
@@ -227,7 +236,7 @@ function renderOrders() {
     const segs = allSegments(o);
     const gerkCount = (o.delovni_nalogi_gerki || []).length;
     const totalHa = (o.delovni_nalogi_gerki || []).reduce((s, g) => s + (Number(g.kolicina_ha) || 0), 0);
-    const samplingDate = earliest(segs.map(s => s.sampling_date).filter(Boolean));
+    const samplingDate = firstFieldStart(o);
     const sendingDate = latest(segs.map(s => s.sample_boxes?.sent_at).filter(Boolean));
     const receivedDate = earliest(segs.flatMap(s => (s.lab_soil_result || []).map(r => r.analysis_date)).filter(Boolean));
     const label = orderStatusLabel(o);
@@ -239,7 +248,7 @@ function renderOrders() {
       <td class="fert-num">${gerkCount}</td>
       <td class="fert-num">${segs.length}</td>
       <td class="fert-num">${totalHa > 0 ? totalHa.toFixed(2) : '—'}</td>
-      <td>${fmtPlainDate(samplingDate)}</td>
+      <td>${samplingDate ? fmtDate(samplingDate) : '—'}</td>
       <td>${sendingDate ? fmtDate(sendingDate) : '—'}</td>
       <td>${fmtPlainDate(receivedDate)}</td>
       <td><div class="sled-status-cell"><span class="fert-badge ${cls}">${esc(label)}</span>${statusStepperSvg(label)}</div></td>

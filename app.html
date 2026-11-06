@@ -320,16 +320,11 @@
          delovni_nalogi_vzorci.box_id (supabase/migration_sample_boxes.sql). -->
     <div id="panelSledenje" class="tab-panel" hidden>
       <section class="logs-section wo-section">
-        <div class="section-header fert-head">
-          <h3 class="fert-title">Sledenje naročilom</h3>
-        </div>
-
         <!-- Naročila — every delovni_nalog with its sample-pipeline progress.
              Klik na vrstico (razen na checkbox) odpre #sledOrderModal. -->
         <div id="sledViewOrders" class="fert-view">
           <div class="fert-toolbar">
             <label class="fert-field">
-              <span class="field-label">Iskanje</span>
               <input type="search" id="sledOrderSearch" class="field-input fert-input" placeholder="Nalog ali stranka">
             </label>
             <!-- Multi-select, same button+checklist pattern as the Delovni
@@ -352,7 +347,7 @@
           </div>
           <div class="reports-table-wrap">
             <table class="evidenca-table fert-table">
-              <thead><tr><th><input type="checkbox" id="sledSelectAllCb" aria-label="Izberi vse"></th><th>Nalog</th><th>Stranka</th><th class="fert-num">GERK-ov</th><th class="fert-num">Vzorcev</th><th class="fert-num">Ha</th><th>Datum vzorčenja</th><th>Datum pošiljanja</th><th>Datum prejetja</th><th>Status</th></tr></thead>
+              <thead><tr><th><input type="checkbox" id="sledSelectAllCb" aria-label="Izberi vse"></th><th>Nalog</th><th>Stranka</th><th class="fert-num">GERK-ov</th><th class="fert-num">Vzorcev</th><th class="fert-num">Ha</th><th title="Datum vzorčenja">Datum vzor.</th><th title="Datum pošiljanja">Datum poš.</th><th>Datum prejetja</th><th>Status</th></tr></thead>
               <tbody id="sledOrderRows"></tbody>
             </table>
           </div>
