@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.39';
+const APP_VERSION = 'v4.40';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -1775,6 +1775,7 @@ let currentRoadTimeEntries = [];
 let currentAllGerkEntries  = []; // every operator's work_log_gerks for this work order — powers the "who else worked on this" view
 let currentCapturedPoints  = []; // gerk_captured_point rows for this work order — the right-side map capture panel
 let currentGerkSegments    = []; // get_work_order_gerk_segments rows — one per imported zone, powers the per-GERK badge + map layer
+let currentGerkShapes      = []; // get_work_order_gerk_shapes rows — official ARKOD registry boundary per GERK code, fallback for the ZIP export when there's no KML-imported zone
 let woMapSegmentLabelLayers = new Map(); // segment_id -> its permanent map label tooltip layer, so renaming a segment (updateSampleNo) can patch it live
 let woMapSegmentPointLayers = new Map(); // segment_id -> [{ layer, pointNo }] captured-point markers, same reason
 let selectedGerkCodes      = new Set(); // admin-only multi-select on the GERK list, powers the contextual selection bar
@@ -1993,6 +1994,7 @@ async function showWoDetailMap(workOrder) {
   woMapCapturedLayer.clearLayers();
   currentCapturedPoints = [];
   currentGerkSegments = [];
+  currentGerkShapes = [];
   woMapSegmentLabelLayers = new Map();
   woMapSegmentPointLayers = new Map();
   woCaptureList.innerHTML = '';
@@ -2078,6 +2080,7 @@ async function showWoDetailMap(workOrder) {
   renderCapturedPointsList();
 
   currentGerkSegments = segments || [];
+  currentGerkShapes = shapes || [];
   renderGerkSegmentationInfo();
 
   // When a GERK has an imported KML zone, that shape wins outright — the
@@ -3002,7 +3005,7 @@ const WLG_SEL_ICON_ZIP = `<svg width="16" height="16" viewBox="0 0 20 20" fill="
 // it's wanted back.
 const GERK_SELECTION_ACTIONS = [
   { id: 'export',     label: 'Izvozi',      tooltip: 'Izvozi izbrane GERKE v Excel',                 icon: WLG_SEL_ICON_DOWNLOAD, variant: 'default', onClick: exportSelectedGerksToExcel },
-  { id: 'export-shp', label: 'ZIP',          tooltip: 'Izvozi cone vzorčenja izbranih GERKOV (shapefile/NextFarm)', icon: WLG_SEL_ICON_ZIP, variant: 'default', onClick: exportSelectedGerksToShapefile },
+  { id: 'export-shp', label: 'ZIP',          tooltip: 'Izvozi meje izbranih GERKOV (shapefile/NextFarm) — cona vzorčenja, če obstaja, sicer uradna meja GERK-a', icon: WLG_SEL_ICON_ZIP, variant: 'default', onClick: exportSelectedGerksToShapefile },
   { id: 'delete',     label: 'Briši',       tooltip: 'Izbriši izbrane GERKE iz naloga',              icon: WLG_SEL_ICON_TRASH,    variant: 'danger',  onClick: bulkDeleteSelectedGerks },
 ];
 
@@ -3524,6 +3527,15 @@ function exportSelectedGerksToShapefile(btn) {
     .filter(seg => codes.includes(seg.gerk_code) && seg.segment_geojson)
     .sort((a, b) => a.gerk_code.localeCompare(b.gerk_code, 'sl') || (a.segment_label || '').localeCompare(b.segment_label || '', 'sl'));
 
+  // Selected codes with no KML-imported zone fall back to the official
+  // ARKOD registry boundary (currentGerkShapes, same source the map
+  // itself draws when there's no zone) instead of being silently
+  // skipped — a compound code can have more than one row here.
+  const zonedCodes = new Set(zones.map(z => z.gerk_code));
+  const fallbackShapes = currentGerkShapes
+    .filter(row => codes.includes(row.gerk_code) && row.geojson && !zonedCodes.has(row.gerk_code))
+    .sort((a, b) => a.gerk_code.localeCompare(b.gerk_code, 'sl'));
+
   const features = [];
   const rows = [];
   let id = 1;
@@ -3541,8 +3553,21 @@ function exportSelectedGerksToShapefile(btn) {
       FLAECHE_HA: zoneAreaHa(seg, rings),
     });
   }
+  for (const shape of fallbackShapes) {
+    const rings = geojsonRingsLonLat(shape.geojson).map(ring => ring.map(([lon, lat]) => wgs84ToUtm33N(lon, lat)));
+    if (!rings.length) continue;
+    features.push({ rings });
 
-  if (!features.length) { showFormError('Noben izbran GERK nima uvožene cone vzorčenja za izvoz.'); return; }
+    rows.push({
+      ID: String(id++),
+      SCHLAGNAME: `${shape.gerk_code} ${customerName}`.trim(),
+      PROBEDATUM: '',
+      PROBENUMME: '',
+      FLAECHE_HA: nfPolygonAreaHa(rings),
+    });
+  }
+
+  if (!features.length) { showFormError('Noben izbran GERK nima niti uvožene cone niti uradne meje za izvoz.'); return; }
 
   const { shp, shx } = nfBuildShpShx(features);
   const dbf = nfBuildDbf(NF_DBF_FIELDS, rows);
@@ -3556,9 +3581,12 @@ function exportSelectedGerksToShapefile(btn) {
   ]);
 
   downloadTextFile(`${baseName}.zip`, zip, 'application/zip');
-  const exportedCodes = new Set(zones.map(z => z.gerk_code));
+  const exportedCodes = new Set([...zonedCodes, ...fallbackShapes.map(s => s.gerk_code)]);
   const skipped = codes.filter(c => !exportedCodes.has(c));
-  showFormSuccess(`✓ Izvoženih ${features.length} ${features.length === 1 ? 'cona' : 'con'} vzorčenja.` + (skipped.length ? ` Brez con: ${skipped.join(', ')}.` : ''));
+  const parts = [];
+  if (zones.length) parts.push(`${zones.length} ${zones.length === 1 ? 'cona' : 'con'} vzorčenja`);
+  if (fallbackShapes.length) parts.push(`${fallbackShapes.length} ${fallbackShapes.length === 1 ? 'uradna meja' : 'uradnih mej'}`);
+  showFormSuccess(`✓ Izvoženih ${features.length}: ${parts.join(' + ')}.` + (skipped.length ? ` Brez meje: ${skipped.join(', ')}.` : ''));
 }
 
 async function updateSampleNo(inputEl) {
