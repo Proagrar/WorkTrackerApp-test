@@ -322,12 +322,10 @@
       <section class="logs-section wo-section">
         <div class="section-header fert-head">
           <h3 class="fert-title">Sledenje naročilom</h3>
-          <div class="fert-head-actions">
-            <button type="button" id="sledBoxesBtn" class="btn btn-secondary btn-sm">Škatle</button>
-          </div>
         </div>
 
-        <!-- Naročila — every delovni_nalog with its sample-pipeline progress -->
+        <!-- Naročila — every delovni_nalog with its sample-pipeline progress.
+             Klik na vrstico (razen na checkbox) odpre #sledOrderModal. -->
         <div id="sledViewOrders" class="fert-view">
           <div class="fert-toolbar">
             <label class="fert-field">
@@ -354,32 +352,24 @@
           </div>
           <div class="reports-table-wrap">
             <table class="evidenca-table fert-table">
-              <thead><tr><th><input type="checkbox" id="sledSelectAllCb" aria-label="Izberi vse"></th><th>Nalog</th><th>Stranka</th><th class="fert-num">GERK-ov</th><th class="fert-num">Vzorcev</th><th class="fert-num">Ha</th><th>Datum vzorčenja</th><th>Datum pošiljanja</th><th>Datum prejetja</th><th>Status</th><th></th></tr></thead>
+              <thead><tr><th><input type="checkbox" id="sledSelectAllCb" aria-label="Izberi vse"></th><th>Nalog</th><th>Stranka</th><th class="fert-num">GERK-ov</th><th class="fert-num">Vzorcev</th><th class="fert-num">Ha</th><th>Datum vzorčenja</th><th>Datum pošiljanja</th><th>Datum prejetja</th><th>Status</th></tr></thead>
               <tbody id="sledOrderRows"></tbody>
             </table>
           </div>
         </div>
-
-        <!-- En nalog — urejanje segmentov/vzorcev. Poln zaslon (ne modal,
-             Matej 2026-11-06), nadomesti seznam naročil dokler je odprt. -->
-        <div id="sledViewSegments" class="fert-view" hidden>
-          <div class="fert-toolbar">
-            <button type="button" id="sledSegmentsBackBtn" class="btn btn-secondary btn-sm">← Nazaj</button>
-            <h4 id="sledSegmentsTitle" class="fert-title"></h4>
-          </div>
-          <div id="sledOrderGerks"></div>
-        </div>
       </section>
     </div>
 
-    <!-- ── Sledenje naročilom: škatle — modal (namenoma NE zavihek/
-         podstran, Matej 2026-11-06), odpre se z gumbom "Škatle" zgoraj. -->
-    <div id="sledBoxesModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="sledBoxesModalTitle">
+    <!-- ── Sledenje naročilom: en nalog — GERK-i, njihovi segmenti
+         (št. segmenta, status, ali vzorčimo, škatla) in spodaj škatle, ki
+         jih ta nalog uporablja (natisni / zaključi in pošlji) — modal,
+         odpre se s klikom na vrstico naloga (Matej, 2026-11-06). -->
+    <div id="sledOrderModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="sledOrderModalTitle">
       <div class="modal-sheet modal-sheet-wide">
         <div class="modal-handle" aria-hidden="true"></div>
         <div class="modal-head">
-          <h3 id="sledBoxesModalTitle" class="modal-title">Škatle</h3>
-          <button id="sledBoxesModalClose" class="btn btn-icon" aria-label="Zapri">
+          <h3 id="sledOrderModalTitle" class="modal-title">Nalog</h3>
+          <button id="sledOrderModalClose" class="btn btn-icon" aria-label="Zapri">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
               <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -387,14 +377,15 @@
           </button>
         </div>
         <div class="work-form">
-          <div class="fert-head-actions">
-            <button type="button" id="sledNewBoxBtn" class="btn btn-primary btn-sm">+ Nova škatla</button>
-          </div>
-          <div class="reports-table-wrap">
-            <table class="evidenca-table fert-table">
-              <thead><tr><th>Oznaka</th><th>Status</th><th class="fert-num">Vzorcev</th><th>Ustvarjeno</th><th>Poslano</th><th></th></tr></thead>
-              <tbody id="sledBoxRows"></tbody>
-            </table>
+          <div id="sledOrderGerks"></div>
+          <div id="sledOrderBoxesWrap" class="sled-order-boxes-wrap" hidden>
+            <h4 class="sled-gerk-title">Škatle v tem nalogu</h4>
+            <div class="reports-table-wrap">
+              <table class="evidenca-table fert-table">
+                <thead><tr><th>Oznaka</th><th>Status</th><th class="fert-num">Vzorcev (v tem nalogu)</th><th>Poslano</th><th></th></tr></thead>
+                <tbody id="sledOrderBoxRows"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>

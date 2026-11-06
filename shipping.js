@@ -11,22 +11,18 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const els = {
   tab: document.getElementById('tabSledenje'),
-  viewOrders: document.getElementById('sledViewOrders'),
-  viewSegments: document.getElementById('sledViewSegments'),
-  segmentsBackBtn: document.getElementById('sledSegmentsBackBtn'),
-  segmentsTitle: document.getElementById('sledSegmentsTitle'),
   orderSearch: document.getElementById('sledOrderSearch'),
   orderRows: document.getElementById('sledOrderRows'),
   selectAllCb: document.getElementById('sledSelectAllCb'),
   selectionBar: document.getElementById('sledSelectionBar'),
   statusFilterBtn: document.getElementById('sledStatusFilterBtn'),
   statusFilterMenu: document.getElementById('sledStatusFilterMenu'),
+  orderModal: document.getElementById('sledOrderModal'),
+  orderModalClose: document.getElementById('sledOrderModalClose'),
+  orderModalTitle: document.getElementById('sledOrderModalTitle'),
   orderGerks: document.getElementById('sledOrderGerks'),
-  boxesBtn: document.getElementById('sledBoxesBtn'),
-  boxesModal: document.getElementById('sledBoxesModal'),
-  boxesModalClose: document.getElementById('sledBoxesModalClose'),
-  newBoxBtn: document.getElementById('sledNewBoxBtn'),
-  boxRows: document.getElementById('sledBoxRows'),
+  orderBoxesWrap: document.getElementById('sledOrderBoxesWrap'),
+  orderBoxRows: document.getElementById('sledOrderBoxRows'),
 };
 
 let orders = [];
@@ -95,7 +91,7 @@ function downloadTextFile(filename, content, mimeType) {
 const LAB_COLS = 'id, lab_sample_code, analysis_date, ph_kcl, ka, caco3_pct, humus_pct, no3_no2_n, p2o5, k2o, mg, na, zn, cu, mn, salts_pct, so4_s, fe, notes';
 
 async function loadAll() {
-  els.orderRows.innerHTML = `<tr><td colspan="11" class="fert-empty">Nalaganje …</td></tr>`;
+  els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty">Nalaganje …</td></tr>`;
   const [{ data: orderData, error: orderError }, { data: boxData, error: boxError }] = await Promise.all([
     supabase.from('delovni_nalogi')
       .select(`id, stevilka, status, customers(naziv, company_name),
@@ -107,12 +103,11 @@ async function loadAll() {
   ]);
   const error = orderError || boxError;
   if (error) {
-    els.orderRows.innerHTML = `<tr><td colspan="11" class="fert-empty fert-error">Napaka pri nalaganju: ${esc(error.message)}</td></tr>`;
+    els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty fert-error">Napaka pri nalaganju: ${esc(error.message)}</td></tr>`;
     return;
   }
   orders = orderData ?? [];
   boxes = boxData ?? [];
-  // selection/open order may reference rows that no longer exist after a reload
   for (const id of selectedOrderIds) if (!orders.some(o => o.id === id)) selectedOrderIds.delete(id);
   renderOrders();
   updateSledSelectionBar();
@@ -223,7 +218,7 @@ function filteredOrders() {
 function renderOrders() {
   const rows = filteredOrders();
   if (!rows.length) {
-    els.orderRows.innerHTML = `<tr><td colspan="11" class="fert-empty">${orders.length ? 'Ni zadetkov.' : 'Ni naročil.'}</td></tr>`;
+    els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty">${orders.length ? 'Ni zadetkov.' : 'Ni naročil.'}</td></tr>`;
     updateSelectAllState([]);
     return;
   }
@@ -236,7 +231,7 @@ function renderOrders() {
     const receivedDate = earliest(segs.flatMap(s => (s.lab_soil_result || []).map(r => r.analysis_date)).filter(Boolean));
     const label = orderStatusLabel(o);
     const cls = PIPELINE_BADGE[label] ?? 'fert-badge--neutral';
-    return `<tr>
+    return `<tr data-open-order="${esc(o.id)}">
       <td><input type="checkbox" class="sled-select-cb" data-id="${esc(o.id)}" aria-label="Izberi nalog" ${selectedOrderIds.has(o.id) ? 'checked' : ''}></td>
       <td>${esc(o.stevilka)}</td>
       <td class="fert-strong fert-wrap">${esc(customerName(o.customers))}</td>
@@ -247,16 +242,18 @@ function renderOrders() {
       <td>${sendingDate ? fmtDate(sendingDate) : '—'}</td>
       <td>${fmtPlainDate(receivedDate)}</td>
       <td><div class="sled-status-cell"><span class="fert-badge ${cls}">${esc(label)}</span>${statusStepperSvg(label)}</div></td>
-      <td><button type="button" class="btn btn-secondary btn-sm" data-open-order="${esc(o.id)}">Odpri</button></td>
     </tr>`;
   }).join('');
   updateSelectAllState(rows.map(o => o.id));
 }
 
 els.orderSearch.addEventListener('input', renderOrders);
+// Row click opens the order (checkbox clicks are handled separately and
+// must not also trigger this — stopped by checking the checkbox first).
 els.orderRows.addEventListener('click', e => {
-  const btn = e.target.closest('[data-open-order]');
-  if (btn) openSegmentsScreen(btn.dataset.openOrder);
+  if (e.target.closest('.sled-select-cb')) return;
+  const row = e.target.closest('tr[data-open-order]');
+  if (row) openOrderModal(row.dataset.openOrder);
 });
 els.orderRows.addEventListener('change', e => {
   const cb = e.target.closest('.sled-select-cb');
@@ -344,8 +341,8 @@ function exportSelectedOrders() {
   downloadTextFile(`sledenje_narocilom_${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv;charset=utf-8');
 }
 
-// ── Segmenti naloga — poln zaslon (ne modal), GERK groups, segment
-// rows: št. segmenta, status, ali vzorčimo, škatla ─────────────────
+// ── Nalog — modal: GERK groups, segment rows (št. segmenta, status, ali
+// vzorčimo, škatla) + spodaj škatle, ki jih ta nalog uporablja ───────
 function boxSelectHtml(seg) {
   const openBoxes = boxes.filter(b => b.status === 'Odprta');
   const options = [`<option value="">— brez škatle —</option>`]
@@ -373,8 +370,7 @@ function segmentBadgeClass(seg) {
   return 'fert-badge--neutral';
 }
 
-function renderSegmentsScreen(order) {
-  els.segmentsTitle.textContent = `Nalog ${order.stevilka ?? ''} · ${customerName(order.customers)}`;
+function renderOrderGerks(order) {
   const gerks = order.delovni_nalogi_gerki || [];
   const groups = gerks.map(g => {
     const segs = g.delovni_nalogi_vzorci || [];
@@ -395,21 +391,59 @@ function renderSegmentsScreen(order) {
   els.orderGerks.innerHTML = groups || '<p class="fert-hint">Ta nalog nima GERK segmentov (vzorcev).</p>';
 }
 
-function openSegmentsScreen(orderId) {
+// Only the boxes actually used by this order's own segments — not a
+// global box browser (Matej, 2026-11-06: no separate "Škatle" surface).
+function renderOrderBoxes(order) {
+  const segs = allSegments(order);
+  const boxIds = [...new Set(segs.map(s => s.box_id).filter(Boolean))];
+  els.orderBoxesWrap.hidden = boxIds.length === 0;
+  if (!boxIds.length) return;
+  els.orderBoxRows.innerHTML = boxIds.map(boxId => {
+    const box = boxes.find(b => b.id === boxId);
+    if (!box) return '';
+    const nHere = segs.filter(s => s.box_id === boxId).length;
+    const statusBadge = box.status === 'Poslano'
+      ? `<span class="fert-badge fert-badge--sent">Poslano</span>`
+      : `<span class="fert-badge fert-badge--warn">Odprta</span>`;
+    const actions = [`<button type="button" class="btn btn-secondary btn-sm" data-print-box="${esc(box.id)}">Natisni</button>`];
+    if (box.status === 'Odprta') actions.push(`<button type="button" class="btn btn-primary btn-sm" data-send-box="${esc(box.id)}">Zaključi in pošlji</button>`);
+    return `<tr>
+      <td class="fert-strong">${esc(box.label)}</td>
+      <td>${statusBadge}</td>
+      <td class="fert-num">${nHere}</td>
+      <td>${box.sent_at ? fmtDate(box.sent_at) : '—'}</td>
+      <td><div class="sled-row-actions">${actions.join('')}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderOrderModal(order) {
+  els.orderModalTitle.textContent = `Nalog ${order.stevilka ?? ''} · ${customerName(order.customers)}`;
+  renderOrderGerks(order);
+  renderOrderBoxes(order);
+}
+
+function openOrderModal(orderId) {
   const order = orders.find(o => o.id === orderId);
   if (!order) return;
   currentOrderId = orderId;
-  renderSegmentsScreen(order);
-  els.viewOrders.hidden = true;
-  els.viewSegments.hidden = false;
+  renderOrderModal(order);
+  showModal(els.orderModal);
 }
-function backToOrders() {
+function closeOrderModal() {
+  hideModal(els.orderModal);
   currentOrderId = null;
-  els.viewSegments.hidden = true;
-  els.viewOrders.hidden = false;
-  renderOrders();
 }
-els.segmentsBackBtn.addEventListener('click', backToOrders);
+els.orderModalClose.addEventListener('click', closeOrderModal);
+els.orderModal.addEventListener('click', e => { if (e.target === els.orderModal) closeOrderModal(); });
+
+function findSegment(segId) {
+  for (const o of orders) for (const g of (o.delovni_nalogi_gerki || [])) {
+    const seg = (g.delovni_nalogi_vzorci || []).find(s => s.id === segId);
+    if (seg) return seg;
+  }
+  return null;
+}
 
 els.orderGerks.addEventListener('change', async e => {
   const toggle = e.target.closest('[data-sampling-toggle]');
@@ -419,22 +453,14 @@ els.orderGerks.addEventListener('change', async e => {
   const segId = sel.dataset.boxSelect;
   if (sel.value === '__new__') {
     const label = prompt('Oznaka nove škatle:');
-    if (!label || !label.trim()) { renderSegmentsScreen(orders.find(o => o.id === currentOrderId)); return; }
+    if (!label || !label.trim()) { renderOrderGerks(orders.find(o => o.id === currentOrderId)); return; }
     const box = await createBox(label.trim());
     if (box) await assignSegmentToBox(segId, box.id);
-    else renderSegmentsScreen(orders.find(o => o.id === currentOrderId));
+    else renderOrderGerks(orders.find(o => o.id === currentOrderId));
     return;
   }
   await assignSegmentToBox(segId, sel.value || null);
 });
-
-function findSegment(segId) {
-  for (const o of orders) for (const g of (o.delovni_nalogi_gerki || [])) {
-    const seg = (g.delovni_nalogi_vzorci || []).find(s => s.id === segId);
-    if (seg) return seg;
-  }
-  return null;
-}
 
 async function setSamplingFlag(segId, isSampling) {
   const value = isSampling ? null : 'ne pobereš';
@@ -449,37 +475,7 @@ async function assignSegmentToBox(segId, boxId) {
   if (error) { alert('Napaka pri dodeljevanju škatle: ' + error.message); return; }
   const seg = findSegment(segId);
   if (seg) { seg.box_id = boxId; seg.sample_boxes = boxId ? (boxes.find(b => b.id === boxId) ?? null) : null; }
-  if (currentOrderId) renderSegmentsScreen(orders.find(o => o.id === currentOrderId));
-}
-
-// ── Škatle — modal (not a tab/view), opened via the "Škatle" button ──
-function samplesInBox(boxId) {
-  return orders.flatMap(o => allSegments(o)
-    .filter(s => s.box_id === boxId)
-    .map(s => ({ ...s, stevilka: o.stevilka, stranka: customerName(o.customers) })));
-}
-
-function renderBoxes() {
-  if (!boxes.length) {
-    els.boxRows.innerHTML = `<tr><td colspan="6" class="fert-empty">Še ni ustvarjenih škatel — klikni + Nova škatla, ali dodeli škatlo vzorcu znotraj naročila.</td></tr>`;
-    return;
-  }
-  els.boxRows.innerHTML = boxes.map(b => {
-    const n = samplesInBox(b.id).length;
-    const statusBadge = b.status === 'Poslano'
-      ? `<span class="fert-badge fert-badge--sent">Poslano</span>`
-      : `<span class="fert-badge fert-badge--warn">Odprta</span>`;
-    const actions = [`<button type="button" class="btn btn-secondary btn-sm" data-print-box="${esc(b.id)}">Natisni</button>`];
-    if (b.status === 'Odprta') actions.push(`<button type="button" class="btn btn-primary btn-sm" data-send-box="${esc(b.id)}">Zaključi in pošlji</button>`);
-    return `<tr>
-      <td class="fert-strong">${esc(b.label)}</td>
-      <td>${statusBadge}</td>
-      <td class="fert-num">${n}</td>
-      <td>${fmtDate(b.created_at)}</td>
-      <td>${b.sent_at ? fmtDate(b.sent_at) : '—'}</td>
-      <td><div class="sled-row-actions">${actions.join('')}</div></td>
-    </tr>`;
-  }).join('');
+  if (currentOrderId) renderOrderModal(orders.find(o => o.id === currentOrderId));
 }
 
 async function createBox(label) {
@@ -490,23 +486,23 @@ async function createBox(label) {
   return data;
 }
 
-els.boxesBtn.addEventListener('click', () => { renderBoxes(); showModal(els.boxesModal); });
-els.boxesModalClose.addEventListener('click', () => hideModal(els.boxesModal));
-els.boxesModal.addEventListener('click', e => { if (e.target === els.boxesModal) hideModal(els.boxesModal); });
+// ── Škatle v tem nalogu — Natisni / Zaključi in pošlji — deluje na
+// globalni škatli (lahko vsebuje vzorce iz drugih naročil), samo odprta
+// od tod, znotraj modala enega naloga (Matej, 2026-11-06: ni več ločenega
+// zavihka/modala za vse škatle). ───────────────────────────────────
+function samplesInBox(boxId) {
+  return orders.flatMap(o => allSegments(o)
+    .filter(s => s.box_id === boxId)
+    .map(s => ({ ...s, stevilka: o.stevilka, stranka: customerName(o.customers) })));
+}
 
-els.newBoxBtn.addEventListener('click', async () => {
-  const label = prompt('Oznaka nove škatle:');
-  if (!label || !label.trim()) return;
-  if (await createBox(label.trim())) renderBoxes();
-});
-
-els.boxRows.addEventListener('click', async e => {
+els.orderBoxRows.addEventListener('click', async e => {
   const sendBtn = e.target.closest('[data-send-box]');
   if (sendBtn) {
     const box = boxes.find(b => b.id === sendBtn.dataset.sendBox);
     if (!box) return;
     const n = samplesInBox(box.id).length;
-    if (!confirm(`Zaključiti in poslati škatlo "${box.label}" (${n} vzorcev) laboratoriju?`)) return;
+    if (!confirm(`Zaključiti in poslati škatlo "${box.label}" (${n} vzorcev skupaj, lahko iz več naročil) laboratoriju?`)) return;
     const { data: { user } } = await supabase.auth.getUser();
     const sentAt = new Date().toISOString();
     const { error } = await supabase.from('sample_boxes').update({ status: 'Poslano', sent_at: sentAt, sent_by: user?.id ?? null }).eq('id', box.id);
@@ -516,9 +512,8 @@ els.boxRows.addEventListener('click', async e => {
     for (const o of orders) for (const g of (o.delovni_nalogi_gerki || [])) for (const s of (g.delovni_nalogi_vzorci || [])) {
       if (s.box_id === box.id) s.sample_boxes = box;
     }
-    renderBoxes();
     renderOrders();
-    if (currentOrderId) renderSegmentsScreen(orders.find(o => o.id === currentOrderId));
+    if (currentOrderId) renderOrderModal(orders.find(o => o.id === currentOrderId));
     return;
   }
   const printBtn = e.target.closest('[data-print-box]');
@@ -554,4 +549,4 @@ function printBox(box) {
 // (re)loads fresh data every time the tab is opened, same as every other
 // admin tab's own click listener on the same button (fertilization.js,
 // planning.js).
-els.tab.addEventListener('click', () => { backToOrders(); loadAll(); });
+els.tab.addEventListener('click', loadAll);
