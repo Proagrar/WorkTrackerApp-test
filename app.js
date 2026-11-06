@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.38';
+const APP_VERSION = 'v4.39';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -123,6 +123,7 @@ const invoicePreviewClose = document.getElementById('invoicePreviewClose');
 const invoicePreviewWarning = document.getElementById('invoicePreviewWarning');
 const ipNalog = document.getElementById('ipNalog');
 const ipStranka = document.getElementById('ipStranka');
+const ipVat = document.getElementById('ipVat');
 const ipMinimaxId = document.getElementById('ipMinimaxId');
 const ipSklic = document.getElementById('ipSklic');
 const ipGerkRows = document.getElementById('ipGerkRows');
@@ -1627,15 +1628,22 @@ function openInvoicePreviewModal(wo) {
   invoicePreviewWorkOrder = wo;
   const customerName = wo.customers?.naziv || wo.customers?.company_name || '—';
   const minimaxId = wo.customers?.minimax_customer_id;
+  const vatNumber = wo.customers?.vat_number;
 
   ipNalog.textContent = wo.stevilka || '—';
   ipStranka.textContent = customerName;
+  ipVat.textContent = vatNumber || '—';
   ipMinimaxId.textContent = minimaxId || 'ni nastavljen';
   ipSklic.textContent = `DN ${wo.stevilka || ''}`.trim();
 
-  invoicePreviewWarning.hidden = !!minimaxId;
-  if (!minimaxId) {
-    invoicePreviewWarning.textContent = 'Kupec v Minimaxu ni določen — priprava osnutka bo verjetno spodletela. Nastavite "Minimax ID kupca" na kartici stranke (Seznam strank → uredi), ali nadaljujte in popravite kasneje.';
+  // The real ERP↔Minimax customer link is the davčna številka — if the
+  // customer has one, the sync script looks it up in Minimax and creates
+  // it there if missing. Minimax ID is only a manual override for when
+  // that lookup can't find/create a match on its own. So only warn when
+  // BOTH are missing — nothing to match or create a customer from at all.
+  invoicePreviewWarning.hidden = !!minimaxId || !!vatNumber;
+  if (!minimaxId && !vatNumber) {
+    invoicePreviewWarning.textContent = 'Stranka nima ne davčne številke ne Minimax ID-ja — priprava osnutka bo verjetno spodletela. Dopolnite enega od njiju na kartici stranke (Seznam strank → uredi), ali nadaljujte in popravite kasneje.';
   }
 
   const gerks = wo.delovni_nalogi_gerki || [];
@@ -5531,7 +5539,7 @@ async function loadWorkOrders() {
   const [{ data, error }, { data: centerPoints }, { data: durations }] = await Promise.all([
     supabase
       .from('delovni_nalogi')
-      .select('*, customers(naziv, company_name, minimax_customer_id), profiles(full_name), delovni_nalogi_gerki(id, gerk_code, kolicina_ha, lokacija, tip_lab_analize, delovni_nalogi_vzorci(id, sample_no, sampling_date, sending_date, sampling_note, sending_note, sampling_depth_cm, area_ha, comment))')
+      .select('*, customers(naziv, company_name, minimax_customer_id, vat_number), profiles(full_name), delovni_nalogi_gerki(id, gerk_code, kolicina_ha, lokacija, tip_lab_analize, delovni_nalogi_vzorci(id, sample_no, sampling_date, sending_date, sampling_note, sending_note, sampling_depth_cm, area_ha, comment))')
       .order('ustvarjen', { ascending: false }),
     // One batched call for every row's map point, instead of one RPC
     // round trip per row — see get_work_orders_center_points.
