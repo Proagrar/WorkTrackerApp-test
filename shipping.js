@@ -29,7 +29,12 @@ let orders = [];
 let boxes = [];
 let currentOrderId = null;
 let selectedOrderIds = new Set();
-let sledStatusFilterValues = new Set(); // empty = no filter, show all statuses
+// Default (Matej, 2026-11-06): Izvedeno + Delno prejeta analiza + Analiza
+// prejeta — the ones actually worth watching day to day; everything else
+// requires explicitly widening the filter. Seeded from the checkboxes'
+// own `checked` attribute in app.html, not hardcoded here, so the two
+// stay in sync by construction.
+let sledStatusFilterValues = new Set([...document.querySelectorAll('.sled-status-filter-cb:checked')].map(cb => cb.value));
 
 function esc(value) {
   return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -215,6 +220,7 @@ els.statusFilterMenu.querySelectorAll('.sled-status-filter-cb').forEach(cb => {
     renderOrders();
   });
 });
+updateStatusFilterBtnLabel();
 
 // ── Naročila view ──────────────────────────────────────────────
 function filteredOrders() {
