@@ -70,6 +70,7 @@ function hideModal(el) {
 // small local copy for the same reason as the modal helpers above.
 const SEL_ICON_CLOSE = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><line x1="4" y1="4" x2="16" y2="16" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/><line x1="16" y1="4" x2="4" y2="16" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>`;
 const SEL_ICON_DOWNLOAD = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v9m0 0-3.5-3.5M10 12l3.5-3.5M4 14v1.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const SEL_ICON_PRINT = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6 7V3.5h8V7M6 14.5H4.5A1.5 1.5 0 0 1 3 13V9a1.5 1.5 0 0 1 1.5-1.5h11A1.5 1.5 0 0 1 17 9v4a1.5 1.5 0 0 1-1.5 1.5H14M6 12h8v4.5H6z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 function csvField(value) {
   const s = value == null ? '' : String(value);
@@ -291,9 +292,13 @@ function buildSledSelectionBar() {
       <button type="button" class="wlg-sel-action" data-action-id="sled-sel-export" aria-label="Izvozi izbrana naročila v Excel" title="Izvozi izbrana naročila v Excel">
         ${SEL_ICON_DOWNLOAD}<span class="wlg-sel-action-label">Izvozi</span>
       </button>
+      <button type="button" class="wlg-sel-action" data-action-id="sled-sel-print" aria-label="Natisni škatle izbranih naročil" title="Natisni škatle izbranih naročil (ena škatla = ena stran)">
+        ${SEL_ICON_PRINT}<span class="wlg-sel-action-label">Natisni</span>
+      </button>
     </div>`;
   els.selectionBar.querySelector('[data-action="sled-sel-close"]').addEventListener('click', clearSelection);
   els.selectionBar.querySelector('[data-action-id="sled-sel-export"]').addEventListener('click', exportSelectedOrders);
+  els.selectionBar.querySelector('[data-action-id="sled-sel-print"]').addEventListener('click', printSelectedBoxes);
 }
 buildSledSelectionBar();
 
@@ -520,13 +525,33 @@ els.orderBoxRows.addEventListener('click', async e => {
   if (printBtn) printBox(boxes.find(b => b.id === printBtn.dataset.printBox));
 });
 
+// One box = printBoxes([box]); bulk print (selection action bar) reuses
+// the same page markup, one per box, each on its own printed page — the
+// browser's own "Save as PDF" in the print dialog is the "pripravi PDF"
+// step (no server-side PDF generation needed for a simple tabular sheet).
 function printBox(box) {
-  if (!box) return;
+  if (box) printBoxes([box]);
+}
+
+function boxPageHtml(box, isLast) {
   const items = samplesInBox(box.id).sort((a, b) =>
     (a.stevilka || '').localeCompare(b.stevilka || '', 'sl', { numeric: true }) || (a.gerk_code || '').localeCompare(b.gerk_code || '', 'sl'));
+  return `<section class="sled-print-page"${isLast ? '' : ' style="page-break-after: always;"'}>
+<h1>Škatla: ${esc(box.label)}</h1>
+<p class="meta">Status: ${esc(box.status)} · ${items.length} vzorcev · natisnjeno ${new Date().toLocaleString('sl-SI')}</p>
+<table><thead><tr><th>#</th><th>Nalog</th><th>Stranka</th><th>GERK</th><th>Vzorec</th></tr></thead>
+<tbody>${items.map((it, i) => `<tr><td>${i + 1}</td><td>${esc(it.stevilka)}</td><td>${esc(it.stranka)}</td><td>${esc(it.gerk_code)}</td><td>${esc(it.sample_no)}</td></tr>`).join('')}</tbody>
+</table>
+</section>`;
+}
+
+function printBoxes(boxList) {
+  if (!boxList.length) return;
   const win = window.open('', '_blank');
   if (!win) { alert('Brskalnik je blokiral novo okno — dovoli pojavna okna za to stran.'); return; }
-  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Škatla ${esc(box.label)}</title>
+  const title = boxList.length === 1 ? `Škatla ${boxList[0].label}` : `${boxList.length} škatel`;
+  const pages = boxList.map((box, i) => boxPageHtml(box, i === boxList.length - 1)).join('');
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
 <style>
   body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
   h1 { font-size: 20px; margin: 0 0 4px; }
@@ -535,14 +560,21 @@ function printBox(box) {
   th, td { border: 1px solid #999; padding: 6px 8px; text-align: left; }
   th { background: #eee; }
 </style></head><body>
-<h1>Škatla: ${esc(box.label)}</h1>
-<p class="meta">Status: ${esc(box.status)} · ${items.length} vzorcev · natisnjeno ${new Date().toLocaleString('sl-SI')}</p>
-<table><thead><tr><th>#</th><th>Nalog</th><th>Stranka</th><th>GERK</th><th>Vzorec</th></tr></thead>
-<tbody>${items.map((it, i) => `<tr><td>${i + 1}</td><td>${esc(it.stevilka)}</td><td>${esc(it.stranka)}</td><td>${esc(it.gerk_code)}</td><td>${esc(it.sample_no)}</td></tr>`).join('')}</tbody>
-</table>
+${pages}
 <script>window.onload = () => window.print();<\/script>
 </body></html>`);
   win.document.close();
+}
+
+// "Natisni" on the selection bar — every box used by the SELECTED orders'
+// own segments, one page per box, full contents of each (same as opening
+// it from inside an order — a box can hold samples from other orders too).
+function printSelectedBoxes() {
+  const selected = orders.filter(o => selectedOrderIds.has(o.id));
+  const boxIds = [...new Set(selected.flatMap(o => allSegments(o).map(s => s.box_id).filter(Boolean)))];
+  if (!boxIds.length) { alert('Izbrana naročila nimajo nobenega vzorca v škatli.'); return; }
+  const boxList = boxIds.map(id => boxes.find(b => b.id === id)).filter(Boolean);
+  printBoxes(boxList);
 }
 
 // app.js's switchTab() shows/hides #panelSledenje itself — this just
