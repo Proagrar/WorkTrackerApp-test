@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.40';
+const APP_VERSION = 'v4.41';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -158,10 +158,12 @@ const tabEvidenca     = document.getElementById('tabEvidenca');
 const tabNalogi       = document.getElementById('tabNalogi');
 const tabPlaniranje   = document.getElementById('tabPlaniranje');
 const tabGnojilni     = document.getElementById('tabGnojilni');
+const tabSledenje     = document.getElementById('tabSledenje');
 const panelEvidenca   = document.getElementById('panelEvidenca');
 const panelNalogi     = document.getElementById('panelNalogi');
 const panelPlaniranje = document.getElementById('panelPlaniranje');
 const panelGnojilni   = document.getElementById('panelGnojilni');
+const panelSledenje   = document.getElementById('panelSledenje');
 const workOrdersList = document.getElementById('workOrdersList');
 const woHaChipTotal = document.getElementById('woHaChipTotal');
 const woHaChipIzvedeno = document.getElementById('woHaChipIzvedeno');
@@ -5450,6 +5452,7 @@ function switchTab(tab) {
   tabNalogi.classList.toggle('tab-btn--active', tab === 'nalogi');
   tabPlaniranje.classList.toggle('tab-btn--active', tab === 'planiranje');
   tabGnojilni.classList.toggle('tab-btn--active', tab === 'gnojilni');
+  tabSledenje.classList.toggle('tab-btn--active', tab === 'sledenje');
   // Poročila has no tab-bar button of its own (opened from the + menu) —
   // hide the whole bar rather than leave it showing with nothing active.
   tabBarEl.hidden         = tab === 'reports';
@@ -5457,6 +5460,7 @@ function switchTab(tab) {
   panelNalogi.hidden     = tab !== 'nalogi';
   panelPlaniranje.hidden = tab !== 'planiranje';
   panelGnojilni.hidden   = tab !== 'gnojilni';
+  panelSledenje.hidden   = tab !== 'sledenje';
   panelReports.hidden    = tab !== 'reports';
   updateFabVisibility();
   if (tab === 'nalogi' && !workOrdersLoaded) loadWorkOrders();
@@ -5483,6 +5487,7 @@ function updateFabVisibility() {
   addBtn.hidden = !isAdminView();
   tabPlaniranje.hidden = !isAdminView();
   tabGnojilni.hidden = !isAdminView();
+  tabSledenje.hidden = !isAdminView();
 }
 
 // Renders the header's Admin/Regular view switch (admin-only) and
@@ -5504,7 +5509,7 @@ adminViewToggle.addEventListener('change', () => {
   adminViewActive = adminViewToggle.checked;
   localStorage.setItem('adminViewActive', adminViewActive ? '1' : '0');
   if (!isAdminView()) { woShowDeletedActive = false; clearWoSelection(); } // never leave the archived list or a bulk selection showing once out of Admin view
-  if (!isAdminView() && (currentTab === 'planiranje' || currentTab === 'gnojilni')) switchTab('nalogi'); // its tab button is about to hide — don't strand them on it
+  if (!isAdminView() && ['planiranje', 'gnojilni', 'sledenje'].includes(currentTab)) switchTab('nalogi'); // its tab button is about to hide — don't strand them on it
   renderAdminViewToggle();
   updateFabVisibility();
   updateShowDeletedButton();
@@ -5517,6 +5522,7 @@ tabEvidenca.addEventListener('click',   () => switchTab('evidenca'));
 tabNalogi.addEventListener('click',     () => switchTab('nalogi'));
 tabPlaniranje.addEventListener('click', () => switchTab('planiranje'));
 tabGnojilni.addEventListener('click',   () => switchTab('gnojilni'));
+tabSledenje.addEventListener('click',   () => switchTab('sledenje'));
 
 // ── Work orders: load + render ───────────────────────────────────
 function slugStatus(status) {

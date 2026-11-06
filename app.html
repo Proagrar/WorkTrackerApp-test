@@ -56,6 +56,8 @@
       <button id="tabPlaniranje" class="tab-btn" data-tab="planiranje" hidden>Planiranje</button>
       <!-- Admin-only too — same gate as Planiranje (updateFabVisibility()). -->
       <button id="tabGnojilni" class="tab-btn" data-tab="gnojilni" hidden>Gnojilni načrt</button>
+      <!-- Admin-only too — same gate (updateFabVisibility()). -->
+      <button id="tabSledenje" class="tab-btn" data-tab="sledenje" hidden>Sledenje naročilom</button>
     </nav>
 
     <!-- ── Tab: Evidenca dela (original view) ────────────────── -->
@@ -308,6 +310,83 @@
           <div id="fertSettingsBody"></div>
         </div>
       </section>
+    </div>
+
+    <!-- ── Tab: Sledenje naročilom (admin-only) — track which sample
+         (a GERK's segment == one delovni_nalogi_vzorci row) has been
+         packed into which physical box, and send a box off to the lab.
+         All behavior lives in shipping.js; app.js's switchTab() only
+         shows/hides #panelSledenje. Data: sample_boxes +
+         delovni_nalogi_vzorci.box_id (supabase/migration_sample_boxes.sql). -->
+    <div id="panelSledenje" class="tab-panel" hidden>
+      <section class="logs-section wo-section">
+        <div class="section-header fert-head">
+          <div class="fert-subnav" role="tablist" aria-label="Sledenje naročilom">
+            <button type="button" class="fert-subnav-btn fert-subnav-btn--active" role="tab" aria-selected="true" data-sled-view="orders">Naročila</button>
+            <button type="button" class="fert-subnav-btn" role="tab" aria-selected="false" data-sled-view="boxes">Škatle</button>
+          </div>
+          <div class="fert-head-actions">
+            <button type="button" id="sledExportBtn" class="btn btn-secondary btn-sm">Izvozi</button>
+            <button type="button" id="sledNewBoxBtn" class="btn btn-primary btn-sm" hidden>+ Nova škatla</button>
+          </div>
+        </div>
+
+        <!-- Naročila — every delovni_nalog with its sample-pipeline progress -->
+        <div id="sledViewOrders" class="fert-view">
+          <div class="fert-toolbar">
+            <label class="fert-field">
+              <span class="field-label">Iskanje</span>
+              <input type="search" id="sledOrderSearch" class="field-input fert-input" placeholder="Nalog ali stranka">
+            </label>
+            <label class="fert-field fert-field--narrow">
+              <span class="field-label">Prikaz</span>
+              <select id="sledOrderMode" class="field-input fert-input">
+                <option value="all">Vsa naročila</option>
+                <option value="none">Ni v škatli</option>
+                <option value="boxed">V škatli</option>
+                <option value="sent">Poslano laboratoriju</option>
+                <option value="results">Prejeti lab. rezultati</option>
+              </select>
+            </label>
+          </div>
+          <div class="reports-table-wrap">
+            <table class="evidenca-table fert-table">
+              <thead><tr><th>Nalog</th><th>Stranka</th><th class="fert-num">Vzorcev</th><th class="fert-num">V škatli</th><th class="fert-num">Poslano</th><th class="fert-num">Rezultati</th><th>Status vzorčenja</th><th></th></tr></thead>
+              <tbody id="sledOrderRows"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Škatle — box list -->
+        <div id="sledViewBoxes" class="fert-view" hidden>
+          <div class="reports-table-wrap">
+            <table class="evidenca-table fert-table">
+              <thead><tr><th>Oznaka</th><th>Status</th><th class="fert-num">Vzorcev</th><th>Ustvarjeno</th><th>Poslano</th><th></th></tr></thead>
+              <tbody id="sledBoxRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── Sledenje naročilom: en nalog — GERK-i in njihovi segmenti,
+         vsak s svojo škatlo (select) — rendered by shipping.js. -->
+    <div id="sledOrderModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="sledOrderModalTitle">
+      <div class="modal-sheet modal-sheet-wide">
+        <div class="modal-handle" aria-hidden="true"></div>
+        <div class="modal-head">
+          <h3 id="sledOrderModalTitle" class="modal-title">Nalog</h3>
+          <button id="sledOrderModalClose" class="btn btn-icon" aria-label="Zapri">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="work-form">
+          <div id="sledOrderGerks"></div>
+        </div>
+      </div>
     </div>
 
     <!-- ── Poročila (admin only) — full-screen view, not a tab-bar
@@ -1131,6 +1210,7 @@
   <script type="module" src="app.js"></script>
   <script type="module" src="planning.js"></script>
   <script type="module" src="fertilization.js"></script>
+  <script type="module" src="shipping.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').then(reg => reg.update());
