@@ -321,13 +321,9 @@
     <div id="panelSledenje" class="tab-panel" hidden>
       <section class="logs-section wo-section">
         <div class="section-header fert-head">
-          <div class="fert-subnav" role="tablist" aria-label="Sledenje naročilom">
-            <button type="button" class="fert-subnav-btn fert-subnav-btn--active" role="tab" aria-selected="true" data-sled-view="orders">Naročila</button>
-            <button type="button" class="fert-subnav-btn" role="tab" aria-selected="false" data-sled-view="boxes">Škatle</button>
-          </div>
+          <h3 class="fert-title">Sledenje naročilom</h3>
           <div class="fert-head-actions">
-            <button type="button" id="sledExportBtn" class="btn btn-secondary btn-sm">Izvozi</button>
-            <button type="button" id="sledNewBoxBtn" class="btn btn-primary btn-sm" hidden>+ Nova škatla</button>
+            <button type="button" id="sledBoxesBtn" class="btn btn-secondary btn-sm">Škatle</button>
           </div>
         </div>
 
@@ -338,49 +334,52 @@
               <span class="field-label">Iskanje</span>
               <input type="search" id="sledOrderSearch" class="field-input fert-input" placeholder="Nalog ali stranka">
             </label>
-            <label class="fert-field fert-field--narrow">
-              <span class="field-label">Status</span>
-              <select id="sledOrderMode" class="field-input fert-input">
-                <option value="all">Vsi statusi</option>
-                <option value="Plan">Plan</option>
-                <option value="V delu">V delu</option>
-                <option value="Izvedeno">Izvedeno</option>
-                <option value="Pakiranje vzorcev">Pakiranje vzorcev</option>
-                <option value="Pripravljeni na pošiljanje">Pripravljeni na pošiljanje</option>
-                <option value="Poslani">Poslani</option>
-                <option value="Delno prejeta analiza">Delno prejeta analiza</option>
-                <option value="Analiza prejeta">Analiza prejeta</option>
-              </select>
-            </label>
+            <!-- Multi-select, same button+checklist pattern as the Delovni
+                 Nalogi list's own woStatusFilterBtn/woStatusFilterMenu. -->
+            <div class="wo-status-filter-wrap">
+              <button type="button" id="sledStatusFilterBtn" class="btn btn-secondary btn-sm wo-status-filter-btn">Vsi statusi</button>
+              <div id="sledStatusFilterMenu" class="wo-status-filter-menu" hidden>
+                <div class="wo-gerk-checklist">
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-status-filter-cb" value="Plan"><span class="wo-gerk-check-code">Plan</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-status-filter-cb" value="V delu"><span class="wo-gerk-check-code">V delu</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-status-filter-cb" value="Izvedeno"><span class="wo-gerk-check-code">Izvedeno</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-status-filter-cb" value="Pakiranje vzorcev"><span class="wo-gerk-check-code">Pakiranje vzorcev</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-status-filter-cb" value="Pripravljeni na pošiljanje"><span class="wo-gerk-check-code">Pripravljeni na pošiljanje</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-status-filter-cb" value="Poslani"><span class="wo-gerk-check-code">Poslani</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-status-filter-cb" value="Delno prejeta analiza"><span class="wo-gerk-check-code">Delno prejeta analiza</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-status-filter-cb" value="Analiza prejeta"><span class="wo-gerk-check-code">Analiza prejeta</span></label>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="reports-table-wrap">
             <table class="evidenca-table fert-table">
-              <thead><tr><th>Nalog</th><th>Stranka</th><th class="fert-num">GERK-ov</th><th class="fert-num">Vzorcev</th><th class="fert-num">Ha</th><th>Datum vzorčenja</th><th>Datum pošiljanja</th><th>Datum prejetja</th><th>Status</th><th></th></tr></thead>
+              <thead><tr><th><input type="checkbox" id="sledSelectAllCb" aria-label="Izberi vse"></th><th>Nalog</th><th>Stranka</th><th class="fert-num">GERK-ov</th><th class="fert-num">Vzorcev</th><th class="fert-num">Ha</th><th>Datum vzorčenja</th><th>Datum pošiljanja</th><th>Datum prejetja</th><th>Status</th><th></th></tr></thead>
               <tbody id="sledOrderRows"></tbody>
             </table>
           </div>
         </div>
 
-        <!-- Škatle — box list -->
-        <div id="sledViewBoxes" class="fert-view" hidden>
-          <div class="reports-table-wrap">
-            <table class="evidenca-table fert-table">
-              <thead><tr><th>Oznaka</th><th>Status</th><th class="fert-num">Vzorcev</th><th>Ustvarjeno</th><th>Poslano</th><th></th></tr></thead>
-              <tbody id="sledBoxRows"></tbody>
-            </table>
+        <!-- En nalog — urejanje segmentov/vzorcev. Poln zaslon (ne modal,
+             Matej 2026-11-06), nadomesti seznam naročil dokler je odprt. -->
+        <div id="sledViewSegments" class="fert-view" hidden>
+          <div class="fert-toolbar">
+            <button type="button" id="sledSegmentsBackBtn" class="btn btn-secondary btn-sm">← Nazaj</button>
+            <h4 id="sledSegmentsTitle" class="fert-title"></h4>
           </div>
+          <div id="sledOrderGerks"></div>
         </div>
       </section>
     </div>
 
-    <!-- ── Sledenje naročilom: en nalog — GERK-i in njihovi segmenti,
-         vsak s svojo škatlo (select) — rendered by shipping.js. -->
-    <div id="sledOrderModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="sledOrderModalTitle">
+    <!-- ── Sledenje naročilom: škatle — modal (namenoma NE zavihek/
+         podstran, Matej 2026-11-06), odpre se z gumbom "Škatle" zgoraj. -->
+    <div id="sledBoxesModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="sledBoxesModalTitle">
       <div class="modal-sheet modal-sheet-wide">
         <div class="modal-handle" aria-hidden="true"></div>
         <div class="modal-head">
-          <h3 id="sledOrderModalTitle" class="modal-title">Nalog</h3>
-          <button id="sledOrderModalClose" class="btn btn-icon" aria-label="Zapri">
+          <h3 id="sledBoxesModalTitle" class="modal-title">Škatle</h3>
+          <button id="sledBoxesModalClose" class="btn btn-icon" aria-label="Zapri">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
               <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -388,7 +387,15 @@
           </button>
         </div>
         <div class="work-form">
-          <div id="sledOrderGerks"></div>
+          <div class="fert-head-actions">
+            <button type="button" id="sledNewBoxBtn" class="btn btn-primary btn-sm">+ Nova škatla</button>
+          </div>
+          <div class="reports-table-wrap">
+            <table class="evidenca-table fert-table">
+              <thead><tr><th>Oznaka</th><th>Status</th><th class="fert-num">Vzorcev</th><th>Ustvarjeno</th><th>Poslano</th><th></th></tr></thead>
+              <tbody id="sledBoxRows"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -761,6 +768,12 @@
        orders list, content built by buildWoSelectionBar() in app.js.
        Reuses the same .wlg-selection-bar styling as the GERK one above. -->
   <div id="woSelectionBar" class="wlg-selection-bar"></div>
+
+  <!-- Sledenje naročilom: same floating bulk-action bar, content built by
+       buildSledSelectionBar() in shipping.js. Only action: export selected
+       orders' samples to Excel-opening CSV (the old always-visible "Izvozi"
+       button is gone — export now requires an explicit selection). -->
+  <div id="sledSelectionBar" class="wlg-selection-bar"></div>
 
   <!-- ── Delete Confirm ──────────────────────────────────────── -->
   <!-- ── Work Order Add / Edit Modal ─────────────────────────── -->

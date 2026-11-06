@@ -11,27 +11,29 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const els = {
   tab: document.getElementById('tabSledenje'),
-  subnavBtns: [...document.querySelectorAll('[data-sled-view]')],
-  views: {
-    orders: document.getElementById('sledViewOrders'),
-    boxes: document.getElementById('sledViewBoxes'),
-  },
-  exportBtn: document.getElementById('sledExportBtn'),
-  newBoxBtn: document.getElementById('sledNewBoxBtn'),
+  viewOrders: document.getElementById('sledViewOrders'),
+  viewSegments: document.getElementById('sledViewSegments'),
+  segmentsBackBtn: document.getElementById('sledSegmentsBackBtn'),
+  segmentsTitle: document.getElementById('sledSegmentsTitle'),
   orderSearch: document.getElementById('sledOrderSearch'),
-  orderMode: document.getElementById('sledOrderMode'),
   orderRows: document.getElementById('sledOrderRows'),
-  boxRows: document.getElementById('sledBoxRows'),
-  orderModal: document.getElementById('sledOrderModal'),
-  orderModalClose: document.getElementById('sledOrderModalClose'),
-  orderModalTitle: document.getElementById('sledOrderModalTitle'),
+  selectAllCb: document.getElementById('sledSelectAllCb'),
+  selectionBar: document.getElementById('sledSelectionBar'),
+  statusFilterBtn: document.getElementById('sledStatusFilterBtn'),
+  statusFilterMenu: document.getElementById('sledStatusFilterMenu'),
   orderGerks: document.getElementById('sledOrderGerks'),
+  boxesBtn: document.getElementById('sledBoxesBtn'),
+  boxesModal: document.getElementById('sledBoxesModal'),
+  boxesModalClose: document.getElementById('sledBoxesModalClose'),
+  newBoxBtn: document.getElementById('sledNewBoxBtn'),
+  boxRows: document.getElementById('sledBoxRows'),
 };
 
-let currentView = 'orders';
 let orders = [];
 let boxes = [];
 let currentOrderId = null;
+let selectedOrderIds = new Set();
+let sledStatusFilterValues = new Set(); // empty = no filter, show all statuses
 
 function esc(value) {
   return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -44,6 +46,16 @@ function fmtDate(iso) {
   const d = new Date(iso);
   return `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}`;
 }
+// d. m. yyyy for a plain DATE column (sampling_date, analysis_date) —
+// split the string directly instead of `new Date(iso)`, which parses a
+// bare date as UTC midnight and can shift a day under local time.
+function fmtPlainDate(isoDate) {
+  if (!isoDate) return '—';
+  const [y, m, d] = isoDate.split('-');
+  return `${parseInt(d, 10)}. ${parseInt(m, 10)}. ${y}`;
+}
+function earliest(dates) { return dates.length ? dates.slice().sort()[0] : null; }
+function latest(dates) { return dates.length ? dates.slice().sort().at(-1) : null; }
 
 // Same fade/slide modal open-close as app.js's showModalAnimated/
 // hideModalAnimated — small local copy, not worth importing across modules
@@ -57,6 +69,11 @@ function hideModal(el) {
   el.classList.remove('modal-backdrop--visible');
   setTimeout(() => { el.hidden = true; }, MODAL_CLOSE_MS);
 }
+
+// Same two icons as app.js's WLG_SEL_ICON_CLOSE/WLG_SEL_ICON_DOWNLOAD —
+// small local copy for the same reason as the modal helpers above.
+const SEL_ICON_CLOSE = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><line x1="4" y1="4" x2="16" y2="16" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/><line x1="16" y1="4" x2="4" y2="16" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>`;
+const SEL_ICON_DOWNLOAD = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v9m0 0-3.5-3.5M10 12l3.5-3.5M4 14v1.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 function csvField(value) {
   const s = value == null ? '' : String(value);
@@ -78,24 +95,27 @@ function downloadTextFile(filename, content, mimeType) {
 const LAB_COLS = 'id, lab_sample_code, analysis_date, ph_kcl, ka, caco3_pct, humus_pct, no3_no2_n, p2o5, k2o, mg, na, zn, cu, mn, salts_pct, so4_s, fe, notes';
 
 async function loadAll() {
-  els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty">Nalaganje …</td></tr>`;
+  els.orderRows.innerHTML = `<tr><td colspan="11" class="fert-empty">Nalaganje …</td></tr>`;
   const [{ data: orderData, error: orderError }, { data: boxData, error: boxError }] = await Promise.all([
     supabase.from('delovni_nalogi')
       .select(`id, stevilka, status, customers(naziv, company_name),
         delovni_nalogi_gerki(id, gerk_code, kolicina_ha,
-          delovni_nalogi_vzorci(id, sample_no, box_id, sampling_date, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS})))`)
+          delovni_nalogi_vzorci(id, sample_no, box_id, sampling_date, sampling_note, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS})))`)
       .is('deleted_at', null)
       .order('ustvarjen', { ascending: false }),
     supabase.from('sample_boxes').select('*').order('created_at', { ascending: false }),
   ]);
   const error = orderError || boxError;
   if (error) {
-    els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty fert-error">Napaka pri nalaganju: ${esc(error.message)}</td></tr>`;
+    els.orderRows.innerHTML = `<tr><td colspan="11" class="fert-empty fert-error">Napaka pri nalaganju: ${esc(error.message)}</td></tr>`;
     return;
   }
   orders = orderData ?? [];
   boxes = boxData ?? [];
-  renderCurrentView();
+  // selection/open order may reference rows that no longer exist after a reload
+  for (const id of selectedOrderIds) if (!orders.some(o => o.id === id)) selectedOrderIds.delete(id);
+  renderOrders();
+  updateSledSelectionBar();
 }
 
 // ── Sample-pipeline status ────────────────────────────────────────
@@ -111,6 +131,7 @@ function allSegments(order) {
 function segmentBoxed(seg) { return !!seg.box_id; }
 function segmentSent(seg) { return seg.sample_boxes?.status === 'Poslano'; }
 function segmentHasResult(seg) { return !!seg.lab_soil_result?.length; }
+function segmentSkipped(seg) { return seg.sampling_note === 'ne pobereš'; }
 
 const PIPELINE_BADGE = {
   'Plan': 'fert-badge--neutral',
@@ -124,8 +145,8 @@ const PIPELINE_BADGE = {
 };
 
 // Full start-to-finish ladder, in order — the stepper below always has
-// this many segments (Matej, 2026-11-06: "št. stageov prilagodi številu
-// statusov"), filled up to and including the current status's position.
+// this many segments ("št. stageov prilagodi številu statusov"), filled
+// up to and including the current status's position.
 const STATUS_SEQUENCE = [
   'Plan', 'V delu', 'Izvedeno', 'Pakiranje vzorcev',
   'Pripravljeni na pošiljanje', 'Poslani', 'Delno prejeta analiza', 'Analiza prejeta',
@@ -165,27 +186,36 @@ function orderStatusLabel(order) {
   return 'Izvedeno';
 }
 
-// d. m. yyyy for a plain DATE column (sampling_date, analysis_date) —
-// split the string directly instead of `new Date(iso)`, which parses a
-// bare date as UTC midnight and can shift a day under local time.
-function fmtPlainDate(isoDate) {
-  if (!isoDate) return '—';
-  const [y, m, d] = isoDate.split('-');
-  return `${parseInt(d, 10)}. ${parseInt(m, 10)}. ${y}`;
+// ── Status filter (multi-select — same button+checklist pattern as the
+// Delovni Nalogi list's own woStatusFilterBtn/woStatusFilterMenu) ──────
+function updateStatusFilterBtnLabel() {
+  const n = sledStatusFilterValues.size;
+  els.statusFilterBtn.textContent = n === 0 ? 'Vsi statusi' : n === 1 ? [...sledStatusFilterValues][0] : `${n} statusi`;
 }
-function earliest(dates) { return dates.length ? dates.slice().sort()[0] : null; }
-function latest(dates) { return dates.length ? dates.slice().sort().at(-1) : null; }
+els.statusFilterBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  els.statusFilterMenu.hidden = !els.statusFilterMenu.hidden;
+});
+els.statusFilterMenu.addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', () => { els.statusFilterMenu.hidden = true; });
+els.statusFilterMenu.querySelectorAll('.sled-status-filter-cb').forEach(cb => {
+  cb.addEventListener('change', () => {
+    if (cb.checked) sledStatusFilterValues.add(cb.value);
+    else sledStatusFilterValues.delete(cb.value);
+    updateStatusFilterBtnLabel();
+    renderOrders();
+  });
+});
 
 // ── Naročila view ──────────────────────────────────────────────
 function filteredOrders() {
   const q = els.orderSearch.value.trim().toLowerCase();
-  const mode = els.orderMode.value;
   return orders.filter(o => {
     if (q) {
       const hay = `${o.stevilka ?? ''} ${customerName(o.customers)}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
-    if (mode !== 'all' && orderStatusLabel(o) !== mode) return false;
+    if (sledStatusFilterValues.size && !sledStatusFilterValues.has(orderStatusLabel(o))) return false;
     return true;
   });
 }
@@ -193,7 +223,8 @@ function filteredOrders() {
 function renderOrders() {
   const rows = filteredOrders();
   if (!rows.length) {
-    els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty">${orders.length ? 'Ni zadetkov.' : 'Ni naročil.'}</td></tr>`;
+    els.orderRows.innerHTML = `<tr><td colspan="11" class="fert-empty">${orders.length ? 'Ni zadetkov.' : 'Ni naročil.'}</td></tr>`;
+    updateSelectAllState([]);
     return;
   }
   els.orderRows.innerHTML = rows.map(o => {
@@ -206,6 +237,7 @@ function renderOrders() {
     const label = orderStatusLabel(o);
     const cls = PIPELINE_BADGE[label] ?? 'fert-badge--neutral';
     return `<tr>
+      <td><input type="checkbox" class="sled-select-cb" data-id="${esc(o.id)}" aria-label="Izberi nalog" ${selectedOrderIds.has(o.id) ? 'checked' : ''}></td>
       <td>${esc(o.stevilka)}</td>
       <td class="fert-strong fert-wrap">${esc(customerName(o.customers))}</td>
       <td class="fert-num">${gerkCount}</td>
@@ -218,16 +250,102 @@ function renderOrders() {
       <td><button type="button" class="btn btn-secondary btn-sm" data-open-order="${esc(o.id)}">Odpri</button></td>
     </tr>`;
   }).join('');
+  updateSelectAllState(rows.map(o => o.id));
 }
 
 els.orderSearch.addEventListener('input', renderOrders);
-els.orderMode.addEventListener('change', renderOrders);
 els.orderRows.addEventListener('click', e => {
   const btn = e.target.closest('[data-open-order]');
-  if (btn) openOrderModal(btn.dataset.openOrder);
+  if (btn) openSegmentsScreen(btn.dataset.openOrder);
+});
+els.orderRows.addEventListener('change', e => {
+  const cb = e.target.closest('.sled-select-cb');
+  if (!cb) return;
+  if (cb.checked) selectedOrderIds.add(cb.dataset.id);
+  else selectedOrderIds.delete(cb.dataset.id);
+  updateSledSelectionBar();
+  updateSelectAllState(filteredOrders().map(o => o.id));
 });
 
-// ── Naročilo detail modal — GERK groups, segment rows, box select ──
+// ── Selection + bulk export (mirrors app.js's work-order selection bar —
+// same .wlg-selection-bar/.wlg-sel-* markup/CSS, own instance) ────────
+function updateSelectAllState(visibleIds) {
+  const checkedCount = visibleIds.filter(id => selectedOrderIds.has(id)).length;
+  els.selectAllCb.checked = visibleIds.length > 0 && checkedCount === visibleIds.length;
+  els.selectAllCb.indeterminate = checkedCount > 0 && checkedCount < visibleIds.length;
+}
+els.selectAllCb.addEventListener('click', () => {
+  const visible = filteredOrders();
+  const anySelected = visible.some(o => selectedOrderIds.has(o.id));
+  if (anySelected) visible.forEach(o => selectedOrderIds.delete(o.id));
+  else visible.forEach(o => selectedOrderIds.add(o.id));
+  renderOrders();
+  updateSledSelectionBar();
+});
+
+function buildSledSelectionBar() {
+  els.selectionBar.setAttribute('role', 'toolbar');
+  els.selectionBar.setAttribute('aria-label', 'Skupinska dejanja za izbrana naročila');
+  els.selectionBar.innerHTML = `
+    <span class="wlg-sel-summary"></span>
+    <button type="button" class="wlg-sel-close" data-action="sled-sel-close" aria-label="Prekliči izbiro" title="Prekliči izbiro">${SEL_ICON_CLOSE}</button>
+    <span class="wlg-sel-sep" aria-hidden="true"></span>
+    <div class="wlg-sel-actions">
+      <button type="button" class="wlg-sel-action" data-action-id="sled-sel-export" aria-label="Izvozi izbrana naročila v Excel" title="Izvozi izbrana naročila v Excel">
+        ${SEL_ICON_DOWNLOAD}<span class="wlg-sel-action-label">Izvozi</span>
+      </button>
+    </div>`;
+  els.selectionBar.querySelector('[data-action="sled-sel-close"]').addEventListener('click', clearSelection);
+  els.selectionBar.querySelector('[data-action-id="sled-sel-export"]').addEventListener('click', exportSelectedOrders);
+}
+buildSledSelectionBar();
+
+function updateSledSelectionBar() {
+  const n = selectedOrderIds.size;
+  els.selectionBar.classList.toggle('wlg-selection-bar--visible', n > 0);
+  if (n === 0) return;
+  const summaryEl = els.selectionBar.querySelector('.wlg-sel-summary');
+  if (summaryEl) summaryEl.textContent = `${n} ${n === 1 ? 'izbrano' : 'izbranih'}`;
+}
+function clearSelection() {
+  selectedOrderIds = new Set();
+  els.orderRows.querySelectorAll('.sled-select-cb').forEach(cb => { cb.checked = false; });
+  updateSledSelectionBar();
+  updateSelectAllState(filteredOrders().map(o => o.id));
+}
+
+// Izvoz (CSV, odpre se v Excelu) — en vzorec = ena vrstica, samo za
+// trenutno izbrana naročila (Nalog, Stranka, GERK, Segment + vsi
+// laboratorijski stolpci).
+const LAB_EXPORT_COLS = [
+  ['lab_sample_code', 'Lab. koda'], ['analysis_date', 'Datum analize'],
+  ['ph_kcl', 'pH (KCl)'], ['ka', 'KA'], ['caco3_pct', 'CaCO3 %'], ['humus_pct', 'Humus %'],
+  ['no3_no2_n', 'NO3+NO2-N'], ['p2o5', 'P2O5'], ['k2o', 'K2O'], ['mg', 'Mg'], ['na', 'Na'],
+  ['zn', 'Zn'], ['cu', 'Cu'], ['mn', 'Mn'], ['salts_pct', 'Soli %'], ['so4_s', 'SO4-S'], ['fe', 'Fe'], ['notes', 'Opomba'],
+];
+function exportSelectedOrders() {
+  const rows = orders.filter(o => selectedOrderIds.has(o.id));
+  if (!rows.length) return;
+  const header = ['Nalog', 'Stranka', 'GERK', 'Segment', ...LAB_EXPORT_COLS.map(c => c[1])];
+  const lines = [header.map(csvField).join(';')];
+  for (const o of rows) {
+    const stranka = customerName(o.customers);
+    for (const g of (o.delovni_nalogi_gerki || [])) {
+      for (const s of (g.delovni_nalogi_vzorci || [])) {
+        const results = s.lab_soil_result?.length ? s.lab_soil_result : [null];
+        for (const r of results) {
+          const line = [o.stevilka || '', stranka, g.gerk_code || '', s.sample_no || '', ...LAB_EXPORT_COLS.map(([key]) => (r ? (r[key] ?? '') : ''))];
+          lines.push(line.map(csvField).join(';'));
+        }
+      }
+    }
+  }
+  const csv = '﻿' + lines.join('\r\n');
+  downloadTextFile(`sledenje_narocilom_${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv;charset=utf-8');
+}
+
+// ── Segmenti naloga — poln zaslon (ne modal), GERK groups, segment
+// rows: št. segmenta, status, ali vzorčimo, škatla ─────────────────
 function boxSelectHtml(seg) {
   const openBoxes = boxes.filter(b => b.status === 'Odprta');
   const options = [`<option value="">— brez škatle —</option>`]
@@ -242,9 +360,6 @@ function boxSelectHtml(seg) {
   return options.join('');
 }
 
-// Per-segment label inside the modal — simpler than the order-level
-// pipeline (no Plan/V delu passthrough here, this view only ever opens
-// on an order that already has segments to assign).
 function segmentLabel(seg) {
   if (segmentHasResult(seg)) return 'Analiza prejeta';
   if (segmentSent(seg)) return 'Poslano';
@@ -258,8 +373,8 @@ function segmentBadgeClass(seg) {
   return 'fert-badge--neutral';
 }
 
-function renderOrderModal(order) {
-  els.orderModalTitle.textContent = `Nalog ${order.stevilka ?? ''} · ${customerName(order.customers)}`;
+function renderSegmentsScreen(order) {
+  els.segmentsTitle.textContent = `Nalog ${order.stevilka ?? ''} · ${customerName(order.customers)}`;
   const gerks = order.delovni_nalogi_gerki || [];
   const groups = gerks.map(g => {
     const segs = g.delovni_nalogi_vzorci || [];
@@ -271,6 +386,7 @@ function renderOrderModal(order) {
         return `<div class="sled-seg-row" data-seg-id="${esc(s.id)}">
           <span class="sled-seg-sample">${esc(s.sample_no)}</span>
           <span class="fert-badge ${segmentBadgeClass(s)}">${esc(segmentLabel(s))}</span>
+          <label class="sled-seg-sampling"><input type="checkbox" data-sampling-toggle="${esc(s.id)}" ${segmentSkipped(s) ? '' : 'checked'}> Vzorčimo</label>
           <select class="field-input sled-seg-box-select" data-box-select="${esc(s.id)}" ${locked ? 'disabled' : ''}>${boxSelectHtml(s)}</select>
         </div>`;
       }).join('')}
@@ -279,47 +395,64 @@ function renderOrderModal(order) {
   els.orderGerks.innerHTML = groups || '<p class="fert-hint">Ta nalog nima GERK segmentov (vzorcev).</p>';
 }
 
-function openOrderModal(orderId) {
+function openSegmentsScreen(orderId) {
   const order = orders.find(o => o.id === orderId);
   if (!order) return;
   currentOrderId = orderId;
-  renderOrderModal(order);
-  showModal(els.orderModal);
+  renderSegmentsScreen(order);
+  els.viewOrders.hidden = true;
+  els.viewSegments.hidden = false;
 }
-function closeOrderModal() {
-  hideModal(els.orderModal);
+function backToOrders() {
   currentOrderId = null;
+  els.viewSegments.hidden = true;
+  els.viewOrders.hidden = false;
+  renderOrders();
 }
-els.orderModalClose.addEventListener('click', closeOrderModal);
-els.orderModal.addEventListener('click', e => { if (e.target === els.orderModal) closeOrderModal(); });
+els.segmentsBackBtn.addEventListener('click', backToOrders);
 
 els.orderGerks.addEventListener('change', async e => {
+  const toggle = e.target.closest('[data-sampling-toggle]');
+  if (toggle) return setSamplingFlag(toggle.dataset.samplingToggle, toggle.checked);
   const sel = e.target.closest('[data-box-select]');
   if (!sel) return;
   const segId = sel.dataset.boxSelect;
   if (sel.value === '__new__') {
     const label = prompt('Oznaka nove škatle:');
-    if (!label || !label.trim()) { renderOrderModal(orders.find(o => o.id === currentOrderId)); return; }
+    if (!label || !label.trim()) { renderSegmentsScreen(orders.find(o => o.id === currentOrderId)); return; }
     const box = await createBox(label.trim());
     if (box) await assignSegmentToBox(segId, box.id);
-    else renderOrderModal(orders.find(o => o.id === currentOrderId));
+    else renderSegmentsScreen(orders.find(o => o.id === currentOrderId));
     return;
   }
   await assignSegmentToBox(segId, sel.value || null);
 });
 
+function findSegment(segId) {
+  for (const o of orders) for (const g of (o.delovni_nalogi_gerki || [])) {
+    const seg = (g.delovni_nalogi_vzorci || []).find(s => s.id === segId);
+    if (seg) return seg;
+  }
+  return null;
+}
+
+async function setSamplingFlag(segId, isSampling) {
+  const value = isSampling ? null : 'ne pobereš';
+  const { error } = await supabase.from('delovni_nalogi_vzorci').update({ sampling_note: value }).eq('id', segId);
+  if (error) { alert('Napaka: ' + error.message); return; }
+  const seg = findSegment(segId);
+  if (seg) seg.sampling_note = value;
+}
+
 async function assignSegmentToBox(segId, boxId) {
   const { error } = await supabase.from('delovni_nalogi_vzorci').update({ box_id: boxId }).eq('id', segId);
   if (error) { alert('Napaka pri dodeljevanju škatle: ' + error.message); return; }
-  for (const o of orders) for (const g of (o.delovni_nalogi_gerki || [])) {
-    const seg = (g.delovni_nalogi_vzorci || []).find(s => s.id === segId);
-    if (seg) { seg.box_id = boxId; seg.sample_boxes = boxId ? (boxes.find(b => b.id === boxId) ?? null) : null; }
-  }
-  if (currentOrderId) renderOrderModal(orders.find(o => o.id === currentOrderId));
-  renderCurrentView();
+  const seg = findSegment(segId);
+  if (seg) { seg.box_id = boxId; seg.sample_boxes = boxId ? (boxes.find(b => b.id === boxId) ?? null) : null; }
+  if (currentOrderId) renderSegmentsScreen(orders.find(o => o.id === currentOrderId));
 }
 
-// ── Škatle view ──────────────────────────────────────────────────
+// ── Škatle — modal (not a tab/view), opened via the "Škatle" button ──
 function samplesInBox(boxId) {
   return orders.flatMap(o => allSegments(o)
     .filter(s => s.box_id === boxId)
@@ -357,6 +490,10 @@ async function createBox(label) {
   return data;
 }
 
+els.boxesBtn.addEventListener('click', () => { renderBoxes(); showModal(els.boxesModal); });
+els.boxesModalClose.addEventListener('click', () => hideModal(els.boxesModal));
+els.boxesModal.addEventListener('click', e => { if (e.target === els.boxesModal) hideModal(els.boxesModal); });
+
 els.newBoxBtn.addEventListener('click', async () => {
   const label = prompt('Oznaka nove škatle:');
   if (!label || !label.trim()) return;
@@ -379,7 +516,9 @@ els.boxRows.addEventListener('click', async e => {
     for (const o of orders) for (const g of (o.delovni_nalogi_gerki || [])) for (const s of (g.delovni_nalogi_vzorci || [])) {
       if (s.box_id === box.id) s.sample_boxes = box;
     }
-    renderCurrentView();
+    renderBoxes();
+    renderOrders();
+    if (currentOrderId) renderSegmentsScreen(orders.find(o => o.id === currentOrderId));
     return;
   }
   const printBtn = e.target.closest('[data-print-box]');
@@ -411,56 +550,8 @@ function printBox(box) {
   win.document.close();
 }
 
-// ── Izvoz (CSV, odpre se v Excelu) — en vzorec = ena vrstica, nad
-// trenutno filtriranim seznamom naročil (iskanje + Prikaz), ne glede na
-// to, katera podstran (Naročila/Škatle) je trenutno odprta. ───────────
-const LAB_EXPORT_COLS = [
-  ['lab_sample_code', 'Lab. koda'], ['analysis_date', 'Datum analize'],
-  ['ph_kcl', 'pH (KCl)'], ['ka', 'KA'], ['caco3_pct', 'CaCO3 %'], ['humus_pct', 'Humus %'],
-  ['no3_no2_n', 'NO3+NO2-N'], ['p2o5', 'P2O5'], ['k2o', 'K2O'], ['mg', 'Mg'], ['na', 'Na'],
-  ['zn', 'Zn'], ['cu', 'Cu'], ['mn', 'Mn'], ['salts_pct', 'Soli %'], ['so4_s', 'SO4-S'], ['fe', 'Fe'], ['notes', 'Opomba'],
-];
-
-els.exportBtn.addEventListener('click', () => {
-  const rows = filteredOrders();
-  const header = ['Nalog', 'Stranka', 'GERK', 'Segment', ...LAB_EXPORT_COLS.map(c => c[1])];
-  const lines = [header.map(csvField).join(';')];
-  for (const o of rows) {
-    const stranka = customerName(o.customers);
-    for (const g of (o.delovni_nalogi_gerki || [])) {
-      for (const s of (g.delovni_nalogi_vzorci || [])) {
-        const results = s.lab_soil_result?.length ? s.lab_soil_result : [null];
-        for (const r of results) {
-          const line = [o.stevilka || '', stranka, g.gerk_code || '', s.sample_no || '', ...LAB_EXPORT_COLS.map(([key]) => (r ? (r[key] ?? '') : ''))];
-          lines.push(line.map(csvField).join(';'));
-        }
-      }
-    }
-  }
-  const csv = '﻿' + lines.join('\r\n');
-  downloadTextFile(`sledenje_narocilom_${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv;charset=utf-8');
-});
-
-// ── Sub-navigation ───────────────────────────────────────────────
-function renderCurrentView() {
-  if (currentView === 'orders') renderOrders();
-  else renderBoxes();
-}
-for (const btn of els.subnavBtns) btn.addEventListener('click', () => {
-  currentView = btn.dataset.sledView;
-  for (const b of els.subnavBtns) {
-    const active = b === btn;
-    b.classList.toggle('fert-subnav-btn--active', active);
-    b.setAttribute('aria-selected', String(active));
-  }
-  els.views.orders.hidden = currentView !== 'orders';
-  els.views.boxes.hidden = currentView !== 'boxes';
-  els.newBoxBtn.hidden = currentView !== 'boxes';
-  renderCurrentView();
-});
-
 // app.js's switchTab() shows/hides #panelSledenje itself — this just
 // (re)loads fresh data every time the tab is opened, same as every other
 // admin tab's own click listener on the same button (fertilization.js,
 // planning.js).
-els.tab.addEventListener('click', loadAll);
+els.tab.addEventListener('click', () => { backToOrders(); loadAll(); });
