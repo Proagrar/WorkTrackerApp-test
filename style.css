@@ -3358,6 +3358,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .fert-badge--warn { background: var(--warning-bg); color: var(--warning); }
 .fert-badge--neutral { background: var(--border-light); color: var(--text-secondary); }
 .fert-badge--sent { background: #EDE9FE; color: #6D28D9; }
+.fert-badge--danger { background: var(--error-bg, #FEE2E2); color: var(--danger); }
 
 /* ── Sledenje naročilom (shipping.js) ────────────────────────── */
 .sled-gerk-group { margin-bottom: var(--space-6); }

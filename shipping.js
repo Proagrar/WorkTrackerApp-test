@@ -403,9 +403,14 @@ function renderOrderGerks(order) {
       <h4 class="sled-gerk-title">GERK ${esc(g.gerk_code || '—')}</h4>
       ${segs.map(s => {
         const locked = segmentSent(s) || segmentHasResult(s); // box assignment frozen once shipped
+        // Red flag: still being sampled, no result yet, and not even sent
+        // — once sent there's nothing wrong with still waiting on a result
+        // (Matej, 2026-11-06: "poslano ne, ne more biti poslan").
+        const flagNoResult = !segmentSkipped(s) && !segmentHasResult(s) && !segmentSent(s);
         return `<div class="sled-seg-row" data-seg-id="${esc(s.id)}">
           <span class="sled-seg-sample">${esc(s.sample_no)}</span>
           <span class="fert-badge ${segmentBadgeClass(s)}">${esc(segmentLabel(s))}</span>
+          ${flagNoResult ? '<span class="fert-badge fert-badge--danger">⚠ Ni rezultata analize</span>' : ''}
           <label class="sled-seg-sampling"><input type="checkbox" data-sampling-toggle="${esc(s.id)}" ${segmentSkipped(s) ? '' : 'checked'}> Vzorčimo</label>
           <select class="field-input sled-seg-box-select" data-box-select="${esc(s.id)}" ${locked ? 'disabled' : ''}>${boxSelectHtml(s)}</select>
         </div>`;
