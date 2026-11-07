@@ -1448,8 +1448,6 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   flex-shrink: 0;
 }
 
-.reports-row-checkbox-col { width: 32px; }
-
 /* Poročila stacked bar chart — total time per date, split Zabeležen /
    Pot med GERK-i. Colors are the dataviz skill's validated categorical
    slots 1 (blue) & 2 (orange): both checks pass cleanly at this surface,
@@ -3336,7 +3334,6 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .fert-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-4); }
 .fert-field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 240px; }
 .fert-input { height: 40px; }
-.fert-check { display: inline-flex; align-items: center; gap: var(--space-3); height: 40px; padding: 0 var(--space-5); background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius-md); font-size: .875rem; }
 
 .fert-notice { padding: var(--space-4) var(--space-6); border-radius: var(--radius-sm); font-size: .875rem; line-height: 1.45; }
 .fert-notice + .fert-notice { margin-top: var(--space-3); }
@@ -3345,7 +3342,6 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .fert-notice--ok   { background: var(--success-bg); color: #15803D; }
 
 .fert-table td.fert-num, .fert-table th.fert-num { text-align: right; font-variant-numeric: tabular-nums; }
-.fert-table--compact th, .fert-table--compact td { padding: 7px 12px; }
 .fert-strong { font-weight: 600; }
 .fert-muted { color: var(--text-secondary); }
 .fert-hint { margin: 0; font-size: .8125rem; color: var(--text-secondary); }
@@ -3394,10 +3390,9 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .fert-count--warn { color: var(--warning); }
 .fert-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-4); }
 
-.fert-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: var(--space-7); align-items: start; }
 .fert-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: var(--space-2); }
 .fert-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: var(--space-2); background: var(--background); border-radius: var(--radius-sm); font-size: .8125rem; }
-@media (max-width: 420px) { .fert-settings-grid { grid-template-columns: 1fr; } .fert-field { min-width: 0; flex: 1 1 100%; } }
+@media (max-width: 420px) { .fert-field { min-width: 0; flex: 1 1 100%; } }
 /* Admins now get four tabs (Nalogi, Evidenca, Planiranje, Gnojilni načrt) —
    on a phone let them wrap into two rows instead of squeezing four labels
    into one; operators' two tabs still sit side by side. */
