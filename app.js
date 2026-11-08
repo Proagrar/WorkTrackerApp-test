@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.53';
+const APP_VERSION = 'v4.54';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -39,6 +39,7 @@ let workOrders       = [];
 let workOrdersLoaded = false;
 let workOrderCenterPoints = {}; // work_order_id -> {lat, lng}, from get_work_orders_center_points
 let workOrderDurations    = {}; // work_order_id -> total logged minutes, from get_work_orders_durations
+let mmInvoiceById         = {}; // minimax_racun_id -> mm_issued_invoices row (admin-only read, for the real Osnutek/Poslano/Plačano status — see renderWoInvoiceCell())
 let customers        = [];
 let operatorsList    = [];
 
@@ -305,6 +306,7 @@ const addCustomerForm       = document.getElementById('addCustomerForm');
 const newCustomerNazivInput = document.getElementById('newCustomerNaziv');
 const newCustomerKrajInput  = document.getElementById('newCustomerKraj');
 const newCustomerCountryInput = document.getElementById('newCustomerCountry');
+const newCustomerVatInput   = document.getElementById('newCustomerVat');
 const addCustomerErrorEl    = document.getElementById('addCustomerError');
 const addCustomerCancelBtn  = document.getElementById('addCustomerCancelBtn');
 const addCustomerSaveBtn    = document.getElementById('addCustomerSaveBtn');
@@ -1734,39 +1736,56 @@ async function cancelInvoiceRequest(wo) {
   renderWorkOrders();
 }
 
-// One cell in the work-orders list (see renderWorkOrders()) — an icon
-// to request an invoice, the real invoice number once Minimax has one,
-// or an interim state in between. Interactive states are admin-only;
+// Invoice/payment line shown under the order's status badge (moved out of
+// its own 🧾 column, Matej 2026-11-09). Four real-world states: Račun ni
+// izdan / Osnutek računa / Račun poslan / Račun plačan — the last two come
+// from the live Minimax mirror (mm_issued_invoices), not just what this app
+// itself last wrote, so a payment made directly in Minimax shows up here
+// without the app having to do anything. Interactive states are admin-only;
 // everyone else gets the same information as plain, non-clickable text.
 function renderWoInvoiceCell(wo) {
   const admin = isAdminView();
+  const inv = wo.minimax_racun_id ? mmInvoiceById[wo.minimax_racun_id] : null;
+  if (inv) {
+    if (inv.document_status === 'O') {
+      return `<span class="wo-invoice-number" title="Osnutek računa v Minimaxu (ID ${wo.minimax_racun_id}) — dopolni in izstavi v Minimaxu">Osnutek računa</span>`;
+    }
+    const num = escHtml(wo.minimax_racun_stevilka || (inv.year && inv.invoice_number ? `${inv.year}-${inv.invoice_number}` : `#${wo.minimax_racun_id}`));
+    if (inv.payment_status === 'Placan') {
+      return `<span class="wo-invoice-number wo-invoice-number--paid" title="Račun ${num} je plačan">✓ Plačan ${num}</span>`;
+    }
+    return `<span class="wo-invoice-number" title="Račun ${num} je poslan, še ni plačan">Poslan ${num}</span>`;
+  }
+  // Mirror doesn't have this invoice yet (sync lag right after creation,
+  // or a cancelled one the mirror no longer lists) — fall back to what
+  // this app's own write-back last recorded.
   if (wo.minimax_racun_status === 'izstavljen') {
     const num = escHtml(wo.minimax_racun_stevilka || `#${wo.minimax_racun_id}`);
-    return `<span class="wo-c-invoice wo-invoice-number" title="Račun ${num}">${num}</span>`;
+    return `<span class="wo-invoice-number" title="Račun ${num}">Poslan ${num}</span>`;
   }
   if (wo.minimax_racun_status === 'storniran') {
     const num = escHtml(wo.minimax_racun_stevilka || `#${wo.minimax_racun_id}`);
-    return `<span class="wo-c-invoice wo-invoice-number wo-invoice-number--storniran" title="Račun ${num} je storniran">${num} ⨯</span>`;
+    return `<span class="wo-invoice-number wo-invoice-number--storniran" title="Račun ${num} je storniran">${num} ⨯</span>`;
   }
   if (wo.minimax_racun_status === 'osnutek') {
-    return `<span class="wo-c-invoice wo-invoice-number" title="Osnutek računa v Minimaxu (ID ${wo.minimax_racun_id}) — dopolni in izstavi v Minimaxu">Osnutek</span>`;
+    return `<span class="wo-invoice-number" title="Osnutek računa v Minimaxu (ID ${wo.minimax_racun_id}) — dopolni in izstavi v Minimaxu">Osnutek računa</span>`;
   }
   if (wo.racun_napaka) {
     return admin
-      ? `<button type="button" class="wo-c-invoice wo-invoice-btn wo-invoice-btn--error" data-action="wo-invoice-retry" data-id="${escHtml(wo.id)}" title="${escHtml(wo.racun_napaka)} — klikni za ponovni poskus" aria-label="Napaka pri računu, ponovno poskusi">⚠</button>`
-      : `<span class="wo-c-invoice wo-invoice-number" title="${escHtml(wo.racun_napaka)}">⚠</span>`;
+      ? `<button type="button" class="wo-invoice-btn wo-invoice-btn--error" data-action="wo-invoice-retry" data-id="${escHtml(wo.id)}" title="${escHtml(wo.racun_napaka)} — klikni za ponovni poskus" aria-label="Napaka pri računu, ponovno poskusi">⚠ Napaka</button>`
+      : `<span class="wo-invoice-number" title="${escHtml(wo.racun_napaka)}">⚠ Napaka</span>`;
   }
   if (wo.racun_zahtevan_at) {
     const title = `Račun v pripravi (zahtevano ${fmtDateTimeSl(wo.racun_zahtevan_at)})`;
     return admin
-      ? `<button type="button" class="wo-c-invoice wo-invoice-btn wo-invoice-btn--pending" data-action="wo-invoice-cancel" data-id="${escHtml(wo.id)}" title="${title} — klikni za preklic" aria-label="Račun v pripravi, prekliči">⏳</button>`
-      : `<span class="wo-c-invoice wo-invoice-number" title="${title}">⏳</span>`;
+      ? `<button type="button" class="wo-invoice-btn wo-invoice-btn--pending" data-action="wo-invoice-cancel" data-id="${escHtml(wo.id)}" title="${title} — klikni za preklic" aria-label="Račun v pripravi, prekliči">⏳ V pripravi</button>`
+      : `<span class="wo-invoice-number" title="${title}">⏳ V pripravi</span>`;
   }
   const eligible = wo.status === 'Izvedeno' && !wo.deleted_at && !wo.minimax_racun_id;
   if (eligible && admin) {
-    return `<button type="button" class="wo-c-invoice wo-invoice-btn" data-action="wo-invoice-request" data-id="${escHtml(wo.id)}" title="Pripravi račun" aria-label="Pripravi račun">🧾</button>`;
+    return `<button type="button" class="wo-invoice-btn" data-action="wo-invoice-request" data-id="${escHtml(wo.id)}" title="Pripravi račun" aria-label="Pripravi račun">🧾 Pripravi račun</button>`;
   }
-  return `<span class="wo-c-invoice wo-c-invoice--empty">—</span>`;
+  return `<span class="wo-c-invoice--empty">Račun ni izdan</span>`;
 }
 
 // ── Modal ──────────────────────────────────────────────────────
@@ -5318,13 +5337,31 @@ function closeAddCustomerModal() {
   document.body.style.overflow = '';
 }
 
+// Only SI/HR have a strict, known rule (Matej, 2026-11-08) — the Minimax
+// customer sync downstream needs a real davčna/OIB to match or create the
+// customer there. Other countries just need some non-empty digit string.
+function newCustomerVatFormatError(vat, country) {
+  const d = vat.replace(/\D/g, '');
+  if (!d) return 'Davčna številka je obvezna.';
+  if (country === 'Slovenija' && d.length !== 8) return 'Slovenska davčna številka ima 8 števk.';
+  if (country === 'Hrvaška' && d.length !== 11) return 'Hrvaški OIB ima 11 števk.';
+  return null;
+}
+
 addCustomerForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const naziv   = newCustomerNazivInput.value.trim();
   const kraj    = newCustomerKrajInput.value.trim();
   const country = newCustomerCountryInput.value;
+  const vat     = newCustomerVatInput.value.trim();
   if (!naziv) {
     addCustomerErrorEl.textContent = 'Naziv je obvezen.';
+    addCustomerErrorEl.hidden = false;
+    return;
+  }
+  const vatError = newCustomerVatFormatError(vat, country);
+  if (vatError) {
+    addCustomerErrorEl.textContent = vatError;
     addCustomerErrorEl.hidden = false;
     return;
   }
@@ -5334,14 +5371,40 @@ addCustomerForm.addEventListener('submit', async (e) => {
   addCustomerSaveBtn.querySelector('.btn-label').hidden = true;
   addCustomerSaveBtn.querySelector('.btn-spinner').hidden = false;
   try {
+    // Check whether a customer with this davčna/OIB already exists in
+    // Minimax (mm_customers — kept in sync independently of this app) —
+    // creating a second one there would be a real, hard-to-undo duplicate.
+    // digits-only compare against both of Minimax's own tax fields, same
+    // matching rule the "Pripravi račun" sync uses.
+    const vatDigits = vat.replace(/\D/g, '');
+    let minimaxCustomerId = null;
+    const { data: mmHits } = await supabase
+      .from('mm_customers')
+      .select('minimax_id, name, tax_number, vat_identification_number')
+      .or(`tax_number.eq.${vatDigits},vat_identification_number.ilike.%${vatDigits}`);
+    const mmMatch = (mmHits || []).find(m =>
+      (m.tax_number || '').replace(/\D/g, '') === vatDigits ||
+      (m.vat_identification_number || '').replace(/\D/g, '').endsWith(vatDigits));
+    if (mmMatch) {
+      if (!confirm(`Stranka s to davčno številko že obstaja v Minimaxu: "${mmMatch.name}".\n\nAli ustvarim novo stranko v ERP in jo povežem s to obstoječo (brez podvajanja v Minimaxu)?`)) {
+        addCustomerSaveBtn.disabled = false;
+        addCustomerSaveBtn.querySelector('.btn-label').hidden = false;
+        addCustomerSaveBtn.querySelector('.btn-spinner').hidden = true;
+        return;
+      }
+      minimaxCustomerId = Number(mmMatch.minimax_id);
+    }
+
     // country drives two downstream things: the SI/HR registry lookup
     // when resolving a GERK code's map location (see
     // migration_gerk_country_match.sql), and create_field_declaration_link's
     // automatic sl/hr form-language pick — both already keyed off this
     // same column, just never had a UI to set it on creation before.
+    // minimax_customer_id left null (unless already matched above) lets
+    // the DB trigger create this customer in Minimax automatically.
     const { data, error } = await supabase
       .from('customers')
-      .insert({ naziv, company_name: naziv, address_city: kraj || null, country })
+      .insert({ naziv, company_name: naziv, address_city: kraj || null, country, vat_number: vatDigits, minimax_customer_id: minimaxCustomerId })
       .select('id, naziv, company_name, contact_name, email')
       .single();
     if (error) throw error;
@@ -5570,7 +5633,7 @@ async function loadWorkOrders() {
       <p>Nalaganje...</p>
     </div>`;
 
-  const [{ data, error }, { data: centerPoints }, { data: durations }] = await Promise.all([
+  const [{ data, error }, { data: centerPoints }, { data: durations }, { data: mmInvoices }] = await Promise.all([
     supabase
       .from('delovni_nalogi')
       .select('*, customers(naziv, company_name, minimax_customer_id, vat_number), profiles(full_name), delovni_nalogi_gerki(id, gerk_code, kolicina_ha, lokacija, tip_lab_analize, delovni_nalogi_vzorci(id, sample_no, sampling_date, sending_date, sampling_note, sending_note, sampling_depth_cm, area_ha, comment))')
@@ -5581,6 +5644,10 @@ async function loadWorkOrders() {
     // Same batching reasoning, for the Trajanje column — see
     // get_work_orders_durations.
     supabase.rpc('get_work_orders_durations'),
+    // Real invoice/payment status (Osnutek/Poslano/Plačano) straight from
+    // the Minimax mirror — RLS only lets an admin see rows here at all, so
+    // a non-admin session just gets an empty result, not an error.
+    supabase.from('mm_issued_invoices').select('minimax_id, document_status, payment_status, year, invoice_number, numbering'),
   ]);
 
   if (error) {
@@ -5593,6 +5660,9 @@ async function loadWorkOrders() {
   );
   workOrderDurations = Object.fromEntries(
     (durations || []).map(d => [d.work_order_id, d.total_minutes])
+  );
+  mmInvoiceById = Object.fromEntries(
+    (mmInvoices || []).map(inv => [inv.minimax_id, inv])
   );
   workOrders = data ?? [];
   workOrdersLoaded = true;
@@ -5705,7 +5775,6 @@ function renderWorkOrders() {
         const arrow  = active ? (woSortDir === 'asc' ? ' ▲' : ' ▼') : '';
         return `<button type="button" class="wo-th${col.center ? ' wo-th-center' : ''}${active ? ' wo-th--active' : ''}" data-sort="${col.key}">${col.label}${arrow}</button>`;
       }).join('')}
-      <span class="wo-th wo-th-center wo-c-invoice" title="Račun">🧾</span>
       <span class="wo-th wo-th-center wo-c-maps" title="Zemljevid">📍</span>
     </div>`;
 
@@ -5728,8 +5797,10 @@ function renderWorkOrders() {
         <span class="wo-c-gerki">${r.gerkCount || '—'}</span>
         <span class="lc-ha">${haStr}</span>
         <span class="wo-c-izvajalec">${escHtml(r.izvajalec)}</span>
-        <span class="wo-status-badge wo-status--${slugStatus(r.status)}">${escHtml(r.status)}</span>
-        ${invoiceCell}
+        <div class="wo-status-cell">
+          <span class="wo-status-badge wo-status--${slugStatus(r.status)}">${escHtml(r.status)}</span>
+          ${invoiceCell}
+        </div>
         ${mapsCell}
       </div>`;
   }).join('');

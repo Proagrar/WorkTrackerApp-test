@@ -27,6 +27,7 @@ const els = {
 
 let orders = [];
 let boxes = [];
+let mmInvoiceById = {}; // minimax_racun_id -> mm_issued_invoices row (admin-only read) — real Osnutek/Poslano/Plačano status
 let currentOrderId = null;
 let selectedOrderIds = new Set();
 // Default (Matej, 2026-11-06): Izvedeno + Delno prejeta analiza + Analiza
@@ -98,15 +99,17 @@ const LAB_COLS = 'id, lab_sample_code, analysis_date, ph_kcl, ka, caco3_pct, hum
 
 async function loadAll() {
   els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty">Nalaganje …</td></tr>`;
-  const [{ data: orderData, error: orderError }, { data: boxData, error: boxError }] = await Promise.all([
+  const [{ data: orderData, error: orderError }, { data: boxData, error: boxError }, { data: mmInvoices }] = await Promise.all([
     supabase.from('delovni_nalogi')
-      .select(`id, stevilka, status, customers(naziv, company_name),
+      .select(`id, stevilka, status, minimax_racun_id, minimax_racun_stevilka, minimax_racun_status, customers(naziv, company_name),
         delovni_nalogi_gerki(id, gerk_code, kolicina_ha,
           delovni_nalogi_vzorci(id, sample_no, box_id, sampling_note, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS}))),
         work_logs(work_log_gerks(start_time))`)
       .is('deleted_at', null)
       .order('ustvarjen', { ascending: false }),
     supabase.from('sample_boxes').select('*').order('created_at', { ascending: false }),
+    // Admin-only RLS — a non-admin session just gets an empty result.
+    supabase.from('mm_issued_invoices').select('minimax_id, document_status, payment_status, year, invoice_number'),
   ]);
   const error = orderError || boxError;
   if (error) {
@@ -115,6 +118,7 @@ async function loadAll() {
   }
   orders = orderData ?? [];
   boxes = boxData ?? [];
+  mmInvoiceById = Object.fromEntries((mmInvoices ?? []).map((inv) => [inv.minimax_id, inv]));
   for (const id of selectedOrderIds) if (!orders.some(o => o.id === id)) selectedOrderIds.delete(id);
   renderOrders();
   updateSledSelectionBar();
@@ -200,6 +204,35 @@ function orderStatusLabel(order) {
   return 'Izvedeno';
 }
 
+// Invoice/payment status (Matej, 2026-11-09) — a second, independent line
+// shown next to the sample-pipeline status above: Račun ni izdan / Osnutek
+// računa / Račun poslan / Račun plačan. Poslano/Plačano come from the live
+// Minimax mirror (mm_issued_invoices.payment_status), not just whatever
+// this app last wrote — a payment made directly in Minimax shows up here
+// without any app-side action. The "Pripravi račun" trigger itself lives
+// in the main Delovni Nalogi list now, not here — this is read-only status.
+function invoiceStatusLabel(order) {
+  const inv = order.minimax_racun_id ? mmInvoiceById[order.minimax_racun_id] : null;
+  if (inv) {
+    if (inv.document_status === 'O') return 'Osnutek računa';
+    if (inv.payment_status === 'Placan') return 'Račun plačan';
+    return 'Račun poslan';
+  }
+  // Mirror doesn't have it yet (sync lag) — fall back to this app's own
+  // last-written status.
+  if (order.minimax_racun_status === 'izstavljen') return 'Račun poslan';
+  if (order.minimax_racun_status === 'storniran') return 'Račun storniran';
+  if (order.minimax_racun_status === 'osnutek') return 'Osnutek računa';
+  return 'Račun ni izdan';
+}
+const INVOICE_BADGE = {
+  'Račun ni izdan': 'fert-badge--neutral',
+  'Osnutek računa': 'fert-badge--warn',
+  'Račun poslan': 'fert-badge--sent',
+  'Račun plačan': 'fert-badge--ok',
+  'Račun storniran': 'fert-badge--neutral',
+};
+
 // ── Status filter (multi-select — same button+checklist pattern as the
 // Delovni Nalogi list's own woStatusFilterBtn/woStatusFilterMenu) ──────
 function updateStatusFilterBtnLabel() {
@@ -255,6 +288,8 @@ function renderOrders() {
     const receivedDate = earliest(segs.flatMap(s => (s.lab_soil_result || []).map(r => r.analysis_date)).filter(Boolean));
     const label = orderStatusLabel(o);
     const cls = PIPELINE_BADGE[label] ?? 'fert-badge--neutral';
+    const invLabel = invoiceStatusLabel(o);
+    const invCls = INVOICE_BADGE[invLabel] ?? 'fert-badge--neutral';
     return `<tr data-open-order="${esc(o.id)}">
       <td><input type="checkbox" class="sled-select-cb" data-id="${esc(o.id)}" aria-label="Izberi nalog" ${selectedOrderIds.has(o.id) ? 'checked' : ''}></td>
       <td>${esc(o.stevilka)}</td>
@@ -265,7 +300,10 @@ function renderOrders() {
       <td>${samplingDate ? fmtDate(samplingDate) : '—'}</td>
       <td>${sendingDate ? fmtDate(sendingDate) : '—'}</td>
       <td>${fmtPlainDate(receivedDate)}</td>
-      <td><div class="sled-status-cell"><span class="fert-badge ${cls}">${esc(label)}</span>${statusStepperSvg(label)}</div></td>
+      <td><div class="sled-status-cell">
+        <span class="fert-badge ${cls}">${esc(label)}</span>${statusStepperSvg(label)}
+        <span class="fert-badge ${invCls}">${esc(invLabel)}</span>
+      </div></td>
     </tr>`;
   }).join('');
   updateSelectAllState(rows.map(o => o.id));
