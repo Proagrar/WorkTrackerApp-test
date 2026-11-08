@@ -227,7 +227,11 @@ function filteredOrders() {
   const q = els.orderSearch.value.trim().toLowerCase();
   return orders.filter(o => {
     if (q) {
-      const hay = `${o.stevilka ?? ''} ${customerName(o.customers)}`.toLowerCase();
+      // GERK codes aren't shown as their own column, but still searchable —
+      // matches the main Delovni Nalogi list's search, which also looks
+      // past what's visibly printed in the row.
+      const gerkCodes = (o.delovni_nalogi_gerki || []).map(g => g.gerk_code).join(' ');
+      const hay = `${o.stevilka ?? ''} ${customerName(o.customers)} ${gerkCodes}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     if (sledStatusFilterValues.size && !sledStatusFilterValues.has(orderStatusLabel(o))) return false;
