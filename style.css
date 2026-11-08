@@ -674,10 +674,9 @@ input, select, textarea { font-family: inherit; }
 .wo-c-maps { display: none; }
 .wo-c-maps--empty { color: var(--text-muted); }
 
-/* Status cell now carries the order status badge AND the invoice/payment
-   line stacked underneath (moved out of its own 🧾 column, Matej 2026-11-09:
-   "premaknimo gumb za izdelavo računa na status naročila"). */
-.wo-status-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+/* "Pripravi račun" trigger + status (Matej, 2026-11-09: icon-only, lives in
+   "Sledenje naročilom" / shipping.js now, not here) — .wo-invoice-* classes
+   below are shared across both modules via this one stylesheet. */
 .wo-c-invoice--empty { color: var(--text-muted); }
 .wo-invoice-btn {
   appearance: none;
@@ -2712,16 +2711,14 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
      ones — otherwise Stranka's 1fr soaks up 100% of the extra width on
      a wide screen while Čas/GERKI/Ha/Status stay pinned to their tiny
      minimums, leaving one huge gap after Stranka and everything else
-     cramped together at the right edge. Status is wider than before
-     (.9fr->1.1fr, 100px->120px) — it now also carries the invoice/payment
-     line (see .wo-status-cell), no longer a separate 🧾 column. */
+     cramped together at the right edge. */
   .wo-lc-header.wo-lc-header--enhanced,
   .wo-compact.wo-compact--enhanced {
-    grid-template-columns: 48px minmax(64px,.6fr) minmax(140px,1.6fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(90px,.8fr) minmax(120px,1.1fr) 44px;
+    grid-template-columns: 48px minmax(64px,.6fr) minmax(140px,1.6fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(90px,.8fr) minmax(100px,.9fr) 44px;
   }
   .wo-lc-header.wo-lc-header.wo-lc-header--enhanced.wo-lc-header--selectable,
   .wo-compact.wo-compact.wo-compact--enhanced.wo-compact--selectable {
-    grid-template-columns: 28px 48px minmax(64px,.6fr) minmax(140px,1.6fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(90px,.8fr) minmax(120px,1.1fr) 44px;
+    grid-template-columns: 28px 48px minmax(64px,.6fr) minmax(140px,1.6fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(64px,.7fr) minmax(90px,.8fr) minmax(100px,.9fr) 44px;
   }
 
   /* Modals read as centered desktop dialogs instead of mobile bottom sheets. */

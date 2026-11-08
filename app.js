@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.54';
+const APP_VERSION = 'v4.55';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -39,7 +39,6 @@ let workOrders       = [];
 let workOrdersLoaded = false;
 let workOrderCenterPoints = {}; // work_order_id -> {lat, lng}, from get_work_orders_center_points
 let workOrderDurations    = {}; // work_order_id -> total logged minutes, from get_work_orders_durations
-let mmInvoiceById         = {}; // minimax_racun_id -> mm_issued_invoices row (admin-only read, for the real Osnutek/Poslano/Plačano status — see renderWoInvoiceCell())
 let customers        = [];
 let operatorsList    = [];
 
@@ -1705,7 +1704,7 @@ invoicePreviewConfirmBtn.addEventListener('click', async () => {
   wo.racun_zahtevan_at = new Date().toISOString();
   wo.racun_napaka = null;
   closeInvoicePreviewModal();
-  renderWorkOrders();
+  window.sledenjeRefreshOrders?.();
 });
 
 // Direct (no modal) — already reviewed once via the preview modal; this
@@ -1718,7 +1717,7 @@ async function retryInvoiceRequest(wo) {
   if (error) return alert('Napaka pri ponovnem poskusu.');
   wo.racun_napaka = null;
   wo.racun_zahtevan_at = new Date().toISOString();
-  renderWorkOrders();
+  window.sledenjeRefreshOrders?.();
 }
 
 // Direct (no modal) — withdraws a not-yet-processed request; blocked by
@@ -1733,60 +1732,20 @@ async function cancelInvoiceRequest(wo) {
   if (error) return alert('Napaka pri preklicu.');
   wo.racun_zahtevan_at = null;
   wo.racun_zahtevan_by = null;
-  renderWorkOrders();
+  window.sledenjeRefreshOrders?.();
 }
 
-// Invoice/payment line shown under the order's status badge (moved out of
-// its own 🧾 column, Matej 2026-11-09). Four real-world states: Račun ni
-// izdan / Osnutek računa / Račun poslan / Račun plačan — the last two come
-// from the live Minimax mirror (mm_issued_invoices), not just what this app
-// itself last wrote, so a payment made directly in Minimax shows up here
-// without the app having to do anything. Interactive states are admin-only;
-// everyone else gets the same information as plain, non-clickable text.
-function renderWoInvoiceCell(wo) {
-  const admin = isAdminView();
-  const inv = wo.minimax_racun_id ? mmInvoiceById[wo.minimax_racun_id] : null;
-  if (inv) {
-    if (inv.document_status === 'O') {
-      return `<span class="wo-invoice-number" title="Osnutek računa v Minimaxu (ID ${wo.minimax_racun_id}) — dopolni in izstavi v Minimaxu">Osnutek računa</span>`;
-    }
-    const num = escHtml(wo.minimax_racun_stevilka || (inv.year && inv.invoice_number ? `${inv.year}-${inv.invoice_number}` : `#${wo.minimax_racun_id}`));
-    if (inv.payment_status === 'Placan') {
-      return `<span class="wo-invoice-number wo-invoice-number--paid" title="Račun ${num} je plačan">✓ Plačan ${num}</span>`;
-    }
-    return `<span class="wo-invoice-number" title="Račun ${num} je poslan, še ni plačan">Poslan ${num}</span>`;
-  }
-  // Mirror doesn't have this invoice yet (sync lag right after creation,
-  // or a cancelled one the mirror no longer lists) — fall back to what
-  // this app's own write-back last recorded.
-  if (wo.minimax_racun_status === 'izstavljen') {
-    const num = escHtml(wo.minimax_racun_stevilka || `#${wo.minimax_racun_id}`);
-    return `<span class="wo-invoice-number" title="Račun ${num}">Poslan ${num}</span>`;
-  }
-  if (wo.minimax_racun_status === 'storniran') {
-    const num = escHtml(wo.minimax_racun_stevilka || `#${wo.minimax_racun_id}`);
-    return `<span class="wo-invoice-number wo-invoice-number--storniran" title="Račun ${num} je storniran">${num} ⨯</span>`;
-  }
-  if (wo.minimax_racun_status === 'osnutek') {
-    return `<span class="wo-invoice-number" title="Osnutek računa v Minimaxu (ID ${wo.minimax_racun_id}) — dopolni in izstavi v Minimaxu">Osnutek računa</span>`;
-  }
-  if (wo.racun_napaka) {
-    return admin
-      ? `<button type="button" class="wo-invoice-btn wo-invoice-btn--error" data-action="wo-invoice-retry" data-id="${escHtml(wo.id)}" title="${escHtml(wo.racun_napaka)} — klikni za ponovni poskus" aria-label="Napaka pri računu, ponovno poskusi">⚠ Napaka</button>`
-      : `<span class="wo-invoice-number" title="${escHtml(wo.racun_napaka)}">⚠ Napaka</span>`;
-  }
-  if (wo.racun_zahtevan_at) {
-    const title = `Račun v pripravi (zahtevano ${fmtDateTimeSl(wo.racun_zahtevan_at)})`;
-    return admin
-      ? `<button type="button" class="wo-invoice-btn wo-invoice-btn--pending" data-action="wo-invoice-cancel" data-id="${escHtml(wo.id)}" title="${title} — klikni za preklic" aria-label="Račun v pripravi, prekliči">⏳ V pripravi</button>`
-      : `<span class="wo-invoice-number" title="${title}">⏳ V pripravi</span>`;
-  }
-  const eligible = wo.status === 'Izvedeno' && !wo.deleted_at && !wo.minimax_racun_id;
-  if (eligible && admin) {
-    return `<button type="button" class="wo-invoice-btn" data-action="wo-invoice-request" data-id="${escHtml(wo.id)}" title="Pripravi račun" aria-label="Pripravi račun">🧾 Pripravi račun</button>`;
-  }
-  return `<span class="wo-c-invoice--empty">Račun ni izdan</span>`;
-}
+// "Pripravi račun" (trigger + status) no longer shows in this list at all
+// (Matej, 2026-11-09) — it moved to "Sledenje naročilom" (shipping.js),
+// icon-only. The real logic (the three functions above) still lives here;
+// shipping.js reaches it through this bridge, same pattern as planning.js's
+// window.openWorkOrderDetailById. sledenjeRefreshOrders (set by shipping.js
+// itself, only once that tab has actually loaded) lets the three functions
+// above refresh that list after a successful write without this module
+// knowing anything about shipping.js's internals.
+window.openInvoicePreviewModal = openInvoicePreviewModal;
+window.retryInvoiceRequest = retryInvoiceRequest;
+window.cancelInvoiceRequest = cancelInvoiceRequest;
 
 // ── Modal ──────────────────────────────────────────────────────
 let currentDetailWorkOrder = null;
@@ -5633,7 +5592,7 @@ async function loadWorkOrders() {
       <p>Nalaganje...</p>
     </div>`;
 
-  const [{ data, error }, { data: centerPoints }, { data: durations }, { data: mmInvoices }] = await Promise.all([
+  const [{ data, error }, { data: centerPoints }, { data: durations }] = await Promise.all([
     supabase
       .from('delovni_nalogi')
       .select('*, customers(naziv, company_name, minimax_customer_id, vat_number), profiles(full_name), delovni_nalogi_gerki(id, gerk_code, kolicina_ha, lokacija, tip_lab_analize, delovni_nalogi_vzorci(id, sample_no, sampling_date, sending_date, sampling_note, sending_note, sampling_depth_cm, area_ha, comment))')
@@ -5644,10 +5603,6 @@ async function loadWorkOrders() {
     // Same batching reasoning, for the Trajanje column — see
     // get_work_orders_durations.
     supabase.rpc('get_work_orders_durations'),
-    // Real invoice/payment status (Osnutek/Poslano/Plačano) straight from
-    // the Minimax mirror — RLS only lets an admin see rows here at all, so
-    // a non-admin session just gets an empty result, not an error.
-    supabase.from('mm_issued_invoices').select('minimax_id, document_status, payment_status, year, invoice_number, numbering'),
   ]);
 
   if (error) {
@@ -5660,9 +5615,6 @@ async function loadWorkOrders() {
   );
   workOrderDurations = Object.fromEntries(
     (durations || []).map(d => [d.work_order_id, d.total_minutes])
-  );
-  mmInvoiceById = Object.fromEntries(
-    (mmInvoices || []).map(inv => [inv.minimax_id, inv])
   );
   workOrders = data ?? [];
   workOrdersLoaded = true;
@@ -5780,7 +5732,6 @@ function renderWorkOrders() {
 
   const rows = sortWorkOrderRows(rowData).map(r => {
     const haStr = r.totalHa > 0 ? r.totalHa.toFixed(2) : '—';
-    const invoiceCell = renderWoInvoiceCell(r.raw);
     const mapsCell = r.lat != null && r.lng != null
       ? `<a class="wo-c-maps" href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener" aria-label="Odpri na zemljevidu">📍</a>`
       : `<span class="wo-c-maps wo-c-maps--empty">—</span>`;
@@ -5797,10 +5748,7 @@ function renderWorkOrders() {
         <span class="wo-c-gerki">${r.gerkCount || '—'}</span>
         <span class="lc-ha">${haStr}</span>
         <span class="wo-c-izvajalec">${escHtml(r.izvajalec)}</span>
-        <div class="wo-status-cell">
-          <span class="wo-status-badge wo-status--${slugStatus(r.status)}">${escHtml(r.status)}</span>
-          ${invoiceCell}
-        </div>
+        <span class="wo-status-badge wo-status--${slugStatus(r.status)}">${escHtml(r.status)}</span>
         ${mapsCell}
       </div>`;
   }).join('');
@@ -5829,29 +5777,6 @@ function wireWorkOrderButtons() {
       woSortDir = (woSortKey === key && woSortDir === 'asc') ? 'desc' : 'asc';
       woSortKey = key;
       renderWorkOrders();
-    });
-  });
-  // stopPropagation on all three — same reasoning as the select checkbox
-  // below, these sit inside the clickable row and must not also open it.
-  workOrdersList.querySelectorAll('[data-action="wo-invoice-request"]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const wo = workOrders.find(w => w.id === btn.dataset.id);
-      if (wo) openInvoicePreviewModal(wo);
-    });
-  });
-  workOrdersList.querySelectorAll('[data-action="wo-invoice-retry"]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const wo = workOrders.find(w => w.id === btn.dataset.id);
-      if (wo) retryInvoiceRequest(wo);
-    });
-  });
-  workOrdersList.querySelectorAll('[data-action="wo-invoice-cancel"]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const wo = workOrders.find(w => w.id === btn.dataset.id);
-      if (wo) cancelInvoiceRequest(wo);
     });
   });
   // stopPropagation so checking the box doesn't also trigger the row's

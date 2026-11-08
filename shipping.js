@@ -101,7 +101,9 @@ async function loadAll() {
   els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty">Nalaganje …</td></tr>`;
   const [{ data: orderData, error: orderError }, { data: boxData, error: boxError }, { data: mmInvoices }] = await Promise.all([
     supabase.from('delovni_nalogi')
-      .select(`id, stevilka, status, minimax_racun_id, minimax_racun_stevilka, minimax_racun_status, customers(naziv, company_name),
+      .select(`id, stevilka, status, deleted_at, racun_zahtevan_at, racun_napaka,
+        minimax_racun_id, minimax_racun_stevilka, minimax_racun_status,
+        customers(naziv, company_name, minimax_customer_id, vat_number), profiles(full_name),
         delovni_nalogi_gerki(id, gerk_code, kolicina_ha,
           delovni_nalogi_vzorci(id, sample_no, box_id, sampling_note, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS}))),
         work_logs(work_log_gerks(start_time))`)
@@ -233,6 +235,26 @@ const INVOICE_BADGE = {
   'Račun storniran': 'fert-badge--neutral',
 };
 
+// Icon-only trigger/retry/cancel (Matej, 2026-11-09: "samo ikono") — this
+// tab is already admin-only at the app.js level (the tab button itself is
+// hidden otherwise), so no separate admin check here. The actual write
+// logic (review modal, retry, cancel) lives in app.js — reached through
+// the window.* bridge it sets up — so it stays the single source of truth
+// for what "Pripravi račun" actually does, not duplicated here.
+function invoiceActionIcon(order) {
+  if (order.racun_napaka) {
+    return `<button type="button" class="wo-invoice-btn wo-invoice-btn--error" data-action="sled-invoice-retry" data-id="${esc(order.id)}" title="${esc(order.racun_napaka)} — klikni za ponovni poskus" aria-label="Napaka pri računu, ponovno poskusi">⚠</button>`;
+  }
+  if (order.racun_zahtevan_at && !order.minimax_racun_id) {
+    return `<button type="button" class="wo-invoice-btn wo-invoice-btn--pending" data-action="sled-invoice-cancel" data-id="${esc(order.id)}" title="Račun v pripravi — klikni za preklic" aria-label="Račun v pripravi, prekliči">⏳</button>`;
+  }
+  const eligible = (order.status === 'Izvedeno' || order.status === 'Izdan Račun') && !order.deleted_at && !order.minimax_racun_id && !order.racun_zahtevan_at;
+  if (eligible) {
+    return `<button type="button" class="wo-invoice-btn" data-action="sled-invoice-request" data-id="${esc(order.id)}" title="Pripravi račun" aria-label="Pripravi račun">🧾</button>`;
+  }
+  return '';
+}
+
 // ── Status filter (multi-select — same button+checklist pattern as the
 // Delovni Nalogi list's own woStatusFilterBtn/woStatusFilterMenu) ──────
 function updateStatusFilterBtnLabel() {
@@ -302,7 +324,7 @@ function renderOrders() {
       <td>${fmtPlainDate(receivedDate)}</td>
       <td><div class="sled-status-cell">
         <span class="fert-badge ${cls}">${esc(label)}</span>${statusStepperSvg(label)}
-        <span class="fert-badge ${invCls}">${esc(invLabel)}</span>
+        <span class="fert-badge ${invCls}">${esc(invLabel)}</span>${invoiceActionIcon(o)}
       </div></td>
     </tr>`;
   }).join('');
@@ -310,10 +332,28 @@ function renderOrders() {
 }
 
 els.orderSearch.addEventListener('input', renderOrders);
-// Row click opens the order (checkbox clicks are handled separately and
-// must not also trigger this — stopped by checking the checkbox first).
+// Row click opens the order (checkbox + invoice-icon clicks are handled
+// separately and must not also trigger this).
 els.orderRows.addEventListener('click', e => {
   if (e.target.closest('.sled-select-cb')) return;
+  const requestBtn = e.target.closest('[data-action="sled-invoice-request"]');
+  if (requestBtn) {
+    const o = orders.find(x => x.id === requestBtn.dataset.id);
+    if (o) window.openInvoicePreviewModal?.(o);
+    return;
+  }
+  const retryBtn = e.target.closest('[data-action="sled-invoice-retry"]');
+  if (retryBtn) {
+    const o = orders.find(x => x.id === retryBtn.dataset.id);
+    if (o) window.retryInvoiceRequest?.(o);
+    return;
+  }
+  const cancelBtn = e.target.closest('[data-action="sled-invoice-cancel"]');
+  if (cancelBtn) {
+    const o = orders.find(x => x.id === cancelBtn.dataset.id);
+    if (o) window.cancelInvoiceRequest?.(o);
+    return;
+  }
   const row = e.target.closest('tr[data-open-order]');
   if (row) openOrderModal(row.dataset.openOrder);
 });
@@ -648,3 +688,11 @@ function printSelectedBoxes() {
 // admin tab's own click listener on the same button (fertilization.js,
 // planning.js).
 els.tab.addEventListener('click', loadAll);
+
+// Lets app.js's openInvoicePreviewModal/retryInvoiceRequest/
+// cancelInvoiceRequest (the "Pripravi račun" review modal + actions,
+// triggered here via the icon in invoiceActionIcon()) refresh this list
+// after a successful write, without app.js knowing anything about this
+// module — set as soon as this module loads (script order in app.html
+// guarantees app.js's own window.* assignments run first).
+window.sledenjeRefreshOrders = loadAll;
