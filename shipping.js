@@ -98,7 +98,7 @@ function downloadTextFile(filename, content, mimeType) {
 const LAB_COLS = 'id, lab_sample_code, analysis_date, ph_kcl, ka, caco3_pct, humus_pct, no3_no2_n, p2o5, k2o, mg, na, zn, cu, mn, salts_pct, so4_s, fe, notes';
 
 async function loadAll() {
-  els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty">Nalaganje …</td></tr>`;
+  els.orderRows.innerHTML = `<tr><td colspan="12" class="fert-empty">Nalaganje …</td></tr>`;
   const [{ data: orderData, error: orderError }, { data: boxData, error: boxError }, { data: mmInvoices }] = await Promise.all([
     supabase.from('delovni_nalogi')
       .select(`id, stevilka, status, deleted_at, racun_zahtevan_at, racun_napaka,
@@ -115,7 +115,7 @@ async function loadAll() {
   ]);
   const error = orderError || boxError;
   if (error) {
-    els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty fert-error">Napaka pri nalaganju: ${esc(error.message)}</td></tr>`;
+    els.orderRows.innerHTML = `<tr><td colspan="12" class="fert-empty fert-error">Napaka pri nalaganju: ${esc(error.message)}</td></tr>`;
     return;
   }
   orders = orderData ?? [];
@@ -297,7 +297,7 @@ function filteredOrders() {
 function renderOrders() {
   const rows = filteredOrders();
   if (!rows.length) {
-    els.orderRows.innerHTML = `<tr><td colspan="10" class="fert-empty">${orders.length ? 'Ni zadetkov.' : 'Ni naročil.'}</td></tr>`;
+    els.orderRows.innerHTML = `<tr><td colspan="12" class="fert-empty">${orders.length ? 'Ni zadetkov.' : 'Ni naročil.'}</td></tr>`;
     updateSelectAllState([]);
     return;
   }
@@ -324,8 +324,9 @@ function renderOrders() {
       <td>${fmtPlainDate(receivedDate)}</td>
       <td><div class="sled-status-cell">
         <span class="fert-badge ${cls}">${esc(label)}</span>${statusStepperSvg(label)}
-        <span class="fert-badge ${invCls}">${esc(invLabel)}</span>${invoiceActionIcon(o)}
       </div></td>
+      <td><span class="fert-badge ${invCls}">${esc(invLabel)}</span></td>
+      <td class="sled-invoice-icon-col">${invoiceActionIcon(o)}</td>
     </tr>`;
   }).join('');
   updateSelectAllState(rows.map(o => o.id));

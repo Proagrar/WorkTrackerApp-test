@@ -3366,15 +3366,16 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .sled-order-boxes-wrap { margin-top: var(--space-6); }
 .evidenca-table.fert-table tbody tr[data-open-order] { cursor: pointer; }
 .sled-row-actions { display: flex; gap: var(--space-2); justify-content: flex-end; }
-.sled-status-cell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
-/* Status is the last, widest column (badge + stepper + invoice badge/icon
-   stacked) in a table with many narrower ones before it — on a narrow
-   window the badges were getting clipped by the viewport edge before the
-   reader scrolled the table far enough right to reveal them (Matej,
-   2026-11-09). Pin it to the right edge of .reports-table-wrap's scroll
-   area instead, so it's always fully visible without scrolling. */
-.sled-status-col { position: sticky; right: 0; min-width: 170px; background: var(--surface); box-shadow: -1px 0 0 var(--border-light); }
+/* Status/invoice used to be stacked into one cell (badge + stepper +
+   invoice badge + icon), which is what was actually getting clipped on a
+   narrow window — not a scroll-position issue, a cropped-text one (Matej,
+   2026-11-09). Split into their own plain columns instead (Status+stepper,
+   Račun, action icon) so each cell sizes to its own content and nothing is
+   ever cropped; the table still scrolls horizontally via
+   .reports-table-wrap on a narrow window, same as any other wide table. */
+.sled-status-cell { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .sled-status-stepper { display: block; }
+.sled-invoice-icon-col { text-align: center; }
 .fert-link-btn { height: 30px; padding: 0 10px; }
 .fert-pick-list { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); white-space: normal; }
 
