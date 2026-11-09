@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.57';
+const APP_VERSION = 'v4.58';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -1460,7 +1460,11 @@ function updateMapExpandState() {
   // swap (and only that — not touched by the class toggle below) keeps
   // it exactly as it was; clearing the inline style on the way back out
   // hands sizing back to the normal CSS-driven behavior.
-  if (woMapExpanded) {
+  // On phone there's no inline height to freeze — the CSS class rule
+  // (.wo-detail-layout--map-expanded .wo-detail-map-wrap { flex: 1; })
+  // is what grows the map there, so an inline height set here would
+  // just override it and stop the map from filling the screen.
+  if (woMapExpanded && !isMobile()) {
     if (woDetailMapWrapEl) woDetailMapWrapEl.style.height = woDetailMapWrapEl.getBoundingClientRect().height + 'px';
   } else if (woDetailMapWrapEl) {
     woDetailMapWrapEl.style.height = '';

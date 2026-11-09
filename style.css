@@ -2137,13 +2137,10 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 }
 .wo-map-close-btn:hover { background: #fff; }
 /* Expanded map mode — the button toggles this class on .wo-detail-layout.
-   Width only, never height — height stays whatever the normal (non-
-   expanded) sizing already gives it (fixed on mobile, stretch-to-
-   content with a floor on desktop — see .wo-detail-map-wrap's own
-   comment further up). Mobile has no separate width to grow into
-   either (the map's already 100% there, stacked above the content), so
-   expand only really does something at the desktop breakpoint below —
-   on mobile it's just the compact GERK list swap. */
+   On desktop this grows the map's width (stacked side-by-side with the
+   content column); on phone there's no width to grow into (the map's
+   already 100% there, stacked above the content) so the phone-only rule
+   further down grows its height instead — see the mobile media query. */
 @media (min-width: 900px) {
   .wo-detail-layout--map-expanded .wo-detail-map-wrap { width: 78%; }
   .wo-detail-layout--map-expanded .wo-detail-content  { width: 22%; }
@@ -2559,15 +2556,19 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
     overscroll-behavior: contain;
   }
 
-  /* Map: the expand/collapse toggle is a desktop power-feature (swaps
-     the GERK list for a compact code+segment view to give the map more
-     room) that doesn't make sense once the map is already full-width
-     on phone — hidden outright, which also frees the top-left corner
-     for Leaflet's own zoom +/- control. Ceste/imena moves up into that
-     freed slot, shifted right by the same 54px the overview map's copy
-     of this exact button already uses to clear the same zoom control
-     (see .wo-map-layers-btn--overview above). */
-  #woMapExpandBtn { display: none; }
+  /* Map: on phone, expand means something different than on desktop —
+     there's no extra width to grow into, so instead the map grows
+     vertically to fill the rest of the screen and the GERK content
+     below it is hidden outright (updateMapExpandState() in app.js skips
+     freezing an inline height on mobile so this flex:1 can take over).
+     The buttons keep the same shifted-right position used when only
+     Ceste/imena showed here, clearing Leaflet's zoom +/- control. */
+  .wo-detail-layout--map-expanded .wo-detail-map-wrap {
+    flex: 1;
+    height: auto;
+    max-height: none;
+  }
+  .wo-detail-layout--map-expanded .wo-detail-content { display: none; }
   .wo-map-top-left-controls { top: 10px; left: 54px; }
   /* The Leaflet/Esri attribution strip along the bottom edge — not
      worth the vertical space it eats on a phone-width map. */
