@@ -347,7 +347,7 @@
           </div>
           <div class="reports-table-wrap">
             <table class="evidenca-table fert-table">
-              <thead><tr><th><input type="checkbox" id="sledSelectAllCb" aria-label="Izberi vse"></th><th>Nalog</th><th>Stranka</th><th class="fert-num">GERK-ov</th><th class="fert-num">Vzorcev</th><th class="fert-num">Ha</th><th title="Datum vzorčenja">Datum vzor.</th><th title="Datum pošiljanja">Datum poš.</th><th>Datum prejetja</th><th>Status</th></tr></thead>
+              <thead><tr><th><input type="checkbox" id="sledSelectAllCb" aria-label="Izberi vse"></th><th>Nalog</th><th>Stranka</th><th class="fert-num">GERK-ov</th><th class="fert-num">Vzorcev</th><th class="fert-num">Ha</th><th title="Datum vzorčenja">Datum vzor.</th><th title="Datum pošiljanja">Datum poš.</th><th>Datum prejetja</th><th class="sled-status-col">Status</th></tr></thead>
               <tbody id="sledOrderRows"></tbody>
             </table>
           </div>
@@ -1033,6 +1033,13 @@
             <option value="Bosna in Hercegovina">Bosna in Hercegovina</option>
             <option value="Avstrija">Avstrija</option>
           </select>
+        </div>
+        <!-- Required (Matej, 2026-11-08): the Minimax customer sync needs a
+             real davčna/OIB to match or create the customer there — see
+             validateNewCustomerVat() in app.js. -->
+        <div class="field">
+          <label class="field-label" for="newCustomerVat">Davčna številka <span class="required">*</span></label>
+          <input class="field-input" type="text" id="newCustomerVat" autocomplete="off" inputmode="numeric" placeholder="SI: 8 števk · HR: 11 števk (OIB)" />
         </div>
         <div id="addCustomerError" class="alert alert-error" hidden role="alert"></div>
         <div class="form-actions">

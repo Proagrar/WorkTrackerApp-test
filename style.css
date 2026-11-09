@@ -3367,6 +3367,13 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .evidenca-table.fert-table tbody tr[data-open-order] { cursor: pointer; }
 .sled-row-actions { display: flex; gap: var(--space-2); justify-content: flex-end; }
 .sled-status-cell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+/* Status is the last, widest column (badge + stepper + invoice badge/icon
+   stacked) in a table with many narrower ones before it — on a narrow
+   window the badges were getting clipped by the viewport edge before the
+   reader scrolled the table far enough right to reveal them (Matej,
+   2026-11-09). Pin it to the right edge of .reports-table-wrap's scroll
+   area instead, so it's always fully visible without scrolling. */
+.sled-status-col { position: sticky; right: 0; min-width: 170px; background: var(--surface); box-shadow: -1px 0 0 var(--border-light); }
 .sled-status-stepper { display: block; }
 .fert-link-btn { height: 30px; padding: 0 10px; }
 .fert-pick-list { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); white-space: normal; }
