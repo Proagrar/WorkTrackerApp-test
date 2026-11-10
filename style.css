@@ -1576,6 +1576,20 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 }
 .evidenca-table tr:first-child td { border-top: none; }
 
+/* Sledenje naročilom — Matej, 2026-11-10: tighter than the default
+   .evidenca-table spacing (lots of columns need to fit), and the
+   customer name is cut to a fixed width with an ellipsis instead of
+   wrapping to a second line — full name still available on hover via
+   the cell's title attribute (shipping.js). */
+.sled-table th, .sled-table td { padding: 5px 8px; }
+.sled-customer-cell {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+
 /* Poročila's table has more columns than Evidenca dela's (12 incl.
    checkbox) — tighter cell padding buys back width before the reader
    needs to reach for the horizontal scrollbar .reports-table-wrap

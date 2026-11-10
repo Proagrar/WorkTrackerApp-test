@@ -315,7 +315,7 @@ function renderOrders() {
     return `<tr data-open-order="${esc(o.id)}">
       <td><input type="checkbox" class="sled-select-cb" data-id="${esc(o.id)}" aria-label="Izberi nalog" ${selectedOrderIds.has(o.id) ? 'checked' : ''}></td>
       <td>${esc(o.stevilka)}</td>
-      <td class="fert-strong fert-wrap">${esc(customerName(o.customers))}</td>
+      <td class="fert-strong sled-customer-cell" title="${esc(customerName(o.customers))}">${esc(customerName(o.customers))}</td>
       <td class="fert-num">${gerkCount}</td>
       <td class="fert-num">${segs.length}</td>
       <td class="fert-num">${totalHa > 0 ? totalHa.toFixed(2) : '—'}</td>
