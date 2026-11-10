@@ -323,7 +323,7 @@ function renderOrders() {
       <td>${sendingDate ? fmtDate(sendingDate) : '—'}</td>
       <td>${fmtPlainDate(receivedDate)}</td>
       <td><div class="sled-status-cell">
-        <span class="fert-badge ${cls}">${esc(label)}</span>${statusStepperSvg(label)}
+        ${statusStepperSvg(label)}<span class="fert-badge ${cls}">${esc(label)}</span>
       </div></td>
       <td><span class="fert-badge ${invCls}">${esc(invLabel)}</span></td>
       <td class="sled-invoice-icon-col">${invoiceActionIcon(o)}</td>
