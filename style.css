@@ -2090,6 +2090,10 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 }
 
 .wo-map-expand-btn {
+  position: absolute;
+  top: 13px;
+  left: 58px;
+  z-index: 1000;
   padding: 5px 10px;
   border: none;
   border-radius: 20px;
@@ -2584,6 +2588,10 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   }
   .wo-detail-layout--map-expanded .wo-detail-content { display: none; }
   .wo-map-top-left-controls { top: 10px; left: 54px; }
+  /* Razširi moves to the map's bottom-right corner on phone (Matej,
+     2026-11-10) — out of the way of Ceste/imena and Leaflet's zoom
+     control, which otherwise share the top-left corner. */
+  .wo-map-expand-btn { top: auto; left: auto; bottom: 10px; right: 10px; }
   /* The Leaflet/Esri attribution strip along the bottom edge — not
      worth the vertical space it eats on a phone-width map. */
   #woDetailMap .leaflet-control-attribution { display: none; }

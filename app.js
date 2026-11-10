@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.63';
+const APP_VERSION = 'v4.64';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -1473,7 +1473,7 @@ function updateMapExpandState() {
   woDetailLayoutEl?.classList.toggle('wo-detail-layout--map-expanded', woMapExpanded);
   workLogGerkRowsEl.hidden = woMapExpanded;
   wlgCompactList.hidden = !woMapExpanded;
-  woMapExpandBtn.textContent = woMapExpanded ? '⤡ Pomanjšaj zemljevid' : '⛶ Razširi zemljevid';
+  woMapExpandBtn.textContent = woMapExpanded ? '⤡ Pomanjšaj' : '⛶ Razširi';
   if (woMapExpanded) renderCompactGerkList();
   updateGerkPaging(); // restores per-row hidden state correctly either way
   // The map's own container just changed size — Leaflet only re-measures
