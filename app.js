@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.61';
+const APP_VERSION = 'v4.63';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -5599,7 +5599,7 @@ async function loadWorkOrders() {
   const [{ data, error }, { data: centerPoints }, { data: durations }] = await Promise.all([
     supabase
       .from('delovni_nalogi')
-      .select('*, customers(naziv, company_name, minimax_customer_id, vat_number), profiles(full_name), delovni_nalogi_gerki(id, gerk_code, kolicina_ha, lokacija, tip_lab_analize, delovni_nalogi_vzorci(id, sample_no, sampling_date, sending_date, sampling_note, sending_note, sampling_depth_cm, area_ha, comment))')
+      .select('*, customers(naziv, company_name, minimax_customer_id, vat_number), profiles(full_name), delovni_nalogi_gerki(id, gerk_code, kolicina_ha, lokacija, tip_lab_analize, field_id, fields(name), delovni_nalogi_vzorci(id, sample_no, sampling_date, sending_date, sampling_note, sending_note, sampling_depth_cm, area_ha, comment))')
       .order('ustvarjen', { ascending: false }),
     // One batched call for every row's map point, instead of one RPC
     // round trip per row — see get_work_orders_center_points.
@@ -6144,33 +6144,35 @@ function csvHa(value) {
   return value == null ? '' : Number(value).toFixed(2).replace('.', ',');
 }
 
-// One row per segment — not per GERK — since export granularity needs to
-// show each segment's own area, not just the GERK total (a GERK split into
-// several KML-imported zones has a different Ha per zone). Falls back to
-// one row per GERK (using the GERK's own kolicina_ha) only when it has no
-// segments at all.
+// One row per segment — not per GERK — so every segment's number shows up
+// as its own row. Ha is the GERK's own total (kolicina_ha from the DB, or
+// the sum of its segments' area_ha if that's not set) — same value on
+// every one of that GERK's rows, not a per-segment area (Matej, 2026-11-10).
+// Falls back to one row per GERK only when it has no segments at all.
 function exportSelectedWorkOrdersToExcel(btn) {
   const orders = workOrders.filter(wo => selectedWorkOrderIds.has(wo.id));
   if (!orders.length) return;
 
   btn.disabled = true;
   try {
-    const header = ['Št. naloga', 'Datum', 'Stranka', 'Status', 'Izvajalec', 'GERK', 'Segment', 'Ha'];
+    const header = ['Št. naloga', 'Datum', 'Status', 'Izvajalec', 'GERK', 'Ha', 'Ime gerka', 'Segment', 'Vzorčenje', 'Stranka'];
     const lines = [header.map(csvField).join(';')];
 
     for (const wo of orders) {
       const datum = wo.ustvarjen ? fmtSampleDate(wo.ustvarjen.slice(0, 10)) : '';
       const stranka = wo.customers?.naziv || wo.customers?.company_name || '';
       const izvajalec = wo.profiles?.full_name || '';
-      const base = [wo.stevilka || '', datum, stranka, wo.status || '', izvajalec];
+      const base = [wo.stevilka || '', datum, wo.status || '', izvajalec];
       const gerks = wo.delovni_nalogi_gerki || [];
       for (const g of gerks) {
-        const segments = g.delovni_nalogi_vzorci || [];
+        const segments = [...(g.delovni_nalogi_vzorci || [])].sort((a, b) => (parseInt(a.sample_no, 10) || 0) - (parseInt(b.sample_no, 10) || 0));
+        const gHa = g.kolicina_ha != null ? g.kolicina_ha : segments.reduce((sum, s) => sum + (Number(s.area_ha) || 0), 0);
+        const imeGerka = g.fields?.name || '';
         if (!segments.length) {
-          lines.push([...base, g.gerk_code || '', '', csvHa(g.kolicina_ha)].map(csvField).join(';'));
+          lines.push([...base, g.gerk_code || '', csvHa(gHa), imeGerka, '', '', stranka].map(csvField).join(';'));
         } else {
           for (const s of segments) {
-            lines.push([...base, g.gerk_code || '', s.sample_no || '', csvHa(s.area_ha)].map(csvField).join(';'));
+            lines.push([...base, g.gerk_code || '', csvHa(gHa), imeGerka, s.sample_no || '', s.sampling_note || '', stranka].map(csvField).join(';'));
           }
         }
       }

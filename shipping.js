@@ -101,10 +101,10 @@ async function loadAll() {
   els.orderRows.innerHTML = `<tr><td colspan="12" class="fert-empty">Nalaganje …</td></tr>`;
   const [{ data: orderData, error: orderError }, { data: boxData, error: boxError }, { data: mmInvoices }] = await Promise.all([
     supabase.from('delovni_nalogi')
-      .select(`id, stevilka, status, deleted_at, racun_zahtevan_at, racun_napaka,
+      .select(`id, stevilka, status, ustvarjen, deleted_at, racun_zahtevan_at, racun_napaka,
         minimax_racun_id, minimax_racun_stevilka, minimax_racun_status,
         customers(naziv, company_name, minimax_customer_id, vat_number), profiles(full_name),
-        delovni_nalogi_gerki(id, gerk_code, kolicina_ha,
+        delovni_nalogi_gerki(id, gerk_code, kolicina_ha, field_id, fields(name),
           delovni_nalogi_vzorci(id, sample_no, box_id, sampling_note, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS}))),
         work_logs(work_log_gerks(start_time))`)
       .is('deleted_at', null)
@@ -419,26 +419,44 @@ function clearSelection() {
 }
 
 // Izvoz (CSV, odpre se v Excelu) — en vzorec = ena vrstica, samo za
-// trenutno izbrana naročila (Nalog, Stranka, GERK, Segment + vsi
-// laboratorijski stolpci).
+// trenutno izbrana naročila. Isti stolpci kot Delovni Nalogi izvoz
+// (exportSelectedWorkOrdersToExcel v app.js), plus vsi laboratorijski
+// stolpci na koncu (Matej, 2026-11-10: "izvoz tam naj bo identičen, le
+// da ima dodane vse laboratorijske rezultate").
 const LAB_EXPORT_COLS = [
   ['lab_sample_code', 'Lab. koda'], ['analysis_date', 'Datum analize'],
   ['ph_kcl', 'pH (KCl)'], ['ka', 'KA'], ['caco3_pct', 'CaCO3 %'], ['humus_pct', 'Humus %'],
   ['no3_no2_n', 'NO3+NO2-N'], ['p2o5', 'P2O5'], ['k2o', 'K2O'], ['mg', 'Mg'], ['na', 'Na'],
   ['zn', 'Zn'], ['cu', 'Cu'], ['mn', 'Mn'], ['salts_pct', 'Soli %'], ['so4_s', 'SO4-S'], ['fe', 'Fe'], ['notes', 'Opomba'],
 ];
+// Same dot->comma fix as app.js's csvHa — a plain "8.23" opens in Excel
+// as a misparsed date without it.
+function csvHa(value) {
+  return value == null ? '' : Number(value).toFixed(2).replace('.', ',');
+}
 function exportSelectedOrders() {
   const rows = orders.filter(o => selectedOrderIds.has(o.id));
   if (!rows.length) return;
-  const header = ['Nalog', 'Stranka', 'GERK', 'Segment', ...LAB_EXPORT_COLS.map(c => c[1])];
+  const header = ['Št. naloga', 'Datum', 'Status', 'Izvajalec', 'GERK', 'Ha', 'Ime gerka', 'Segment', 'Vzorčenje', 'Stranka', ...LAB_EXPORT_COLS.map(c => c[1])];
   const lines = [header.map(csvField).join(';')];
   for (const o of rows) {
+    const datum = o.ustvarjen ? fmtDate(o.ustvarjen) : '';
     const stranka = customerName(o.customers);
+    const izvajalec = o.profiles?.full_name || '';
+    const base = [o.stevilka || '', datum, o.status || '', izvajalec];
     for (const g of (o.delovni_nalogi_gerki || [])) {
-      for (const s of (g.delovni_nalogi_vzorci || [])) {
+      const segments = [...(g.delovni_nalogi_vzorci || [])].sort((a, b) => (parseInt(a.sample_no, 10) || 0) - (parseInt(b.sample_no, 10) || 0));
+      const gHa = g.kolicina_ha != null ? g.kolicina_ha : segments.reduce((sum, s) => sum + (Number(s.area_ha) || 0), 0);
+      const imeGerka = g.fields?.name || '';
+      const gerkBase = [...base, g.gerk_code || '', csvHa(gHa), imeGerka];
+      if (!segments.length) {
+        lines.push([...gerkBase, '', '', stranka, ...LAB_EXPORT_COLS.map(() => '')].map(csvField).join(';'));
+        continue;
+      }
+      for (const s of segments) {
         const results = s.lab_soil_result?.length ? s.lab_soil_result : [null];
         for (const r of results) {
-          const line = [o.stevilka || '', stranka, g.gerk_code || '', s.sample_no || '', ...LAB_EXPORT_COLS.map(([key]) => (r ? (r[key] ?? '') : ''))];
+          const line = [...gerkBase, s.sample_no || '', s.sampling_note || '', stranka, ...LAB_EXPORT_COLS.map(([key]) => (r ? (r[key] ?? '') : ''))];
           lines.push(line.map(csvField).join(';'));
         }
       }
