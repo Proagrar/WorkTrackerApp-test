@@ -2511,6 +2511,27 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
      deliberately don't. */
   .wo-detail-layout > #roadComment { height: 34px; padding: 0 12px; font-size: .8125rem; }
 
+  /* Non-expanded mobile layout: the GERKI card used to sit at a fixed
+     flex:1 height that stretched to fill whatever room was left below
+     it, leaving dead blank space under the card/pager on a tall phone
+     screen (the card itself only grows to its natural content size —
+     see .wo-gerk-field's align-content:start comment below). Matej
+     asked for that space to go to the map instead: the card now sizes
+     to its own content and sits right after the opomba field, and the
+     map (flex:1 1 auto, no mobile max-height/height cap) grows upward
+     to absorb whatever space the shorter card leaves behind. Does not
+     apply while map-expanded (that mode already hides the card and
+     gives the map the full remaining height via the rule further down). */
+  .wo-detail-layout:not(.wo-detail-layout--map-expanded) .wo-detail-map-wrap {
+    flex: 1 1 auto;
+    height: auto;
+    max-height: none;
+    min-height: 160px;
+  }
+  .wo-detail-layout:not(.wo-detail-layout--map-expanded) #workLogForm.wo-detail-content {
+    flex: 0 1 auto;
+  }
+
   /* #workLogForm now wraps only the GERKI field on phone (Čas na poti
      and the opomba input were both relocated above/below the map) —
      its old 18px top padding and 12px inter-field gap were sized for a
