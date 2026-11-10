@@ -1,4 +1,4 @@
-const CACHE = 'worktracker-v4.58';
+const CACHE = 'worktracker-v4.59';
 const SHELL = [
   './index.html',
   './app.html',
@@ -35,9 +35,17 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = e.request.url;
 
-  // Always network-first for Supabase and CDN
+  // Always network-first for Supabase and CDN. cache: 'no-store' bypasses
+  // the browser's own HTTP cache (not just ours) — without it, a plain
+  // fetch() can let the browser reuse a cached REST/RPC response under
+  // normal HTTP caching rules. Bit us 2026-11-10: a transient PostgREST
+  // schema-cache error (PGRST201, since fixed server-side) got cached by
+  // the browser for one exact query URL and kept being replayed from
+  // disk cache long after the server was fixed — only an Incognito
+  // window (no disk cache) or a manual cache-clear showed the real,
+  // already-working response.
   if (url.includes('supabase.co') || url.includes('cdn.jsdelivr.net')) {
-    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    e.respondWith(fetch(e.request, { cache: 'no-store' }).catch(() => caches.match(e.request)));
     return;
   }
 
