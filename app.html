@@ -563,6 +563,16 @@
             <span class="wo-plan-date-label">Planirano</span>
             <input class="field-input" type="date" id="woPlanDate" />
           </label>
+          <!-- Read-only, same logic as Sledenje naročilom's "Datum vzorčenja"
+               column (firstFieldStart() in shipping.js): the earliest
+               work_log_gerks.start_time across every work_logs row tied to
+               this order — when work on the order's first field actually
+               began, not a manually entered date. See earliestFieldStart()/
+               updateOrderHeader() in app.js. Hidden until there's a value. -->
+          <span class="wo-plan-date-wrap" id="woSamplingDateWrap" hidden>
+            <span class="wo-plan-date-label">Datum vzorčenja</span>
+            <span id="woSamplingDateValue"></span>
+          </span>
           <!-- Admin only: change status directly — unreachable any other way.
                Phone: collapsed behind #woStatusEditBtn (see updateOrderHeader()
                in app.js); desktop: always visible as before, pencil hidden. -->

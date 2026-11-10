@@ -102,11 +102,10 @@ async function loadAll() {
   const [{ data: orderData, error: orderError }, { data: boxData, error: boxError }, { data: mmInvoices }] = await Promise.all([
     supabase.from('delovni_nalogi')
       .select(`id, stevilka, status, ustvarjen, deleted_at, racun_zahtevan_at, racun_napaka,
-        minimax_racun_id, minimax_racun_stevilka, minimax_racun_status,
+        minimax_racun_id, minimax_racun_stevilka, minimax_racun_status, datum_vzorcenja,
         customers(naziv, company_name, minimax_customer_id, vat_number), profiles(full_name),
         delovni_nalogi_gerki(id, gerk_code, kolicina_ha, field_id, fields(name),
-          delovni_nalogi_vzorci(id, sample_no, box_id, sampling_note, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS}))),
-        work_logs(work_log_gerks(start_time))`)
+          delovni_nalogi_vzorci(id, sample_no, box_id, sampling_note, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS})))`)
       .is('deleted_at', null)
       .order('ustvarjen', { ascending: false }),
     supabase.from('sample_boxes').select('*').order('created_at', { ascending: false }),
@@ -142,11 +141,10 @@ function segmentHasResult(seg) { return !!seg.lab_soil_result?.length; }
 function segmentSkipped(seg) { return seg.sampling_note === 'ne pobereš'; }
 
 // "Datum vzorčenja" = when work on this order's first field actually
-// began (Matej, 2026-11-06) — the earliest work_log_gerks.start_time
-// across every work_logs row tied to this order, not a per-segment field.
+// began — stored on delovni_nalogi.datum_vzorcenja, kept in sync by a DB
+// trigger (see migration_datum_vzorcenja.sql) rather than recomputed here.
 function firstFieldStart(order) {
-  const times = (order.work_logs || []).flatMap(wl => (wl.work_log_gerks || []).map(g => g.start_time)).filter(Boolean);
-  return earliest(times);
+  return order.datum_vzorcenja || null;
 }
 
 const PIPELINE_BADGE = {

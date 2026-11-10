@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.65';
+const APP_VERSION = 'v4.67';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -83,6 +83,8 @@ const woDatePanel   = document.getElementById('woDatePanel');
 const woIzvajalecEdit = document.getElementById('woIzvajalecEdit');
 const woPlanDateWrap = document.getElementById('woPlanDateWrap');
 const woPlanDateInput = document.getElementById('woPlanDate');
+const woSamplingDateWrap = document.getElementById('woSamplingDateWrap');
+const woSamplingDateValue = document.getElementById('woSamplingDateValue');
 const woStatusEdit = document.getElementById('woStatusEdit');
 const woStatusEditBtn = document.getElementById('woStatusEditBtn'); // phone-only admin disclosure for woStatusEdit
 const woStatusBadge = document.getElementById('woStatusBadge');
@@ -1575,6 +1577,16 @@ function updateOrderHeader() {
   // run again after openWorkOrderDetail()'s own render pass.
   woPlanDateWrap.hidden = !isAdmin || !currentDetailPlanId || currentDetailPlanIsHeaderDate;
   if (currentDetailPlanId && !currentDetailPlanIsHeaderDate) woPlanDateInput.value = currentDetailPlanDate;
+
+  // "Datum vzorčenja" — stored on delovni_nalogi.datum_vzorcenja, kept in
+  // sync by a DB trigger (see migration_datum_vzorcenja.sql) whenever a
+  // GERK's start_time changes; same rule the Sledenje naročilom column
+  // uses (earliest work_log_gerks.start_time across the order).
+  woSamplingDateWrap.hidden = !wo.datum_vzorcenja;
+  if (wo.datum_vzorcenja) {
+    const d = new Date(wo.datum_vzorcenja);
+    woSamplingDateValue.textContent = `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}`;
+  }
 
   // Status: admin gets an editable dropdown (only way to change it now
   // that there's no claim button); everyone else gets a read-only badge.
