@@ -330,7 +330,7 @@
           <div class="fert-subnav" role="tablist" aria-label="Sledenje naročilom">
             <button type="button" class="fert-subnav-btn fert-subnav-btn--active" role="tab" aria-selected="true" data-sled-view="orders">Naročila</button>
             <button type="button" class="fert-subnav-btn" role="tab" aria-selected="false" data-sled-view="segments">Segmenti</button>
-            <button type="button" class="fert-subnav-btn" role="tab" aria-selected="false" data-sled-view="boxes">Škatle</button>
+            <button type="button" class="fert-subnav-btn" role="tab" aria-selected="false" data-sled-view="boxes">Pošiljke</button>
           </div>
           <div id="sledToolbarOrders" class="sled-sticky-bar-tools">
             <label class="fert-field">
@@ -361,7 +361,7 @@
           </div>
           <div id="sledToolbarBoxes" class="sled-sticky-bar-tools" hidden>
             <label class="fert-field">
-              <input type="search" id="sledBoxSearch" class="field-input fert-input" placeholder="Oznaka škatle">
+              <input type="search" id="sledBoxSearch" class="field-input fert-input" placeholder="Oznaka pošiljke">
             </label>
           </div>
         </div>
@@ -385,14 +385,14 @@
         <div id="sledViewSegments" class="fert-view" hidden>
           <div class="reports-table-wrap">
             <table class="evidenca-table fert-table sled-table sled-seg-table">
-              <thead><tr><th><input type="checkbox" id="sledSegSelectAllCb" aria-label="Izberi vse segmente"></th><th>Segment</th><th class="fert-num">Ha</th><th>GERK</th><th>Ime gerka</th><th>Stranka</th><th>Vzorčenje</th><th title="Škatla">Pošiljka</th></tr></thead>
+              <thead><tr><th><input type="checkbox" id="sledSegSelectAllCb" aria-label="Izberi vse segmente"></th><th>Segment</th><th class="fert-num">Ha</th><th>GERK</th><th>Ime gerka</th><th>Stranka</th><th>Vzorčenje</th><th>Pošiljka</th></tr></thead>
               <tbody id="sledSegRows"></tbody>
             </table>
           </div>
         </div>
-        <!-- Škatle — vse pošiljke/škatle naenkrat, ne glede na nalog(e), ki
+        <!-- Pošiljke — vse pošiljke naenkrat, ne glede na nalog(e), ki
              jih uporabljajo (Matej, 2026-11-11: prej ta pogled ni obstajal,
-             škatle so bile vidne samo znotraj enega naloga — glej
+             pošiljke so bile vidne samo znotraj enega naloga — glej
              #sledOrderBoxRows). Iste akcije (Natisni / Zaključi in pošlji),
              deljena logika v shipping.js (handleBoxRowClick). -->
         <div id="sledViewBoxes" class="fert-view" hidden>
@@ -425,7 +425,7 @@
         <div class="work-form">
           <div id="sledOrderGerks"></div>
           <div id="sledOrderBoxesWrap" class="sled-order-boxes-wrap" hidden>
-            <h4 class="sled-gerk-title">Škatle v tem nalogu</h4>
+            <h4 class="sled-gerk-title">Pošiljke v tem nalogu</h4>
             <div class="reports-table-wrap">
               <table class="evidenca-table fert-table">
                 <thead><tr><th>Oznaka</th><th>Status</th><th class="fert-num">Vzorcev (v tem nalogu)</th><th>Poslano</th><th></th></tr></thead>

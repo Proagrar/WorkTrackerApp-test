@@ -511,7 +511,7 @@ els.segRows.addEventListener('change', async e => {
   if (!boxSel) return;
   const segId = boxSel.dataset.boxSelect;
   if (boxSel.value === '__new__') {
-    const label = prompt('Oznaka nove škatle (pošiljke):');
+    const label = prompt('Oznaka nove pošiljke:');
     if (!label || !label.trim()) { renderSegmentRows(); return; }
     const box = await createBox(label.trim());
     if (box) await assignSegmentToBox(segId, box.id);
@@ -548,7 +548,7 @@ function buildSledSelectionBar() {
       <button type="button" class="wlg-sel-action" data-action-id="sled-sel-export" aria-label="Izvozi izbrana naročila v Excel" title="Izvozi izbrana naročila v Excel">
         ${SEL_ICON_DOWNLOAD}<span class="wlg-sel-action-label">Izvozi</span>
       </button>
-      <button type="button" class="wlg-sel-action" data-action-id="sled-sel-print" aria-label="Natisni škatle izbranih naročil" title="Natisni škatle izbranih naročil (ena škatla = ena stran)">
+      <button type="button" class="wlg-sel-action" data-action-id="sled-sel-print" aria-label="Natisni pošiljke izbranih naročil" title="Natisni pošiljke izbranih naročil (ena pošiljka = ena stran)">
         ${SEL_ICON_PRINT}<span class="wlg-sel-action-label">Natisni</span>
       </button>
     </div>`;
@@ -597,9 +597,9 @@ function bulkVzorcenjeSelectHtml() {
 }
 function bulkBoxSelectHtml() {
   const openBoxes = boxes.filter(b => b.status === 'Odprta');
-  return ['<option value="__placeholder__" selected disabled>Dodeli pošiljko…</option>', '<option value="__clear__">— brez škatle —</option>']
+  return ['<option value="__placeholder__" selected disabled>Dodeli pošiljko…</option>', '<option value="__clear__">— brez pošiljke —</option>']
     .concat(openBoxes.map(b => `<option value="${esc(b.id)}">${esc(b.label)}</option>`))
-    .concat([`<option value="__new__">+ Nova škatla…</option>`])
+    .concat([`<option value="__new__">+ Nova pošiljka…</option>`])
     .join('');
 }
 async function bulkSetVzorcenje(value) {
@@ -658,7 +658,7 @@ function buildSledSegSelectionBar() {
     if (v === '__placeholder__') return;
     let boxId = null;
     if (v === '__new__') {
-      const label = prompt('Oznaka nove škatle (pošiljke):');
+      const label = prompt('Oznaka nove pošiljke:');
       if (!label || !label.trim()) { e.target.value = '__placeholder__'; return; }
       const box = await createBox(label.trim());
       if (!box) { e.target.value = '__placeholder__'; return; }
@@ -738,7 +738,7 @@ function exportSelectedOrders() {
 // vzorčimo, škatla) + spodaj škatle, ki jih ta nalog uporablja ───────
 function boxSelectHtml(seg) {
   const openBoxes = boxes.filter(b => b.status === 'Odprta');
-  const options = [`<option value="">— brez škatle —</option>`]
+  const options = [`<option value="">— brez pošiljke —</option>`]
     .concat(openBoxes.map(b => `<option value="${esc(b.id)}" ${b.id === seg.box_id ? 'selected' : ''}>${esc(b.label)}</option>`));
   // a segment already in a box that's since been sent isn't in openBoxes —
   // still show it as the selected option so the dropdown isn't blank.
@@ -746,15 +746,15 @@ function boxSelectHtml(seg) {
     const b = boxes.find(x => x.id === seg.box_id);
     options.push(`<option value="${esc(seg.box_id)}" selected>${esc(b?.label ?? '?')} (${esc(b?.status ?? '')})</option>`);
   }
-  options.push(`<option value="__new__">+ Nova škatla…</option>`);
+  options.push(`<option value="__new__">+ Nova pošiljka…</option>`);
   return options.join('');
 }
 
 function segmentLabel(seg) {
   if (segmentHasResult(seg)) return 'Analiza prejeta';
   if (segmentSent(seg)) return 'Poslano';
-  if (segmentBoxed(seg)) return 'V škatli';
-  return 'Ni v škatli';
+  if (segmentBoxed(seg)) return 'V pošiljki';
+  return 'Ni v pošiljki';
 }
 function segmentBadgeClass(seg) {
   if (segmentHasResult(seg)) return 'fert-badge--ok';
@@ -850,7 +850,7 @@ els.orderGerks.addEventListener('change', async e => {
   if (!sel) return;
   const segId = sel.dataset.boxSelect;
   if (sel.value === '__new__') {
-    const label = prompt('Oznaka nove škatle:');
+    const label = prompt('Oznaka nove pošiljke:');
     if (!label || !label.trim()) { renderOrderGerks(orders.find(o => o.id === currentOrderId)); return; }
     const box = await createBox(label.trim());
     if (box) await assignSegmentToBox(segId, box.id);
@@ -870,7 +870,7 @@ async function setSamplingFlag(segId, isSampling) {
 
 async function assignSegmentToBox(segId, boxId) {
   const { error } = await supabase.from('delovni_nalogi_vzorci').update({ box_id: boxId }).eq('id', segId);
-  if (error) { alert('Napaka pri dodeljevanju škatle: ' + error.message); return; }
+  if (error) { alert('Napaka pri dodeljevanju pošiljke: ' + error.message); return; }
   const seg = findSegment(segId);
   if (seg) { seg.box_id = boxId; seg.sample_boxes = boxId ? (boxes.find(b => b.id === boxId) ?? null) : null; }
   if (currentOrderId) renderOrderModal(orders.find(o => o.id === currentOrderId));
@@ -881,7 +881,7 @@ async function assignSegmentToBox(segId, boxId) {
 async function createBox(label) {
   const { data: { user } } = await supabase.auth.getUser();
   const { data, error } = await supabase.from('sample_boxes').insert({ label, created_by: user?.id ?? null }).select('*').single();
-  if (error) { alert('Napaka pri ustvarjanju škatle: ' + error.message); return null; }
+  if (error) { alert('Napaka pri ustvarjanju pošiljke: ' + error.message); return null; }
   boxes.unshift(data);
   return data;
 }
@@ -906,7 +906,7 @@ async function handleBoxRowClick(e) {
     const box = boxes.find(b => b.id === sendBtn.dataset.sendBox);
     if (!box) return;
     const n = samplesInBox(box.id).length;
-    if (!confirm(`Zaključiti in poslati škatlo "${box.label}" (${n} vzorcev skupaj, lahko iz več naročil) laboratoriju?`)) return;
+    if (!confirm(`Zaključiti in poslati pošiljko "${box.label}" (${n} vzorcev skupaj, lahko iz več naročil) laboratoriju?`)) return;
     const { data: { user } } = await supabase.auth.getUser();
     const sentAt = new Date().toISOString();
     const { error } = await supabase.from('sample_boxes').update({ status: 'Poslano', sent_at: sentAt, sent_by: user?.id ?? null }).eq('id', box.id);
@@ -972,7 +972,7 @@ function boxPageHtml(box, isLast) {
   const items = samplesInBox(box.id).sort((a, b) =>
     (a.stevilka || '').localeCompare(b.stevilka || '', 'sl', { numeric: true }) || (a.gerk_code || '').localeCompare(b.gerk_code || '', 'sl'));
   return `<section class="sled-print-page"${isLast ? '' : ' style="page-break-after: always;"'}>
-<h1>Škatla: ${esc(box.label)}</h1>
+<h1>Pošiljka: ${esc(box.label)}</h1>
 <p class="meta">Status: ${esc(box.status)} · ${items.length} vzorcev · natisnjeno ${new Date().toLocaleString('sl-SI')}</p>
 <table><thead><tr><th>#</th><th>Nalog</th><th>Stranka</th><th>GERK</th><th>Vzorec</th></tr></thead>
 <tbody>${items.map((it, i) => `<tr><td>${i + 1}</td><td>${esc(it.stevilka)}</td><td>${esc(it.stranka)}</td><td>${esc(it.gerk_code)}</td><td>${esc(it.sample_no)}</td></tr>`).join('')}</tbody>
@@ -984,7 +984,7 @@ function printBoxes(boxList) {
   if (!boxList.length) return;
   const win = window.open('', '_blank');
   if (!win) { alert('Brskalnik je blokiral novo okno — dovoli pojavna okna za to stran.'); return; }
-  const title = boxList.length === 1 ? `Škatla ${boxList[0].label}` : `${boxList.length} škatel`;
+  const title = boxList.length === 1 ? `Pošiljka ${boxList[0].label}` : `${boxList.length} pošiljk`;
   const pages = boxList.map((box, i) => boxPageHtml(box, i === boxList.length - 1)).join('');
   win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
 <style>
@@ -1007,7 +1007,7 @@ ${pages}
 function printSelectedBoxes() {
   const selected = orders.filter(o => selectedOrderIds.has(o.id));
   const boxIds = [...new Set(selected.flatMap(o => allSegments(o).map(s => s.box_id).filter(Boolean)))];
-  if (!boxIds.length) { alert('Izbrana naročila nimajo nobenega vzorca v škatli.'); return; }
+  if (!boxIds.length) { alert('Izbrana naročila nimajo nobenega vzorca v pošiljki.'); return; }
   const boxList = boxIds.map(id => boxes.find(b => b.id === id)).filter(Boolean);
   printBoxes(boxList);
 }
