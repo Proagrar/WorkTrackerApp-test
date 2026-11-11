@@ -443,7 +443,7 @@ function filteredSegmentRows() {
 function renderSegmentRows() {
   const rows = filteredSegmentRows();
   if (!rows.length) {
-    els.segRows.innerHTML = `<tr><td colspan="8" class="fert-empty">${orders.length ? 'Ni zadetkov.' : 'Ni naročil.'}</td></tr>`;
+    els.segRows.innerHTML = `<tr><td colspan="11" class="fert-empty">${orders.length ? 'Ni zadetkov.' : 'Ni naročil.'}</td></tr>`;
     updateSegSelectAllState([]);
     return;
   }
@@ -458,15 +458,21 @@ function renderSegmentRows() {
     // Box assignment frozen once shipped/resulted — same rule as the order
     // modal's own segment rows (renderOrderGerks' `locked`).
     const locked = segmentSent(s) || segmentHasResult(s);
+    const samplingDate = firstFieldStart(o);
+    const label = orderStatusLabel(o);
+    const cls = PIPELINE_BADGE[label] ?? 'fert-badge--neutral';
     return `<tr data-open-order="${esc(o.id)}">
       <td><input type="checkbox" class="sled-seg-select-cb" data-id="${esc(s.id)}" aria-label="Izberi segment" ${selectedSegIds.has(s.id) ? 'checked' : ''}></td>
       <td class="fert-strong">${esc(s.sample_no)}</td>
+      <td>${esc(o.stevilka)}</td>
       <td class="fert-num">${ha != null ? ha.toFixed(2) : '—'}</td>
       <td>${esc(g.gerk_code)}</td>
       <td>${esc(g.fields?.name ?? '—')}</td>
       <td title="${esc(customerName(o.customers))}">${esc(customerName(o.customers))}</td>
+      <td>${samplingDate ? esc(fmtDate(samplingDate)) : '—'}</td>
       <td><select class="sample-field-input sled-seg-vzorcenje" data-sample-id="${esc(s.id)}">${opts}</select></td>
       <td><select class="sample-field-input sled-seg-box-select" data-box-select="${esc(s.id)}" ${locked ? 'disabled' : ''}>${boxSelectHtml(s)}</select></td>
+      <td><div class="sled-status-cell">${statusStepperSvg(label)}<span class="fert-badge ${cls}">${esc(label)}</span></div></td>
     </tr>`;
   }).join('');
   updateSegSelectAllState(rows.map(r => r.sample.id));
