@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.77';
+const APP_VERSION = 'v4.79';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -1945,6 +1945,7 @@ let woMapHasFitBounds = false;
 let woMapLayersByCode = new Map(); // gerk_code -> { marker, shape, latlng } — for the list<->map highlight
 let woMapHighlightedCode = null;
 let woMapHighlightRing   = null;   // circleMarker used as a highlight ring when a code has no shape
+let woMapFocusedListCode = null;   // gerk_code last focused via a map click (persists until another click, unlike the hover highlight)
 
 const WO_MAP_SHAPE_STYLE = { color: '#2455AA', weight: 2, fillColor: '#2455AA', fillOpacity: .15 };
 const WO_MAP_SEGMENT_STYLE = { color: '#D97706', weight: 2, dashArray: '4,3', fillColor: '#D97706', fillOpacity: .08 };
@@ -1956,6 +1957,25 @@ const WO_MAP_SEGMENT_HIGHLIGHT_STYLE = { color: '#F59E0B', weight: 3, dashArray:
 function highlightGerkRow(code, on) {
   const row = workLogGerkRowsEl.querySelector(`.wlg-row[data-code="${CSS.escape(code)}"]`);
   if (row) row.classList.toggle('wlg-row--map-hover', on);
+}
+
+// Map → list: clicking a GERK's marker/shape scrolls its row into view and
+// keeps it highlighted (own class, own state — doesn't get cleared by the
+// hover handler above when the mouse later leaves the shape) until another
+// GERK is clicked on the map (Matej, 2026-11-11: "klik na mapi fokusira
+// gerk na levi strani").
+function focusGerkRowFromMap(code) {
+  if (!code) return;
+  if (woMapFocusedListCode && woMapFocusedListCode !== code) {
+    const prevRow = workLogGerkRowsEl.querySelector(`.wlg-row[data-code="${CSS.escape(woMapFocusedListCode)}"]`);
+    prevRow?.classList.remove('wlg-row--map-focus');
+  }
+  const row = workLogGerkRowsEl.querySelector(`.wlg-row[data-code="${CSS.escape(code)}"]`);
+  if (row) {
+    row.classList.add('wlg-row--map-focus');
+    row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  woMapFocusedListCode = code;
 }
 
 // List → map: clicking a GERK row highlights its marker/shape (only
@@ -2063,6 +2083,7 @@ async function showWoDetailMap(workOrder) {
   woMapHasFitBounds = false;
   woMapLayersByCode = new Map();
   woMapHighlightedCode = null;
+  woMapFocusedListCode = null;
   if (woMapHighlightRing) { woMapHighlightRing.remove(); woMapHighlightRing = null; }
   woMapGerkLabel.hidden = true;
   woMapExpanded = false;
@@ -2157,6 +2178,7 @@ async function showWoDetailMap(workOrder) {
       .bindTooltip(row.gerk_code).addTo(woMapGerkLayer);
     layer.on('mouseover', () => highlightGerkRow(row.gerk_code, true));
     layer.on('mouseout',  () => highlightGerkRow(row.gerk_code, false));
+    layer.on('click', () => focusGerkRowFromMap(row.gerk_code));
     const entry = woMapLayersByCode.get(row.gerk_code) || { marker: null, latlng: null };
     // A compound "A+B+C" code (see get_work_order_gerk_shapes) returns
     // one row per real GERK sharing this same gerk_code — accumulate
@@ -2187,6 +2209,7 @@ async function showWoDetailMap(workOrder) {
     }
     layer.on('mouseover', () => highlightGerkRow(row.gerk_code, true));
     layer.on('mouseout',  () => highlightGerkRow(row.gerk_code, false));
+    layer.on('click', () => focusGerkRowFromMap(row.gerk_code));
     segmentLayers.push(layer);
     // A GERK known only by a text name has no official shape/centroid
     // at all (see highlightGerkOnWoMap) — its imported zones are the

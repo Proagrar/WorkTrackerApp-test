@@ -44,8 +44,15 @@ const els = {
   labNotice: document.getElementById('fertLabNotice'),
   labHead: document.getElementById('fertLabHead'),
   labRows: document.getElementById('fertLabRows'),
+  labSelectionBar: document.getElementById('fertLabSelectionBar'),
   settingsBody: document.getElementById('fertSettingsBody'),
 };
+
+// Small local copies — same reasoning as shipping.js's own copies of these
+// (modal-close/download icons): not worth importing across modules for a
+// couple of inline SVGs.
+const SEL_ICON_CLOSE = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><line x1="4" y1="4" x2="16" y2="16" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/><line x1="16" y1="4" x2="4" y2="16" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>`;
+const SEL_ICON_DOWNLOAD = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v9m0 0-3.5-3.5M10 12l3.5-3.5M4 14v1.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 // Default name filter: the lab's own result files for the current season
 // ("Proagrar d.o.o._21.10.2026.xlsx"); the shared LAB RESULTS folder also
@@ -60,6 +67,7 @@ let labPlans = new Map(); // delovni_nalog_gerk_id → newest live plan; null = 
 let settingsLoaded = false;
 let pendingImport = null; // { files: [...parsed] } between preview and confirm
 let labFlash = '';        // one-shot success message shown above the list after an import
+let selectedLabIds = new Set(); // Analize tal (linked mode only) — rows picked for the Izvoz action
 
 function esc(value) {
   return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -254,7 +262,8 @@ function sortLabRows(rows) {
 }
 
 function renderLabHead() {
-  els.labHead.innerHTML = labColumns().map(col => {
+  const selectTh = labMode === 'linked' ? `<th><input type="checkbox" id="fertLabSelectAllCb" aria-label="Izberi vse"></th>` : '';
+  els.labHead.innerHTML = selectTh + labColumns().map(col => {
     const active = labSortKey === col.key;
     const arrow = active ? (labSortDir === 'asc' ? ' ▲' : ' ▼') : '';
     const ariaSort = active ? (labSortDir === 'asc' ? 'ascending' : 'descending') : 'none';
@@ -302,20 +311,24 @@ function renderLabResults() {
   });
 
   const cols = labColumns();
+  const showSelect = labMode === 'linked';
   if (!rows.length) {
     const empty = !labResults.length ? 'Še ni uvoženih rezultatov — klikni ⬆ Uvoz Excel.'
       : query ? 'Ni zadetkov.'
       : labMode === 'linked' ? 'Noben rezultat še ni povezan z vzorcem iz delovnega naloga.' : 'Vsi rezultati so povezani z vzorci.';
-    els.labRows.innerHTML = `<tr><td colspan="${cols.length}" class="fert-empty">${empty}</td></tr>`;
+    els.labRows.innerHTML = `<tr><td colspan="${cols.length + (showSelect ? 1 : 0)}" class="fert-empty">${empty}</td></tr>`;
+    if (showSelect) updateLabSelectAllState([]);
     return;
   }
-  els.labRows.innerHTML = sortLabRows(rows)
-    .map(r => `<tr data-row-id="${esc(r.id)}">${cols.map(c => c.render(r)).join('')}</tr>`)
+  const sorted = sortLabRows(rows);
+  els.labRows.innerHTML = sorted
+    .map(r => `<tr data-row-id="${esc(r.id)}">${showSelect ? `<td><input type="checkbox" class="fert-lab-select-cb" data-id="${esc(r.id)}" aria-label="Izberi" ${selectedLabIds.has(r.id) ? 'checked' : ''}></td>` : ''}${cols.map(c => c.render(r)).join('')}</tr>`)
     .join('');
+  if (showSelect) updateLabSelectAllState(sorted.map(r => r.id));
 }
 
 els.labSearch.addEventListener('input', renderLabResults);
-els.labMode.addEventListener('change', () => { labMode = els.labMode.value; renderLabResults(); });
+els.labMode.addEventListener('change', () => { labMode = els.labMode.value; clearLabSelection(); renderLabResults(); });
 
 // Manual link: list every sample carrying this number and let the admin pick.
 els.labRows.addEventListener('click', async event => {
@@ -336,6 +349,179 @@ els.labRows.addEventListener('click', async event => {
       gerk_code: g.gerk_code, field_id: g.field_id, field_name: g.fields?.name ?? null });
   }
 });
+
+// ── Selection + Excel export (Matej, 2026-11-11) ──────────────────
+// "ko je enkrat gnojilni načrt pripravljen, moramo imeti možnost selekcije
+// -> action bar in izvoz" — select one or more Analize tal rows that
+// already have a Izračun gnojila (Osnutek or Potrjeno, either is fine —
+// "pripravljen" just means it exists) and export every fert_plan behind
+// them as an Excel file matching the external "Template Drinovec/Rola"
+// layout exactly in structure/labels (Matej explicitly OK'd skipping the
+// red cell-highlight styling — the free SheetJS build can't write cell
+// styles — and OK'd leaving template columns with no real source blank).
+function labSelectableIds() {
+  return [...els.labRows.querySelectorAll('.fert-lab-select-cb')].map(cb => cb.dataset.id);
+}
+function updateLabSelectAllState(visibleIds) {
+  const cb = document.getElementById('fertLabSelectAllCb');
+  if (!cb) return;
+  const checkedCount = visibleIds.filter(id => selectedLabIds.has(id)).length;
+  cb.checked = visibleIds.length > 0 && checkedCount === visibleIds.length;
+  cb.indeterminate = checkedCount > 0 && checkedCount < visibleIds.length;
+}
+els.labHead.addEventListener('change', e => {
+  const cb = e.target.closest('#fertLabSelectAllCb');
+  if (!cb) return;
+  const visible = labSelectableIds();
+  const anySelected = visible.some(id => selectedLabIds.has(id));
+  if (anySelected) visible.forEach(id => selectedLabIds.delete(id));
+  else visible.forEach(id => selectedLabIds.add(id));
+  renderLabResults();
+  updateLabSelectionBar();
+});
+els.labRows.addEventListener('change', e => {
+  const cb = e.target.closest('.fert-lab-select-cb');
+  if (!cb) return;
+  if (cb.checked) selectedLabIds.add(cb.dataset.id);
+  else selectedLabIds.delete(cb.dataset.id);
+  updateLabSelectionBar();
+  updateLabSelectAllState(labSelectableIds());
+});
+
+function buildLabSelectionBar() {
+  els.labSelectionBar.setAttribute('role', 'toolbar');
+  els.labSelectionBar.setAttribute('aria-label', 'Skupinska dejanja za izbrane rezultate');
+  els.labSelectionBar.innerHTML = `
+    <span class="wlg-sel-summary"></span>
+    <button type="button" class="wlg-sel-close" data-action="fert-lab-sel-close" aria-label="Prekliči izbiro" title="Prekliči izbiro">${SEL_ICON_CLOSE}</button>
+    <span class="wlg-sel-sep" aria-hidden="true"></span>
+    <div class="wlg-sel-actions">
+      <button type="button" class="wlg-sel-action" data-action-id="fert-lab-sel-export" aria-label="Izvozi izbrane izračune gnojila v Excel" title="Izvozi izbrane izračune gnojila v Excel">
+        ${SEL_ICON_DOWNLOAD}<span class="wlg-sel-action-label">Izvozi</span>
+      </button>
+    </div>`;
+  els.labSelectionBar.querySelector('[data-action="fert-lab-sel-close"]').addEventListener('click', clearLabSelection);
+  els.labSelectionBar.querySelector('[data-action-id="fert-lab-sel-export"]').addEventListener('click', exportSelectedFertPlans);
+}
+buildLabSelectionBar();
+
+function updateLabSelectionBar() {
+  const n = selectedLabIds.size;
+  els.labSelectionBar.classList.toggle('wlg-selection-bar--visible', n > 0);
+  if (n === 0) return;
+  const summaryEl = els.labSelectionBar.querySelector('.wlg-sel-summary');
+  if (summaryEl) summaryEl.textContent = `${n} ${n === 1 ? 'izbran' : 'izbranih'}`;
+}
+function clearLabSelection() {
+  selectedLabIds = new Set();
+  els.labRows.querySelectorAll('.fert-lab-select-cb').forEach(cb => { cb.checked = false; });
+  updateLabSelectionBar();
+  updateLabSelectAllState(labSelectableIds());
+}
+
+// sl-SI comma-decimal text — matches the template's own mix (half its lab
+// columns are numeric cells, half are text with a comma, see the subagent
+// analysis this was built from).
+function commaText(value) {
+  return value == null || value === '' ? '' : String(value).replace('.', ',');
+}
+function exportDateText(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${parseInt(d, 10)}.${parseInt(m, 10)}.${y}`;
+}
+
+const FERT_EXPORT_SHEET1_HEADERS = ['Customer no.', 'Invoice no.', 'VAT ID', 'VAT payer', 'Sales person', 'Sales Person phone', 'Sales Person email',
+  'Name', 'Surname', 'Company', 'Farm ID', 'Street', 'Street no.', 'ZIP Code', 'City', 'Country', 'Phone', 'E-mail',
+  'General comment for particular invoice number', 'General comment for the field', 'Field ID', 'Field size (ha)', 'Field name',
+  'Segment no', 'Next Culture', 'Field designation', 'Analysis date'];
+const FERT_EXPORT_SHEET1_WIDTHS = { 0: 12.89, 1: 10.66, 2: 13.89, 3: 18.55, 4: 18.66, 6: 24.55, 9: 14.33, 18: 44.11, 19: 72.33, 20: 16.44, 21: 16.44, 23: 9.11, 26: 9.11 };
+const FERT_EXPORT_SHEET2_HEADERS = ['Sample no', 'pH', 'KA', 'Ca', 'CaCO3', 'Org matter', 'NO3-N + NO2-N', 'P2O5', 'K2O', 'Mg', 'Na', 'Zn', 'Cu', 'Mn',
+  'Salts', 'SO4-S', 'Fe', 'Recommendation Ca', 'Recommendation P', 'Recommendation K', 'Recommendation organic matter',
+  'Recommendation fertilizer 1', 'Recommendation fertilizer 2', 'Recommendation fertilizer 3', 'Recommendation fertilizer 4', 'Recommendation fertilizer 5',
+  'Quantity fertilizer 1', 'Quantity fertilizer 2', 'Quantity fertilizer 3', 'Quantity fertilizer 4', 'Quantity fertilizer 5'];
+const FERT_EXPORT_SHEET2_WIDTHS = { 0: 15.33, 5: 10.55, 6: 15.0, 7: 8.89, 8: 7.89, 17: 19.55, 18: 18.55, 20: 30.66, 21: 26.89, 23: 26.89, 25: 26.89, 26: 18.55 };
+
+function applyColWidths(ws, widths) {
+  const max = Math.max(...Object.keys(widths).map(Number));
+  const cols = [];
+  for (let i = 0; i <= max; i++) cols.push(widths[i] != null ? { wch: widths[i] } : {});
+  ws['!cols'] = cols;
+}
+
+async function exportSelectedFertPlans() {
+  // Resolve selected lab rows -> their GERK line -> newest plan. Rows
+  // without one yet are silently skipped (counted, reported at the end) —
+  // "ko je enkrat ... pripravljen" means only prepared ones are exportable.
+  const planIds = new Set();
+  let skipped = 0;
+  for (const id of selectedLabIds) {
+    const row = labResults.find(r => r.id === id);
+    const plan = row ? labPlan(row) : null;
+    if (plan) planIds.add(plan.id); else skipped++;
+  }
+  if (!planIds.size) { alert('Noben izbran rezultat (še) nima izračuna gnojila.'); return; }
+
+  const exportBtn = els.labSelectionBar.querySelector('[data-action-id="fert-lab-sel-export"]');
+  if (exportBtn) exportBtn.disabled = true;
+  try {
+    const { data: plans, error } = await supabase
+      .from('fert_plan')
+      .select(`id, gerk_code, field_name, crop_name, report_text,
+        customers(naziv, company_name, contact_name, vat_number, sales_person, address_street, address_post_code, address_city, country, phone, email),
+        p_fertilizer:fert_fertilizer!fert_plan_p_fertilizer_id_fkey(name),
+        k_fertilizer:fert_fertilizer!fert_plan_k_fertilizer_id_fkey(name),
+        lime_fertilizer:fert_fertilizer!fert_plan_lime_fertilizer_id_fkey(name),
+        fert_plan_segment(id, sample_no, area_ha, ph_kcl, p2o5, k2o, need_p2o5_kg_ha, need_k2o_kg_ha, p_fert_real_kg, k_fert_real_kg, lime_real_kg,
+          lab_soil_result(ka, caco3_pct, humus_pct, no3_no2_n, mg, na, zn, cu, mn, salts_pct, so4_s, fe, analysis_date))`)
+      .in('id', [...planIds])
+      .order('sort_order', { foreignTable: 'fert_plan_segment' });
+    if (error) throw error;
+
+    const sheet1 = [FERT_EXPORT_SHEET1_HEADERS];
+    const sheet2 = [FERT_EXPORT_SHEET2_HEADERS];
+    for (const p of plans ?? []) {
+      const customer = p.customers;
+      const custName = customerName(customer);
+      for (const s of (p.fert_plan_segment ?? [])) {
+        sheet1.push([
+          '', '', customer?.vat_number ?? '', '', customer?.sales_person ?? '', '', '',
+          customer?.contact_name || custName, '', customer?.company_name ?? '', '',
+          customer?.address_street ?? '', '', customer?.address_post_code ?? '', customer?.address_city ?? '', customer?.country ?? '',
+          customer?.phone ?? '', customer?.email ?? '',
+          '', p.report_text ?? '', p.gerk_code ?? '', s.area_ha != null ? Number(s.area_ha) : '', p.field_name ?? '',
+          s.sample_no ?? '', p.crop_name ?? '', `${p.gerk_code ?? ''} ${custName}`.trim(), exportDateText(s.lab_soil_result?.analysis_date),
+        ]);
+        const lab = s.lab_soil_result;
+        sheet2.push([
+          s.sample_no ?? '', s.ph_kcl != null ? Number(s.ph_kcl) : '', commaText(lab?.ka), '', commaText(lab?.caco3_pct),
+          lab?.humus_pct != null ? Number(lab.humus_pct) : '', commaText(lab?.no3_no2_n),
+          s.p2o5 != null ? Number(s.p2o5) : '', s.k2o != null ? Number(s.k2o) : '',
+          commaText(lab?.mg), commaText(lab?.na), commaText(lab?.zn), commaText(lab?.cu), commaText(lab?.mn), commaText(lab?.salts_pct), commaText(lab?.so4_s), commaText(lab?.fe),
+          '', s.need_p2o5_kg_ha != null ? Number(s.need_p2o5_kg_ha) : '', s.need_k2o_kg_ha != null ? Number(s.need_k2o_kg_ha) : '', '',
+          p.p_fertilizer?.name ?? '', p.k_fertilizer?.name ?? '', p.lime_fertilizer?.name ?? '', '', '',
+          s.p_fert_real_kg != null ? Number(s.p_fert_real_kg) : '', s.k_fert_real_kg != null ? Number(s.k_fert_real_kg) : '', s.lime_real_kg != null ? Number(s.lime_real_kg) : '', '', '',
+        ]);
+      }
+    }
+
+    const XLSX = await loadSheetJs();
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet(sheet1);
+    applyColWidths(ws1, FERT_EXPORT_SHEET1_WIDTHS);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Sheet1');
+    const ws2 = XLSX.utils.aoa_to_sheet(sheet2);
+    applyColWidths(ws2, FERT_EXPORT_SHEET2_WIDTHS);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Sheet2');
+    XLSX.writeFile(wb, `izracun_gnojila_${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+    if (skipped) alert(`${skipped} ${skipped === 1 ? 'izbran rezultat' : 'izbranih rezultatov'} ni imelo izračuna gnojila in ${skipped === 1 ? 'je bil' : 'so bili'} izpuščen${skipped === 1 ? '' : 'i'} iz izvoza.`);
+  } catch (err) {
+    alert('Napaka pri izvozu: ' + (err.message || err));
+  } finally {
+    if (exportBtn) exportBtn.disabled = false;
+  }
+}
 
 async function openLinkPicker(resultId, cellEl) {
   const result = labResults.find(r => r.id === resultId);
