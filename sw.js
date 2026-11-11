@@ -1,4 +1,4 @@
-const CACHE = 'worktracker-v4.80';
+const CACHE = 'worktracker-v4.81';
 const SHELL = [
   './index.html',
   './app.html',
@@ -44,7 +44,12 @@ self.addEventListener('fetch', (e) => {
   // disk cache long after the server was fixed — only an Incognito
   // window (no disk cache) or a manual cache-clear showed the real,
   // already-working response.
-  if (url.includes('supabase.co') || url.includes('cdn.jsdelivr.net')) {
+  // cdn.sheetjs.com serves xlsx.mjs — doesn't match the .js/.css check below
+  // (".mjs" doesn't end with ".js"), so it used to fall through to the
+  // cache-first branch meant for static icons, which has no real network
+  // fallback on a transient fetch failure (Matej, 2026-11-11: "Failed to
+  // fetch dynamically imported module" on the Izračun gnojila Excel export).
+  if (url.includes('supabase.co') || url.includes('cdn.jsdelivr.net') || url.includes('cdn.sheetjs.com')) {
     e.respondWith(fetch(e.request, { cache: 'no-store' }).catch(() => caches.match(e.request)));
     return;
   }
