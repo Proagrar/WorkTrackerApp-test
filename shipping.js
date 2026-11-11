@@ -11,6 +11,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const els = {
   tab: document.getElementById('tabSledenje'),
+  subnavBtns: document.querySelectorAll('[data-sled-view]'),
+  viewOrders: document.getElementById('sledViewOrders'),
+  viewSegments: document.getElementById('sledViewSegments'),
   orderSearch: document.getElementById('sledOrderSearch'),
   orderRows: document.getElementById('sledOrderRows'),
   selectAllCb: document.getElementById('sledSelectAllCb'),
@@ -23,7 +26,14 @@ const els = {
   orderGerks: document.getElementById('sledOrderGerks'),
   orderBoxesWrap: document.getElementById('sledOrderBoxesWrap'),
   orderBoxRows: document.getElementById('sledOrderBoxRows'),
+  segSearch: document.getElementById('sledSegSearch'),
+  segRows: document.getElementById('sledSegRows'),
 };
+
+// Same controlled list as app.js's SAMPLE_ACTIONS (sampling_note) — small
+// local copy, same reasoning as the modal-animation/icon helpers above
+// (not worth importing across modules for one array).
+const SAMPLE_ACTIONS = ['ne pobereš', 'združi', 'združi_1', 'združi_2', 'združi_3', 'združi_4', 'združi_5', 'združi_6', 'združi_7', 'združi_8', 'združi_9', 'združi_10'];
 
 let orders = [];
 let boxes = [];
@@ -105,7 +115,7 @@ async function loadAll() {
         minimax_racun_id, minimax_racun_stevilka, minimax_racun_status, datum_vzorcenja,
         customers(naziv, company_name, minimax_customer_id, vat_number), profiles(full_name),
         delovni_nalogi_gerki(id, gerk_code, kolicina_ha, field_id, fields(name),
-          delovni_nalogi_vzorci(id, sample_no, box_id, sampling_note, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS})))`)
+          delovni_nalogi_vzorci(id, sample_no, box_id, sampling_note, area_ha, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS})))`)
       .is('deleted_at', null)
       .order('ustvarjen', { ascending: false }),
     supabase.from('sample_boxes').select('*').order('created_at', { ascending: false }),
@@ -122,6 +132,7 @@ async function loadAll() {
   mmInvoiceById = Object.fromEntries((mmInvoices ?? []).map((inv) => [inv.minimax_id, inv]));
   for (const id of selectedOrderIds) if (!orders.some(o => o.id === id)) selectedOrderIds.delete(id);
   renderOrders();
+  renderSegmentRows();
   updateSledSelectionBar();
 }
 
@@ -363,6 +374,86 @@ els.orderRows.addEventListener('change', e => {
   else selectedOrderIds.delete(cb.dataset.id);
   updateSledSelectionBar();
   updateSelectAllState(filteredOrders().map(o => o.id));
+});
+
+// ── Naročila / Segmenti preklop ───────────────────────────────
+els.subnavBtns.forEach(btn => btn.addEventListener('click', () => {
+  els.subnavBtns.forEach(b => {
+    b.classList.toggle('fert-subnav-btn--active', b === btn);
+    b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
+  });
+  const seg = btn.dataset.sledView === 'segments';
+  els.viewOrders.hidden = seg;
+  els.viewSegments.hidden = !seg;
+}));
+
+// ── Segmenti view — obrnjena perspektiva: en delovni_nalogi_vzorci vrstica
+// na vrstico namesto enega naloga (Matej, 2026-11-11). Kompakten seznam,
+// stolpce bomo še dodajali. ──────────────────────────────────────
+function allSegmentRows() {
+  const rows = [];
+  for (const o of orders) {
+    for (const g of (o.delovni_nalogi_gerki || [])) {
+      for (const s of (g.delovni_nalogi_vzorci || [])) rows.push({ sample: s, gerk: g, order: o });
+    }
+  }
+  return rows;
+}
+function filteredSegmentRows() {
+  const q = els.segSearch.value.trim().toLowerCase();
+  const rows = allSegmentRows();
+  if (!q) return rows;
+  return rows.filter(({ sample: s, gerk: g, order: o }) => {
+    const hay = `${o.stevilka ?? ''} ${customerName(o.customers)} ${g.gerk_code ?? ''} ${g.fields?.name ?? ''} ${s.sample_no ?? ''}`.toLowerCase();
+    return hay.includes(q);
+  });
+}
+function renderSegmentRows() {
+  const rows = filteredSegmentRows();
+  if (!rows.length) {
+    els.segRows.innerHTML = `<tr><td colspan="6" class="fert-empty">${orders.length ? 'Ni zadetkov.' : 'Ni naročil.'}</td></tr>`;
+    return;
+  }
+  els.segRows.innerHTML = rows.map(({ sample: s, gerk: g, order: o }) => {
+    const ha = s.area_ha != null ? Number(s.area_ha) : (g.kolicina_ha != null ? Number(g.kolicina_ha) : null);
+    const opts = ['<option value="">—</option>']
+      .concat(SAMPLE_ACTIONS.map(a => `<option value="${esc(a)}"${s.sampling_note === a ? ' selected' : ''}>${esc(a)}</option>`))
+      .join('');
+    return `<tr data-open-order="${esc(o.id)}">
+      <td class="fert-strong">${esc(s.sample_no)}</td>
+      <td class="fert-num">${ha != null ? ha.toFixed(2) : '—'}</td>
+      <td>${esc(g.gerk_code)}</td>
+      <td>${esc(g.fields?.name ?? '—')}</td>
+      <td title="${esc(customerName(o.customers))}">${esc(customerName(o.customers))}</td>
+      <td><select class="sample-field-input sled-seg-vzorcenje" data-sample-id="${esc(s.id)}">${opts}</select></td>
+    </tr>`;
+  }).join('');
+}
+els.segSearch.addEventListener('input', renderSegmentRows);
+// Row click opens the segment's own order (same modal as the Naročila
+// view) — the Vzorčenje <select> click/change must not also trigger it.
+els.segRows.addEventListener('click', e => {
+  if (e.target.closest('.sled-seg-vzorcenje')) return;
+  const row = e.target.closest('tr[data-open-order]');
+  if (row) openOrderModal(row.dataset.openOrder);
+});
+els.segRows.addEventListener('change', async e => {
+  const sel = e.target.closest('.sled-seg-vzorcenje');
+  if (!sel) return;
+  const sampleId = sel.dataset.sampleId;
+  const value = sel.value || null;
+  const sample = allSegmentRows().find(r => r.sample.id === sampleId)?.sample;
+  sel.disabled = true;
+  try {
+    const { error } = await supabase.from('delovni_nalogi_vzorci').update({ sampling_note: value }).eq('id', sampleId);
+    if (error) throw error;
+    if (sample) sample.sampling_note = value;
+  } catch (err) {
+    alert(err.message || 'Napaka pri shranjevanju.');
+    if (sample) sel.value = sample.sampling_note || '';
+  } finally {
+    sel.disabled = false;
+  }
 });
 
 // ── Selection + bulk export (mirrors app.js's work-order selection bar —

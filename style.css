@@ -2719,12 +2719,14 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   .app-main { max-width: 1100px; }
   /* Gnojilni načrt's tables (plans, lab results with 12 columns, settings)
      need the whole screen; the other tabs keep the 1100px column
-     (Matej, 2026-10-30). */
-  .app-main:has(#panelGnojilni:not([hidden])) { max-width: none; }
+     (Matej, 2026-10-30). Sledenje naročilom joined this 2026-11-11 — both
+     its views (Naročila, Segmenti) are wide tables too. */
+  .app-main:has(#panelGnojilni:not([hidden])), .app-main:has(#panelSledenje:not([hidden])) { max-width: none; }
   /* …but the tab buttons stay exactly where the 1100px column puts them on
      every other tab (Matej, 2026-10-30). The bar itself stays full width so
      its sticky background still covers content scrolling under it. */
-  .app-main:has(#panelGnojilni:not([hidden])) .tab-bar {
+  .app-main:has(#panelGnojilni:not([hidden])) .tab-bar,
+  .app-main:has(#panelSledenje:not([hidden])) .tab-bar {
     padding-left: max(16px, calc((100% - 1100px) / 2 + 16px));
     padding-right: max(16px, calc((100% - 1100px) / 2 + 16px));
   }

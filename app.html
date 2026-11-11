@@ -320,6 +320,13 @@
          delovni_nalogi_vzorci.box_id (supabase/migration_sample_boxes.sql). -->
     <div id="panelSledenje" class="tab-panel" hidden>
       <section class="logs-section wo-section">
+        <!-- Naročila / Segmenti preklop — isti subnav vzorec kot Izračun
+             gnojila (fert-subnav), samo prikaz/skrivanje med dvema že
+             naloženima pogledoma (Matej, 2026-11-11). -->
+        <div class="fert-subnav" role="tablist" aria-label="Sledenje naročilom">
+          <button type="button" class="fert-subnav-btn fert-subnav-btn--active" role="tab" aria-selected="true" data-sled-view="orders">Naročila</button>
+          <button type="button" class="fert-subnav-btn" role="tab" aria-selected="false" data-sled-view="segments">Segmenti</button>
+        </div>
         <!-- Naročila — every delovni_nalog with its sample-pipeline progress.
              Klik na vrstico (razen na checkbox) odpre #sledOrderModal. -->
         <div id="sledViewOrders" class="fert-view">
@@ -349,6 +356,23 @@
             <table class="evidenca-table fert-table sled-table">
               <thead><tr><th><input type="checkbox" id="sledSelectAllCb" aria-label="Izberi vse"></th><th>Nalog</th><th>Stranka</th><th class="fert-num">Gerki</th><th class="fert-num">Vzorci</th><th class="fert-num">Ha</th><th title="Datum vzorčenja">Vzorčeno</th><th title="Datum pošiljanja">Poslano</th><th title="Datum prejetja analize">Prejeto</th><th>Status</th><th>Račun</th><th title="Pripravi račun">🧾</th></tr></thead>
               <tbody id="sledOrderRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- Segmenti — obrnjena perspektiva: en segment (delovni_nalogi_vzorci
+             vrstica) na vrstico, ne en nalog. Kompakten seznam, stolpce bomo
+             še dodajali (Matej, 2026-11-11). Klik na vrstico (razen na
+             select) odpre nalog, ki mu segment pripada — isti #sledOrderModal. -->
+        <div id="sledViewSegments" class="fert-view" hidden>
+          <div class="fert-toolbar">
+            <label class="fert-field">
+              <input type="search" id="sledSegSearch" class="field-input fert-input" placeholder="Nalog, stranka, GERK ali segment">
+            </label>
+          </div>
+          <div class="reports-table-wrap">
+            <table class="evidenca-table fert-table sled-table sled-seg-table">
+              <thead><tr><th>Segment</th><th class="fert-num">Ha</th><th>GERK</th><th>Ime gerka</th><th>Stranka</th><th>Vzorčenje</th></tr></thead>
+              <tbody id="sledSegRows"></tbody>
             </table>
           </div>
         </div>
