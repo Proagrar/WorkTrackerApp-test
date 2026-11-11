@@ -184,8 +184,6 @@ function labValueCell(row, key, header) {
   const shown = raw != null && /[<>]/.test(String(raw)) ? String(raw) : fmtNum(row[key]);
   return `<td class="fert-num">${esc(shown)}</td>`;
 }
-const noCodeBadge = r => (r.notes || '').includes(NO_CODE_NOTE)
-  ? ` <span class="fert-badge fert-badge--mini" title="${esc(NO_CODE_NOTE)}">brez kode</span>` : '';
 // compound GERK codes (688697+6492082+6492080) may break after each +
 const gerkWrap = code => esc(code ?? '—').replace(/\+/g, '+<wbr>');
 
@@ -223,7 +221,7 @@ const LAB_LINKED_COLUMNS = [
     render: r => `<td class="fert-strong fert-wrap">${esc(customerName(labGerk(r)?.delovni_nalogi?.customers))}</td>` },
   { key: 'gerk',     label: 'GERK',   value: r => labGerk(r)?.gerk_code, render: r => `<td class="fert-wrap">${gerkWrap(labGerk(r)?.gerk_code)}</td>` },
   { key: 'sample',   label: 'Vzorec', value: r => r.sample_no,
-    render: r => `<td class="fert-strong" title="${esc(r.lab_sample_code ? 'Lab. koda ' + r.lab_sample_code : '')}">${esc(r.sample_no)}${noCodeBadge(r)}</td>` },
+    render: r => `<td class="fert-strong" title="${esc(r.lab_sample_code ? 'Lab. koda ' + r.lab_sample_code : '')}">${esc(r.sample_no)}</td>` },
   ...LAB_VALUE_COLUMNS,
   { key: 'plan',     label: 'Izračun gnojila', value: r => labPlan(r) ? `${labPlan(r).status === 'potrjeno' ? 'a' : 'b'}${labPlan(r).plan_date}` : null, render: labPlanCell },
 ];
@@ -233,7 +231,7 @@ const LAB_UNLINKED_COLUMNS = [
   ...LAB_VALUE_COLUMNS,
   { key: 'state',  label: 'Stanje', value: r => labMatchState(r),
     render: r => `<td class="fert-state"><span class="fert-badge fert-badge--warn">${labMatchState(r) === 'multiple' ? 'Več zadetkov' : 'Ni povezan'}</span>
-      <button type="button" class="btn btn-secondary btn-sm fert-link-btn" data-link-id="${esc(r.id)}">Poveži</button>${noCodeBadge(r)}</td>` },
+      <button type="button" class="btn btn-secondary btn-sm fert-link-btn" data-link-id="${esc(r.id)}">Poveži</button></td>` },
 ];
 const labColumns = () => labMode === 'unlinked' ? LAB_UNLINKED_COLUMNS : LAB_LINKED_COLUMNS;
 
