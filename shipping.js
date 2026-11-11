@@ -122,6 +122,7 @@ async function loadAll() {
     supabase.from('delovni_nalogi')
       .select(`id, stevilka, status, ustvarjen, deleted_at, racun_zahtevan_at, racun_napaka,
         minimax_racun_id, minimax_racun_stevilka, minimax_racun_status, datum_vzorcenja,
+        zakljucen_brez_racuna_at, opomba_zakljucek,
         customers(naziv, company_name, minimax_customer_id, vat_number), profiles(full_name),
         delovni_nalogi_gerki(id, gerk_code, kolicina_ha, field_id, fields(name),
           delovni_nalogi_vzorci(id, sample_no, box_id, sampling_note, area_ha, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS})))`)
@@ -236,6 +237,9 @@ function orderStatusLabel(order) {
 // without any app-side action. The "Pripravi račun" trigger itself lives
 // in the main Delovni Nalogi list now, not here — this is read-only status.
 function invoiceStatusLabel(order) {
+  // "Zaključi brez računa" (Matej, 2026-11-11) — a terminal state, never
+  // touches minimax_racun_*/racun_zahtevan_at, so it's checked first.
+  if (order.zakljucen_brez_racuna_at) return 'Zaključeno brez računa';
   const inv = order.minimax_racun_id ? mmInvoiceById[order.minimax_racun_id] : null;
   if (inv) {
     if (inv.document_status === 'O') return 'Osnutek računa';
@@ -255,6 +259,7 @@ const INVOICE_BADGE = {
   'Račun poslan': 'fert-badge--sent',
   'Račun plačan': 'fert-badge--ok',
   'Račun storniran': 'fert-badge--neutral',
+  'Zaključeno brez računa': 'fert-badge--neutral',
 };
 
 // Icon-only trigger/retry/cancel (Matej, 2026-11-09: "samo ikono") — this
@@ -264,6 +269,10 @@ const INVOICE_BADGE = {
 // the window.* bridge it sets up — so it stays the single source of truth
 // for what "Pripravi račun" actually does, not duplicated here.
 function invoiceActionIcon(order) {
+  if (order.zakljucen_brez_racuna_at) {
+    const title = order.opomba_zakljucek ? `Zaključeno brez računa: ${order.opomba_zakljucek} — klikni za preklic` : 'Zaključeno brez računa — klikni za preklic';
+    return `<button type="button" class="wo-invoice-btn wo-invoice-btn--pending" data-action="sled-invoice-cancel-no-invoice" data-id="${esc(order.id)}" title="${esc(title)}" aria-label="Zaključeno brez računa, prekliči">↺</button>`;
+  }
   if (order.racun_napaka) {
     return `<button type="button" class="wo-invoice-btn wo-invoice-btn--error" data-action="sled-invoice-retry" data-id="${esc(order.id)}" title="${esc(order.racun_napaka)} — klikni za ponovni poskus" aria-label="Napaka pri računu, ponovno poskusi">⚠</button>`;
   }
@@ -377,6 +386,12 @@ els.orderRows.addEventListener('click', e => {
     if (o) window.cancelInvoiceRequest?.(o);
     return;
   }
+  const cancelNoInvoiceBtn = e.target.closest('[data-action="sled-invoice-cancel-no-invoice"]');
+  if (cancelNoInvoiceBtn) {
+    const o = orders.find(x => x.id === cancelNoInvoiceBtn.dataset.id);
+    if (o) window.cancelCloseWithoutInvoice?.(o);
+    return;
+  }
   const row = e.target.closest('tr[data-open-order]');
   if (row) openOrderModal(row.dataset.openOrder);
 });
@@ -451,7 +466,7 @@ function renderSegmentRows() {
       <td>${esc(g.fields?.name ?? '—')}</td>
       <td title="${esc(customerName(o.customers))}">${esc(customerName(o.customers))}</td>
       <td><select class="sample-field-input sled-seg-vzorcenje" data-sample-id="${esc(s.id)}">${opts}</select></td>
-      <td><select class="field-input sled-seg-box-select" data-box-select="${esc(s.id)}" ${locked ? 'disabled' : ''}>${boxSelectHtml(s)}</select></td>
+      <td><select class="sample-field-input sled-seg-box-select" data-box-select="${esc(s.id)}" ${locked ? 'disabled' : ''}>${boxSelectHtml(s)}</select></td>
     </tr>`;
   }).join('');
   updateSegSelectAllState(rows.map(r => r.sample.id));

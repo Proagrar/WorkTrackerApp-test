@@ -1252,6 +1252,18 @@
           <tfoot><tr><td>Skupaj</td><td id="ipGerkTotal"></td></tr></tfoot>
         </table>
         <p class="invoice-preview-meta" id="ipMeta"></p>
+        <!-- Alternative to requesting an invoice — for work that's done but
+             will never be invoiced (Matej, 2026-11-11). Deliberately does
+             NOT write racun_zahtevan_at (that's what the separate Minimax
+             sync script polls) — see confirmCloseWithoutInvoice() in app.js. -->
+        <label class="checkbox-field">
+          <input type="checkbox" id="ipNoInvoiceCb">
+          Zaključi brez računa
+        </label>
+        <label class="field" id="ipNoInvoiceNoteWrap" hidden>
+          <span class="field-label">Opomba <span class="required">*</span></span>
+          <textarea id="ipNoInvoiceNote" class="field-input" rows="2" placeholder="Razlog, da se nalog zaključi brez računa…"></textarea>
+        </label>
         <div class="form-actions">
           <button type="button" id="invoicePreviewCancelBtn" class="btn btn-secondary btn-flex">Prekliči</button>
           <button type="button" id="invoicePreviewConfirmBtn" class="btn btn-primary btn-flex">
