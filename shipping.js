@@ -41,7 +41,7 @@ const els = {
 // Same controlled list as app.js's SAMPLE_ACTIONS (sampling_note) — small
 // local copy, same reasoning as the modal-animation/icon helpers above
 // (not worth importing across modules for one array).
-const SAMPLE_ACTIONS = ['ne pobereš', 'združi', 'združi_1', 'združi_2', 'združi_3', 'združi_4', 'združi_5', 'združi_6', 'združi_7', 'združi_8', 'združi_9', 'združi_10'];
+const SAMPLE_ACTIONS = ['ne pobereš', 'Zavržen', 'združi', 'združi_1', 'združi_2', 'združi_3', 'združi_4', 'združi_5', 'združi_6', 'združi_7', 'združi_8', 'združi_9', 'združi_10'];
 
 let orders = [];
 let boxes = [];

@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.75';
+const APP_VERSION = 'v4.76';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -1108,7 +1108,7 @@ function toTimeInputValue(iso) {
 // cell color to show which segments group together, and only the
 // word itself survived the import, not which group — so these rows
 // genuinely don't have a group number to default to.
-const SAMPLE_ACTIONS = ['ne pobereš', 'združi', 'združi_1', 'združi_2', 'združi_3', 'združi_4', 'združi_5', 'združi_6', 'združi_7', 'združi_8', 'združi_9', 'združi_10'];
+const SAMPLE_ACTIONS = ['ne pobereš', 'Zavržen', 'združi', 'združi_1', 'združi_2', 'združi_3', 'združi_4', 'združi_5', 'združi_6', 'združi_7', 'združi_8', 'združi_9', 'združi_10'];
 const SAMPLE_DEPTHS  = [12, 20, 25, 30, 60, 90];
 
 // Lab sheets paste "združi 1" (space) — SAMPLE_ACTIONS uses "združi_1"
