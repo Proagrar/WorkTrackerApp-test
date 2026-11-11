@@ -225,7 +225,7 @@ const LAB_LINKED_COLUMNS = [
   { key: 'sample',   label: 'Vzorec', value: r => r.sample_no,
     render: r => `<td class="fert-strong" title="${esc(r.lab_sample_code ? 'Lab. koda ' + r.lab_sample_code : '')}">${esc(r.sample_no)}${noCodeBadge(r)}</td>` },
   ...LAB_VALUE_COLUMNS,
-  { key: 'plan',     label: 'Gnojilni načrt', value: r => labPlan(r) ? `${labPlan(r).status === 'potrjeno' ? 'a' : 'b'}${labPlan(r).plan_date}` : null, render: labPlanCell },
+  { key: 'plan',     label: 'Izračun gnojila', value: r => labPlan(r) ? `${labPlan(r).status === 'potrjeno' ? 'a' : 'b'}${labPlan(r).plan_date}` : null, render: labPlanCell },
 ];
 const LAB_UNLINKED_COLUMNS = [
   { key: 'sample', label: 'Vzorec', value: r => r.sample_no, render: r => `<td class="fert-strong">${esc(r.sample_no)}</td>` },
@@ -293,7 +293,7 @@ function renderLabResults() {
   els.labNotice.innerHTML = flash + (labMode === 'unlinked'
     ? `<div class="fert-notice fert-notice--warn"><strong>${unlinkedCount} ${unlinkedCount === 1 ? 'rezultat ni povezan' : 'rezultatov ni povezanih'} z vzorcem.</strong> Številka vzorca iz laboratorija se ne ujema z natanko enim vzorcem v delovnih nalogih — preveri številko ali poveži ročno.</div>`
     : (unlinkedCount ? `<p class="fert-hint">${unlinkedCount} ${unlinkedCount === 1 ? 'rezultat ni povezan' : 'rezultatov ni povezanih'} z vzorcem iz delovnega naloga — niso prikazani (Prikaz: Nepovezani).</p>` : '')
-      + (labPlans ? '' : '<div class="fert-notice fert-notice--warn">Gnojilnih načrtov ni bilo mogoče naložiti.</div>'));
+      + (labPlans ? '' : '<div class="fert-notice fert-notice--warn">Izračunov gnojila ni bilo mogoče naložiti.</div>'));
 
   const rows = labResults.filter(r => {
     if ((labMatchState(r) === 'linked') !== (labMode === 'linked')) return false;
@@ -900,7 +900,7 @@ function renderSettings() {
         <button type="button" class="btn btn-primary btn-sm" data-set-action="review" ${count ? '' : 'disabled'}>Shrani spremembe …</button>
       </div>`
     : `<div class="fert-set-bar">
-        <p class="fert-hint">Privzete vrednosti, s katerimi se začne vsak nov gnojilni načrt. Shranjeni načrti obdržijo vrednosti, s katerimi so bili izračunani.</p>
+        <p class="fert-hint">Privzete vrednosti, s katerimi se začne vsak nov izračun gnojila. Shranjeni izračuni obdržijo vrednosti, s katerimi so bili izračunani.</p>
         <span class="fert-spacer"></span>
         <button type="button" class="btn btn-primary btn-sm" data-set-action="edit">Uredi nastavitve</button>
       </div>`;
@@ -990,7 +990,7 @@ function renderSettingsReview({ changes, problems }) {
   return `<div class="fert-card fert-set-review" role="alertdialog" aria-labelledby="fertSetReviewTitle">
     <h3 class="fert-card-title" id="fertSetReviewTitle">Potrdi spremembe nastavitev (${setCountText(changes.length)})</h3>
     ${[...bySection].map(([section, texts]) => `<div><h4 class="fert-group-title">${esc(section)}</h4><ul class="fert-list">${texts.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('')}
-    <p class="fert-hint">Spremembe veljajo za nove gnojilne načrte. Shranjeni načrti in odprti osnutki obdržijo svoje vrednosti.</p>
+    <p class="fert-hint">Spremembe veljajo za nove izračune gnojila. Shranjeni izračuni in odprti osnutki obdržijo svoje vrednosti.</p>
     <div class="fert-actions">
       <button type="button" class="btn btn-secondary" data-set-action="back">Nazaj na urejanje</button>
       <span class="fert-spacer"></span>
@@ -1033,7 +1033,7 @@ els.settingsBody.addEventListener('click', async event => {
         const { error } = await q;
         if (error) throw new Error(`${op.what}: ${error.message}`);
       }
-      st.notice = { kind: 'ok', text: `Nastavitve shranjene (${setCountText(changes.length)}). Veljajo za nove gnojilne načrte.` };
+      st.notice = { kind: 'ok', text: `Nastavitve shranjene (${setCountText(changes.length)}). Veljajo za nove izračune gnojila.` };
     } catch (err) {
       // some operations may have gone through — reload so the page shows what is really stored
       st.notice = { kind: 'warn', text: `Shranjevanje ni v celoti uspelo — ${err.message}. Prikazano je trenutno stanje v bazi.` };
@@ -1677,7 +1677,7 @@ function renderWizard() {
   const group = fields.length > 1;
   const title = fields.length === 1 ? `${esc(fields[0].customer_name)} · ${esc(fieldTitle(fields[0]))}`
     : group ? `${esc(fields[0].customer_name)} · ${nPolj(fields.length)}`
-    : 'Nov gnojilni načrt';
+    : 'Nov izračun gnojila';
   const saved = fields.some(f => f.id);
   const statusBadge = plan.status === 'potrjeno'
     ? `<span class="fert-badge fert-badge--ok">Potrjeno${plan.confirmed_at ? ' ' + esc(fmtDate(plan.confirmed_at)) : ''}</span>`
