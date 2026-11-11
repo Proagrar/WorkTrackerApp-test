@@ -368,10 +368,14 @@ const FERT_EXPORT_SHEET2_HEADERS = ['Sample no', 'pH', 'KA', 'Ca', 'CaCO3', 'Org
   'Quantity fertilizer 1', 'Quantity fertilizer 2', 'Quantity fertilizer 3', 'Quantity fertilizer 4', 'Quantity fertilizer 5'];
 const FERT_EXPORT_SHEET2_WIDTHS = { 0: 15.33, 5: 10.55, 6: 15.0, 7: 8.89, 8: 7.89, 17: 19.55, 18: 18.55, 20: 30.66, 21: 26.89, 23: 26.89, 25: 26.89, 26: 18.55 };
 
+// Sparse array — only columns with a real width get an entry. An empty `{}`
+// placeholder for every other column (the original approach) reads to
+// Excel as an explicit zero/near-zero width, i.e. a hidden column, instead
+// of "use the default width" (Matej, 2026-11-12: "some columns were
+// hidden. Do not hide any columns").
 function applyColWidths(ws, widths) {
-  const max = Math.max(...Object.keys(widths).map(Number));
   const cols = [];
-  for (let i = 0; i <= max; i++) cols.push(widths[i] != null ? { wch: widths[i] } : {});
+  for (const [i, w] of Object.entries(widths)) cols[Number(i)] = { wch: w };
   ws['!cols'] = cols;
 }
 
