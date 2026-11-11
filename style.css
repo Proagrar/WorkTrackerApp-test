@@ -3379,26 +3379,26 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .fert-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-4); }
 
 /* Sledenje naročilom: subnav (Naročila/Segmenti) + the active view's search/
-   filter toolbar stay fixed while the table scrolls underneath, stacked
-   right below the already-sticky .tab-bar (Matej, 2026-11-11). Tab-bar is
-   64px tall on desktop (one row, see .tab-bar/.tab-btn above); the subnav
-   is 44px (its own padding + 36px buttons). Scoped to this panel only —
-   other fert-subnav users (Izračun gnojila) are unaffected. */
-#panelSledenje .fert-subnav {
+   filter toolbar sit on ONE row, in ONE sticky element, stacked right below
+   the already-sticky .tab-bar (Matej, 2026-11-11 — two separately-sticky
+   rows left a gap a table row could flash through mid-scroll; one row, one
+   offset avoids that entirely). Tab-bar is 64px tall on desktop (one row,
+   see .tab-bar/.tab-btn above). */
+.sled-sticky-bar {
   position: sticky;
   top: calc(var(--header-h) + env(safe-area-inset-top) + 64px);
   z-index: 94;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-2) 0;
   background: var(--background);
-  margin-bottom: var(--space-4);
 }
-#panelSledenje .fert-toolbar {
-  position: sticky;
-  top: calc(var(--header-h) + env(safe-area-inset-top) + 64px + 44px);
-  z-index: 93;
-  background: var(--background);
-  padding-top: var(--space-3);
-  padding-bottom: var(--space-3);
-}
+.sled-sticky-bar .fert-subnav { flex: 0 0 auto; }
+.sled-sticky-bar-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-4); }
+.sled-sticky-bar-tools[hidden] { display: none; }
 .fert-field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 240px; }
 .fert-input { height: 40px; }
 
@@ -3434,6 +3434,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .sled-order-boxes-wrap { margin-top: var(--space-6); }
 .evidenca-table.fert-table tbody tr[data-open-order] { cursor: pointer; }
 .sled-row-actions { display: flex; gap: var(--space-2); justify-content: flex-end; }
+.sled-bulk-select { width: auto; min-width: 160px; }
 /* Status/invoice used to be stacked into one cell (badge + stepper +
    invoice badge + icon), which is what was actually getting clipped on a
    narrow window — not a scroll-position issue, a cropped-text one (Matej,
