@@ -358,6 +358,24 @@
             <label class="fert-field">
               <input type="search" id="sledSegSearch" class="field-input fert-input" placeholder="Nalog, stranka, GERK ali segment">
             </label>
+            <!-- Same multi-select status filter as Naročila's own
+                 (sledStatusFilterBtn/Menu) — filters by the order's
+                 sample-pipeline status (Matej, 2026-11-12). -->
+            <div class="wo-status-filter-wrap">
+              <button type="button" id="sledSegStatusFilterBtn" class="btn btn-secondary btn-sm wo-status-filter-btn">Vsi statusi</button>
+              <div id="sledSegStatusFilterMenu" class="wo-status-filter-menu" hidden>
+                <div class="wo-gerk-checklist">
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-seg-status-filter-cb" value="Plan"><span class="wo-gerk-check-code">Plan</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-seg-status-filter-cb" value="V delu"><span class="wo-gerk-check-code">V delu</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-seg-status-filter-cb" value="Izvedeno" checked><span class="wo-gerk-check-code">Izvedeno</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-seg-status-filter-cb" value="Pakiranje vzorcev"><span class="wo-gerk-check-code">Pakiranje vzorcev</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-seg-status-filter-cb" value="Pripravljeni na pošiljanje"><span class="wo-gerk-check-code">Pripravljeni na pošiljanje</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-seg-status-filter-cb" value="Poslani"><span class="wo-gerk-check-code">Poslani</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-seg-status-filter-cb" value="Delno prejeta analiza" checked><span class="wo-gerk-check-code">Delno prejeta analiza</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-seg-status-filter-cb" value="Analiza prejeta" checked><span class="wo-gerk-check-code">Analiza prejeta</span></label>
+                </div>
+              </div>
+            </div>
           </div>
           <div id="sledToolbarBoxes" class="sled-sticky-bar-tools" hidden>
             <label class="fert-field">
@@ -385,7 +403,8 @@
         <div id="sledViewSegments" class="fert-view" hidden>
           <div class="reports-table-wrap">
             <table class="evidenca-table fert-table sled-table sled-seg-table">
-              <thead><tr><th><input type="checkbox" id="sledSegSelectAllCb" aria-label="Izberi vse segmente"></th><th>Segment</th><th>Del. nalog</th><th class="fert-num">Ha</th><th>GERK</th><th>Ime gerka</th><th>Stranka</th><th title="Datum vzorčenja">Vzorčeno</th><th>Vzorčenje</th><th>Pošiljka</th><th>Status</th></tr></thead>
+              <!-- rest of the header (sortable, fert-sort-btn pattern same as Analize tal) rendered by renderSegHead() in shipping.js -->
+              <thead><tr id="sledSegHead"><th><input type="checkbox" id="sledSegSelectAllCb" aria-label="Izberi vse segmente"></th></tr></thead>
               <tbody id="sledSegRows"></tbody>
             </table>
           </div>

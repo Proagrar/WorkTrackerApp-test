@@ -29,7 +29,10 @@ const els = {
   orderBoxesWrap: document.getElementById('sledOrderBoxesWrap'),
   orderBoxRows: document.getElementById('sledOrderBoxRows'),
   segSearch: document.getElementById('sledSegSearch'),
+  segHead: document.getElementById('sledSegHead'),
   segRows: document.getElementById('sledSegRows'),
+  segStatusFilterBtn: document.getElementById('sledSegStatusFilterBtn'),
+  segStatusFilterMenu: document.getElementById('sledSegStatusFilterMenu'),
   segSelectAllCb: document.getElementById('sledSegSelectAllCb'),
   segSelectionBar: document.getElementById('sledSegSelectionBar'),
   viewBoxes: document.getElementById('sledViewBoxes'),
@@ -55,6 +58,10 @@ let selectedSegIds = new Set(); // Segmenti view — sample (delovni_nalogi_vzor
 // own `checked` attribute in app.html, not hardcoded here, so the two
 // stay in sync by construction.
 let sledStatusFilterValues = new Set([...document.querySelectorAll('.sled-status-filter-cb:checked')].map(cb => cb.value));
+let sledSegStatusFilterValues = new Set([...document.querySelectorAll('.sled-seg-status-filter-cb:checked')].map(cb => cb.value));
+let segSortKey = 'segment';
+let segSortDir = 'asc';
+const textCollator = new Intl.Collator('sl', { numeric: true, sensitivity: 'base' });
 
 function esc(value) {
   return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -308,6 +315,28 @@ els.statusFilterMenu.querySelectorAll('.sled-status-filter-cb').forEach(cb => {
 });
 updateStatusFilterBtnLabel();
 
+// Same pattern, own instance, for the Segmenti view's status filter
+// (Matej, 2026-11-12).
+function updateSegStatusFilterBtnLabel() {
+  const n = sledSegStatusFilterValues.size;
+  els.segStatusFilterBtn.textContent = n === 0 ? 'Vsi statusi' : n === 1 ? [...sledSegStatusFilterValues][0] : `${n} statusi`;
+}
+els.segStatusFilterBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  els.segStatusFilterMenu.hidden = !els.segStatusFilterMenu.hidden;
+});
+els.segStatusFilterMenu.addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', () => { els.segStatusFilterMenu.hidden = true; });
+els.segStatusFilterMenu.querySelectorAll('.sled-seg-status-filter-cb').forEach(cb => {
+  cb.addEventListener('change', () => {
+    if (cb.checked) sledSegStatusFilterValues.add(cb.value);
+    else sledSegStatusFilterValues.delete(cb.value);
+    updateSegStatusFilterBtnLabel();
+    renderSegmentRows();
+  });
+});
+updateSegStatusFilterBtnLabel();
+
 // ── Naročila view ──────────────────────────────────────────────
 function filteredOrders() {
   const q = els.orderSearch.value.trim().toLowerCase();
@@ -433,15 +462,75 @@ function allSegmentRows() {
 }
 function filteredSegmentRows() {
   const q = els.segSearch.value.trim().toLowerCase();
-  const rows = allSegmentRows();
-  if (!q) return rows;
-  return rows.filter(({ sample: s, gerk: g, order: o }) => {
+  return allSegmentRows().filter(({ sample: s, gerk: g, order: o }) => {
+    if (sledSegStatusFilterValues.size && !sledSegStatusFilterValues.has(orderStatusLabel(o))) return false;
+    if (!q) return true;
     const hay = `${o.stevilka ?? ''} ${customerName(o.customers)} ${g.gerk_code ?? ''} ${g.fields?.name ?? ''} ${s.sample_no ?? ''}`.toLowerCase();
     return hay.includes(q);
   });
 }
+
+// Sortable header, same fert-sort-btn look/behavior as Analize tal's own
+// (Matej, 2026-11-12). `value` feeds the sort; `num` picks numeric vs
+// natural-order text compare, same convention as fertilization.js.
+const SEG_COLUMNS = [
+  { key: 'segment',   label: 'Segment',    value: r => r.sample.sample_no },
+  { key: 'nalog',     label: 'Del. nalog', value: r => r.order.stevilka },
+  { key: 'ha',        label: 'Ha',         value: r => r.sample.area_ha, num: true },
+  { key: 'gerk',      label: 'GERK',       value: r => r.gerk.gerk_code },
+  { key: 'ime',       label: 'Ime gerka',  value: r => r.gerk.fields?.name },
+  { key: 'stranka',   label: 'Stranka',    value: r => customerName(r.order.customers) },
+  { key: 'vzorceno',  label: 'Vzorčeno',   value: r => firstFieldStart(r.order) },
+  { key: 'vzorcenje', label: 'Vzorčenje',  value: r => r.sample.sampling_note },
+  { key: 'posiljka',  label: 'Pošiljka',   value: r => r.sample.sample_boxes?.label },
+  { key: 'status',    label: 'Status',     value: r => orderStatusLabel(r.order) },
+];
+function renderSegHead() {
+  els.segHead.innerHTML = `<th><input type="checkbox" id="sledSegSelectAllCb" aria-label="Izberi vse segmente"></th>`
+    + SEG_COLUMNS.map(col => {
+      const active = segSortKey === col.key;
+      const arrow = active ? (segSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+      const ariaSort = active ? (segSortDir === 'asc' ? 'ascending' : 'descending') : 'none';
+      return `<th class="${col.num ? 'fert-num' : ''}" aria-sort="${ariaSort}">`
+        + `<button type="button" class="fert-sort-btn${active ? ' fert-sort-btn--active' : ''}" data-sort="${col.key}">${col.label}${arrow}</button></th>`;
+    }).join('');
+  els.segSelectAllCb = document.getElementById('sledSegSelectAllCb'); // re-grab — innerHTML replaced the old node
+}
+els.segHead.addEventListener('click', e => {
+  const btn = e.target.closest('[data-sort]');
+  if (!btn) return;
+  const key = btn.dataset.sort;
+  segSortDir = (segSortKey === key && segSortDir === 'asc') ? 'desc' : 'asc';
+  segSortKey = key;
+  renderSegmentRows();
+});
+els.segHead.addEventListener('change', e => {
+  const cb = e.target.closest('#sledSegSelectAllCb');
+  if (!cb) return;
+  const visible = filteredSegmentRows().map(r => r.sample.id);
+  const anySelected = visible.some(id => selectedSegIds.has(id));
+  if (anySelected) visible.forEach(id => selectedSegIds.delete(id));
+  else visible.forEach(id => selectedSegIds.add(id));
+  renderSegmentRows();
+  updateSledSegSelectionBar();
+});
+function sortSegmentRows(rows) {
+  const col = SEG_COLUMNS.find(c => c.key === segSortKey);
+  if (!col) return rows;
+  const dir = segSortDir === 'asc' ? 1 : -1;
+  return rows
+    .map(r => ({ r, v: col.value(r) }))
+    .sort((a, b) => {
+      const aEmpty = a.v == null || a.v === '', bEmpty = b.v == null || b.v === '';
+      if (aEmpty || bEmpty) return aEmpty === bEmpty ? 0 : aEmpty ? 1 : -1;
+      return dir * (col.num ? Number(a.v) - Number(b.v) : textCollator.compare(String(a.v), String(b.v)));
+    })
+    .map(x => x.r);
+}
+
 function renderSegmentRows() {
-  const rows = filteredSegmentRows();
+  renderSegHead();
+  const rows = sortSegmentRows(filteredSegmentRows());
   if (!rows.length) {
     els.segRows.innerHTML = `<tr><td colspan="11" class="fert-empty">${orders.length ? 'Ni zadetkov.' : 'Ni naročil.'}</td></tr>`;
     updateSegSelectAllState([]);
@@ -584,14 +673,9 @@ function updateSegSelectAllState(visibleIds) {
   els.segSelectAllCb.checked = visibleIds.length > 0 && checkedCount === visibleIds.length;
   els.segSelectAllCb.indeterminate = checkedCount > 0 && checkedCount < visibleIds.length;
 }
-els.segSelectAllCb.addEventListener('click', () => {
-  const visible = filteredSegmentRows().map(r => r.sample.id);
-  const anySelected = visible.some(id => selectedSegIds.has(id));
-  if (anySelected) visible.forEach(id => selectedSegIds.delete(id));
-  else visible.forEach(id => selectedSegIds.add(id));
-  renderSegmentRows();
-  updateSledSegSelectionBar();
-});
+// (select-all click handling lives on els.segHead's delegated 'change'
+// listener near renderSegHead() — the checkbox node itself is recreated on
+// every render, so a listener bound directly to it wouldn't survive.)
 
 // Placeholder-first <select>s — the bar applies a bulk change on `change`
 // and immediately resets to the placeholder, rather than showing a value
