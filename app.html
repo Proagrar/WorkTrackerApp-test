@@ -456,6 +456,32 @@
       </div>
     </div>
 
+    <!-- ── Sledenje naročilom — Pošiljke: vsebina ene pošiljke (vsi segmenti,
+         ne glede na nalog) — modal, odpre se s klikom na vrstico pošiljke
+         (Matej, 2026-11-12). -->
+    <div id="sledBoxModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="sledBoxModalTitle">
+      <div class="modal-sheet modal-sheet-wide">
+        <div class="modal-handle" aria-hidden="true"></div>
+        <div class="modal-head">
+          <h3 id="sledBoxModalTitle" class="modal-title">Pošiljka</h3>
+          <button id="sledBoxModalClose" class="btn btn-icon" aria-label="Zapri">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="work-form">
+          <div class="reports-table-wrap">
+            <table class="evidenca-table fert-table">
+              <thead><tr><th>Segment</th><th>Delovni nalog</th><th>Stranka</th><th title="Datum vzorčenja">Vzorčeno</th></tr></thead>
+              <tbody id="sledBoxContentRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Poročila (admin only) — full-screen view, not a tab-bar
          entry (opened from the + menu, no persistent button). The tab
          bar itself hides while this is shown; ← Nazaj returns to

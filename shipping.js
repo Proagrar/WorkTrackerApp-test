@@ -39,6 +39,10 @@ const els = {
   toolbarBoxes: document.getElementById('sledToolbarBoxes'),
   boxSearch: document.getElementById('sledBoxSearch'),
   boxRows: document.getElementById('sledBoxRows'),
+  boxModal: document.getElementById('sledBoxModal'),
+  boxModalClose: document.getElementById('sledBoxModalClose'),
+  boxModalTitle: document.getElementById('sledBoxModalTitle'),
+  boxContentRows: document.getElementById('sledBoxContentRows'),
 };
 
 // Same controlled list as app.js's SAMPLE_ACTIONS (sampling_note) — small
@@ -983,7 +987,7 @@ async function createBox(label) {
 function samplesInBox(boxId) {
   return orders.flatMap(o => allSegments(o)
     .filter(s => s.box_id === boxId)
-    .map(s => ({ ...s, stevilka: o.stevilka, stranka: customerName(o.customers) })));
+    .map(s => ({ ...s, stevilka: o.stevilka, stranka: customerName(o.customers), vzorceno: firstFieldStart(o) })));
 }
 
 // Shared by both box tables — the per-order one inside #sledOrderModal and
@@ -1014,6 +1018,23 @@ async function handleBoxRowClick(e) {
   }
   const printBtn = e.target.closest('[data-print-box]');
   if (printBtn) printBox(boxes.find(b => b.id === printBtn.dataset.printBox));
+  const deleteBtn = e.target.closest('[data-delete-box]');
+  if (deleteBtn) {
+    const box = boxes.find(b => b.id === deleteBtn.dataset.deleteBox);
+    if (!box) return;
+    const n = samplesInBox(box.id).length;
+    if (!confirm(`Izbrisati pošiljko "${box.label}"?${n ? ` ${n} vzorcev v njej bo ostalo brez pošiljke (ne izbrišejo se).` : ''}`)) return;
+    const { error } = await supabase.from('sample_boxes').delete().eq('id', box.id);
+    if (error) { alert('Napaka pri brisanju: ' + error.message); return; }
+    boxes = boxes.filter(b => b.id !== box.id);
+    for (const o of orders) for (const g of (o.delovni_nalogi_gerki || [])) for (const s of (g.delovni_nalogi_vzorci || [])) {
+      if (s.box_id === box.id) { s.box_id = null; s.sample_boxes = null; }
+    }
+    renderOrders();
+    renderSegmentRows();
+    renderBoxesList();
+    if (currentOrderId) renderOrderModal(orders.find(o => o.id === currentOrderId));
+  }
 }
 els.orderBoxRows.addEventListener('click', handleBoxRowClick);
 
@@ -1038,7 +1059,8 @@ function renderBoxesList() {
       : `<span class="fert-badge fert-badge--warn">Odprta</span>`;
     const actions = [`<button type="button" class="btn btn-secondary btn-sm" data-print-box="${esc(box.id)}">Natisni</button>`];
     if (box.status === 'Odprta') actions.push(`<button type="button" class="btn btn-primary btn-sm" data-send-box="${esc(box.id)}">Zaključi in pošlji</button>`);
-    return `<tr>
+    actions.push(`<button type="button" class="btn btn-secondary btn-sm fert-danger-text" data-delete-box="${esc(box.id)}">Briši</button>`);
+    return `<tr data-open-box="${esc(box.id)}">
       <td class="fert-strong">${esc(box.label)}</td>
       <td>${statusBadge}</td>
       <td class="fert-num">${n}</td>
@@ -1048,7 +1070,31 @@ function renderBoxesList() {
   }).join('');
 }
 els.boxSearch.addEventListener('input', renderBoxesList);
-els.boxRows.addEventListener('click', handleBoxRowClick);
+els.boxRows.addEventListener('click', e => {
+  if (e.target.closest('button')) return handleBoxRowClick(e);
+  const row = e.target.closest('tr[data-open-box]');
+  if (row) openBoxModal(row.dataset.openBox);
+});
+
+function closeBoxModal() { hideModal(els.boxModal); }
+function openBoxModal(boxId) {
+  const box = boxes.find(b => b.id === boxId);
+  if (!box) return;
+  els.boxModalTitle.textContent = `Pošiljka ${box.label ?? ''}`;
+  const items = samplesInBox(boxId).sort((a, b) =>
+    (a.stevilka || '').localeCompare(b.stevilka || '', 'sl', { numeric: true }) || (a.gerk_code || '').localeCompare(b.gerk_code || '', 'sl'));
+  els.boxContentRows.innerHTML = items.length
+    ? items.map(it => `<tr>
+        <td class="fert-strong">${esc(it.sample_no)}</td>
+        <td>${esc(it.stevilka)}</td>
+        <td>${esc(it.stranka)}</td>
+        <td>${it.vzorceno ? esc(fmtDate(it.vzorceno)) : '—'}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="4" class="fert-empty">Pošiljka je prazna.</td></tr>`;
+  showModal(els.boxModal);
+}
+els.boxModalClose.addEventListener('click', closeBoxModal);
+els.boxModal.addEventListener('click', e => { if (e.target === els.boxModal) closeBoxModal(); });
 
 // One box = printBoxes([box]); bulk print (selection action bar) reuses
 // the same page markup, one per box, each on its own printed page — the
