@@ -32,6 +32,7 @@ const els = {
   planSearch: document.getElementById('fertPlanSearch'),
   planStatus: document.getElementById('fertPlanStatus'),
   planRows: document.getElementById('fertPlanRows'),
+  planSelectionBar: document.getElementById('fertPlanSelectionBar'),
   importOpenBtn: document.getElementById('fertImportOpenBtn'),
   importBackBtn: document.getElementById('fertImportBackBtn'),
   importFiles: document.getElementById('fertImportFiles'),
@@ -44,7 +45,6 @@ const els = {
   labNotice: document.getElementById('fertLabNotice'),
   labHead: document.getElementById('fertLabHead'),
   labRows: document.getElementById('fertLabRows'),
-  labSelectionBar: document.getElementById('fertLabSelectionBar'),
   settingsBody: document.getElementById('fertSettingsBody'),
 };
 
@@ -67,7 +67,7 @@ let labPlans = new Map(); // delovni_nalog_gerk_id → newest live plan; null = 
 let settingsLoaded = false;
 let pendingImport = null; // { files: [...parsed] } between preview and confirm
 let labFlash = '';        // one-shot success message shown above the list after an import
-let selectedLabIds = new Set(); // Analize tal (linked mode only) — rows picked for the Izvoz action
+let selectedPlanIds = new Set(); // Načrti — plans picked for the Izvoz action
 
 function esc(value) {
   return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -262,8 +262,7 @@ function sortLabRows(rows) {
 }
 
 function renderLabHead() {
-  const selectTh = labMode === 'linked' ? `<th><input type="checkbox" id="fertLabSelectAllCb" aria-label="Izberi vse"></th>` : '';
-  els.labHead.innerHTML = selectTh + labColumns().map(col => {
+  els.labHead.innerHTML = labColumns().map(col => {
     const active = labSortKey === col.key;
     const arrow = active ? (labSortDir === 'asc' ? ' ▲' : ' ▼') : '';
     const ariaSort = active ? (labSortDir === 'asc' ? 'ascending' : 'descending') : 'none';
@@ -311,24 +310,20 @@ function renderLabResults() {
   });
 
   const cols = labColumns();
-  const showSelect = labMode === 'linked';
   if (!rows.length) {
     const empty = !labResults.length ? 'Še ni uvoženih rezultatov — klikni ⬆ Uvoz Excel.'
       : query ? 'Ni zadetkov.'
       : labMode === 'linked' ? 'Noben rezultat še ni povezan z vzorcem iz delovnega naloga.' : 'Vsi rezultati so povezani z vzorci.';
-    els.labRows.innerHTML = `<tr><td colspan="${cols.length + (showSelect ? 1 : 0)}" class="fert-empty">${empty}</td></tr>`;
-    if (showSelect) updateLabSelectAllState([]);
+    els.labRows.innerHTML = `<tr><td colspan="${cols.length}" class="fert-empty">${empty}</td></tr>`;
     return;
   }
-  const sorted = sortLabRows(rows);
-  els.labRows.innerHTML = sorted
-    .map(r => `<tr data-row-id="${esc(r.id)}">${showSelect ? `<td><input type="checkbox" class="fert-lab-select-cb" data-id="${esc(r.id)}" aria-label="Izberi" ${selectedLabIds.has(r.id) ? 'checked' : ''}></td>` : ''}${cols.map(c => c.render(r)).join('')}</tr>`)
+  els.labRows.innerHTML = sortLabRows(rows)
+    .map(r => `<tr data-row-id="${esc(r.id)}">${cols.map(c => c.render(r)).join('')}</tr>`)
     .join('');
-  if (showSelect) updateLabSelectAllState(sorted.map(r => r.id));
 }
 
 els.labSearch.addEventListener('input', renderLabResults);
-els.labMode.addEventListener('change', () => { labMode = els.labMode.value; clearLabSelection(); renderLabResults(); });
+els.labMode.addEventListener('change', () => { labMode = els.labMode.value; renderLabResults(); });
 
 // Manual link: list every sample carrying this number and let the admin pick.
 els.labRows.addEventListener('click', async event => {
@@ -349,75 +344,6 @@ els.labRows.addEventListener('click', async event => {
       gerk_code: g.gerk_code, field_id: g.field_id, field_name: g.fields?.name ?? null });
   }
 });
-
-// ── Selection + Excel export (Matej, 2026-11-11) ──────────────────
-// "ko je enkrat gnojilni načrt pripravljen, moramo imeti možnost selekcije
-// -> action bar in izvoz" — select one or more Analize tal rows that
-// already have a Izračun gnojila (Osnutek or Potrjeno, either is fine —
-// "pripravljen" just means it exists) and export every fert_plan behind
-// them as an Excel file matching the external "Template Drinovec/Rola"
-// layout exactly in structure/labels (Matej explicitly OK'd skipping the
-// red cell-highlight styling — the free SheetJS build can't write cell
-// styles — and OK'd leaving template columns with no real source blank).
-function labSelectableIds() {
-  return [...els.labRows.querySelectorAll('.fert-lab-select-cb')].map(cb => cb.dataset.id);
-}
-function updateLabSelectAllState(visibleIds) {
-  const cb = document.getElementById('fertLabSelectAllCb');
-  if (!cb) return;
-  const checkedCount = visibleIds.filter(id => selectedLabIds.has(id)).length;
-  cb.checked = visibleIds.length > 0 && checkedCount === visibleIds.length;
-  cb.indeterminate = checkedCount > 0 && checkedCount < visibleIds.length;
-}
-els.labHead.addEventListener('change', e => {
-  const cb = e.target.closest('#fertLabSelectAllCb');
-  if (!cb) return;
-  const visible = labSelectableIds();
-  const anySelected = visible.some(id => selectedLabIds.has(id));
-  if (anySelected) visible.forEach(id => selectedLabIds.delete(id));
-  else visible.forEach(id => selectedLabIds.add(id));
-  renderLabResults();
-  updateLabSelectionBar();
-});
-els.labRows.addEventListener('change', e => {
-  const cb = e.target.closest('.fert-lab-select-cb');
-  if (!cb) return;
-  if (cb.checked) selectedLabIds.add(cb.dataset.id);
-  else selectedLabIds.delete(cb.dataset.id);
-  updateLabSelectionBar();
-  updateLabSelectAllState(labSelectableIds());
-});
-
-function buildLabSelectionBar() {
-  els.labSelectionBar.setAttribute('role', 'toolbar');
-  els.labSelectionBar.setAttribute('aria-label', 'Skupinska dejanja za izbrane rezultate');
-  els.labSelectionBar.innerHTML = `
-    <span class="wlg-sel-summary"></span>
-    <button type="button" class="wlg-sel-close" data-action="fert-lab-sel-close" aria-label="Prekliči izbiro" title="Prekliči izbiro">${SEL_ICON_CLOSE}</button>
-    <span class="wlg-sel-sep" aria-hidden="true"></span>
-    <div class="wlg-sel-actions">
-      <button type="button" class="wlg-sel-action" data-action-id="fert-lab-sel-export" aria-label="Izvozi izbrane izračune gnojila v Excel" title="Izvozi izbrane izračune gnojila v Excel">
-        ${SEL_ICON_DOWNLOAD}<span class="wlg-sel-action-label">Izvozi</span>
-      </button>
-    </div>`;
-  els.labSelectionBar.querySelector('[data-action="fert-lab-sel-close"]').addEventListener('click', clearLabSelection);
-  els.labSelectionBar.querySelector('[data-action-id="fert-lab-sel-export"]').addEventListener('click', exportSelectedFertPlans);
-}
-buildLabSelectionBar();
-
-function updateLabSelectionBar() {
-  const n = selectedLabIds.size;
-  els.labSelectionBar.classList.toggle('wlg-selection-bar--visible', n > 0);
-  if (n === 0) return;
-  const summaryEl = els.labSelectionBar.querySelector('.wlg-sel-summary');
-  if (summaryEl) summaryEl.textContent = `${n} ${n === 1 ? 'izbran' : 'izbranih'}`;
-}
-function clearLabSelection() {
-  selectedLabIds = new Set();
-  els.labRows.querySelectorAll('.fert-lab-select-cb').forEach(cb => { cb.checked = false; });
-  updateLabSelectionBar();
-  updateLabSelectAllState(labSelectableIds());
-}
 
 // sl-SI comma-decimal text — matches the template's own mix (half its lab
 // columns are numeric cells, half are text with a comma, see the subagent
@@ -450,19 +376,8 @@ function applyColWidths(ws, widths) {
 }
 
 async function exportSelectedFertPlans() {
-  // Resolve selected lab rows -> their GERK line -> newest plan. Rows
-  // without one yet are silently skipped (counted, reported at the end) —
-  // "ko je enkrat ... pripravljen" means only prepared ones are exportable.
-  const planIds = new Set();
-  let skipped = 0;
-  for (const id of selectedLabIds) {
-    const row = labResults.find(r => r.id === id);
-    const plan = row ? labPlan(row) : null;
-    if (plan) planIds.add(plan.id); else skipped++;
-  }
-  if (!planIds.size) { alert('Noben izbran rezultat (še) nima izračuna gnojila.'); return; }
-
-  const exportBtn = els.labSelectionBar.querySelector('[data-action-id="fert-lab-sel-export"]');
+  if (!selectedPlanIds.size) return;
+  const exportBtn = els.planSelectionBar.querySelector('[data-action-id="fert-plan-sel-export"]');
   if (exportBtn) exportBtn.disabled = true;
   try {
     const { data: plans, error } = await supabase
@@ -472,9 +387,9 @@ async function exportSelectedFertPlans() {
         p_fertilizer:fert_fertilizer!fert_plan_p_fertilizer_id_fkey(name),
         k_fertilizer:fert_fertilizer!fert_plan_k_fertilizer_id_fkey(name),
         lime_fertilizer:fert_fertilizer!fert_plan_lime_fertilizer_id_fkey(name),
-        fert_plan_segment(id, sample_no, area_ha, ph_kcl, p2o5, k2o, need_p2o5_kg_ha, need_k2o_kg_ha, p_fert_real_kg, k_fert_real_kg, lime_real_kg,
+        fert_plan_segment(id, sample_no, area_ha, ph_kcl, p2o5, k2o, need_p2o5_kg_ha, need_k2o_kg_ha, p_fert_real_kg, k_fert_real_kg, lime_real_kg, included,
           lab_soil_result(ka, caco3_pct, humus_pct, no3_no2_n, mg, na, zn, cu, mn, salts_pct, so4_s, fe, analysis_date))`)
-      .in('id', [...planIds])
+      .in('id', [...selectedPlanIds])
       .order('sort_order', { foreignTable: 'fert_plan_segment' });
     if (error) throw error;
 
@@ -483,7 +398,7 @@ async function exportSelectedFertPlans() {
     for (const p of plans ?? []) {
       const customer = p.customers;
       const custName = customerName(customer);
-      for (const s of (p.fert_plan_segment ?? [])) {
+      for (const s of (p.fert_plan_segment ?? []).filter(s => s.included)) {
         sheet1.push([
           '', '', customer?.vat_number ?? '', '', customer?.sales_person ?? '', '', '',
           customer?.contact_name || custName, '', customer?.company_name ?? '', '',
@@ -514,8 +429,6 @@ async function exportSelectedFertPlans() {
     applyColWidths(ws2, FERT_EXPORT_SHEET2_WIDTHS);
     XLSX.utils.book_append_sheet(wb, ws2, 'Sheet2');
     XLSX.writeFile(wb, `izracun_gnojila_${new Date().toISOString().slice(0, 10)}.xlsx`);
-
-    if (skipped) alert(`${skipped} ${skipped === 1 ? 'izbran rezultat' : 'izbranih rezultatov'} ni imelo izračuna gnojila in ${skipped === 1 ? 'je bil' : 'so bili'} izpuščen${skipped === 1 ? '' : 'i'} iz izvoza.`);
   } catch (err) {
     alert('Napaka pri izvozu: ' + (err.message || err));
   } finally {
@@ -1425,7 +1338,7 @@ const fieldTitle = f => `${f.gerk_code ?? '—'}${f.field_name && f.field_name !
 
 // ── plan list ────────────────────────────────────────────────
 async function loadPlans() {
-  els.planRows.innerHTML = '<tr><td colspan="8" class="fert-empty">Nalaganje …</td></tr>';
+  els.planRows.innerHTML = '<tr><td colspan="9" class="fert-empty">Nalaganje …</td></tr>';
   const { data, error } = await supabase
     .from('fert_plan')
     .select('id, plan_date, status, gerk_code, field_name, crop_name, created_at, batch_id, customers(naziv, company_name), fert_plan_segment(area_ha, included)')
@@ -1433,9 +1346,10 @@ async function loadPlans() {
     .order('plan_date', { ascending: false })
     .order('created_at', { ascending: false });
   if (error) {
-    els.planRows.innerHTML = `<tr><td colspan="8" class="fert-empty fert-error">Napaka pri nalaganju: ${esc(error.message)}</td></tr>`;
+    els.planRows.innerHTML = `<tr><td colspan="9" class="fert-empty fert-error">Napaka pri nalaganju: ${esc(error.message)}</td></tr>`;
     return;
   }
+  for (const id of selectedPlanIds) if (!(data ?? []).some(p => p.id === id)) selectedPlanIds.delete(id);
   plans = data ?? [];
   renderPlans();
 }
@@ -1446,7 +1360,8 @@ function renderPlans() {
   const rows = plans.filter(p => (!status || p.status === status)
     && (!q || [customerName(p.customers), p.gerk_code, p.field_name, p.crop_name].join(' ').toLowerCase().includes(q)));
   if (!rows.length) {
-    els.planRows.innerHTML = `<tr><td colspan="8" class="fert-empty">${plans.length ? 'Ni zadetkov.' : 'Še ni načrtov — klikni + Nov načrt.'}</td></tr>`;
+    els.planRows.innerHTML = `<tr><td colspan="9" class="fert-empty">${plans.length ? 'Ni zadetkov.' : 'Še ni načrtov — klikni + Nov načrt.'}</td></tr>`;
+    updatePlanSelectAllState([]);
     return;
   }
   const groupSize = new Map();
@@ -1460,6 +1375,7 @@ function renderPlans() {
       ? '<span class="fert-badge fert-badge--ok">Potrjeno</span>'
       : '<span class="fert-badge fert-badge--warn">Osnutek</span>';
     return `<tr>
+      <td><input type="checkbox" class="fert-plan-select-cb" data-id="${esc(p.id)}" aria-label="Izberi načrt" ${selectedPlanIds.has(p.id) ? 'checked' : ''}></td>
       <td>${esc(fmtDate(p.plan_date))}</td>
       <td class="fert-strong">${esc(customerName(p.customers))}</td>
       <td>${esc(p.gerk_code ?? '—')}${p.field_name && p.field_name !== p.gerk_code ? ` · ${esc(p.field_name)}` : ''}${groupBadge}</td>
@@ -1474,11 +1390,13 @@ function renderPlans() {
       </td>
     </tr>`;
   }).join('');
+  updatePlanSelectAllState(rows.map(p => p.id));
 }
 
 els.planSearch.addEventListener('input', renderPlans);
 els.planStatus.addEventListener('change', renderPlans);
 els.planRows.addEventListener('click', async event => {
+  if (event.target.closest('.fert-plan-select-cb')) return;
   const open = event.target.closest('[data-plan-open]');
   const copy = event.target.closest('[data-plan-copy]');
   const del = event.target.closest('[data-plan-delete]');
@@ -1492,6 +1410,71 @@ els.planRows.addEventListener('click', async event => {
     loadPlans();
   }
 });
+els.planRows.addEventListener('change', event => {
+  const cb = event.target.closest('.fert-plan-select-cb');
+  if (!cb) return;
+  if (cb.checked) selectedPlanIds.add(cb.dataset.id);
+  else selectedPlanIds.delete(cb.dataset.id);
+  updatePlanSelectionBar();
+  updatePlanSelectAllState(planSelectableIds());
+});
+
+// ── Selection + Excel export (Matej, 2026-11-11: "izvoz se je nanašal na
+// narejene načrte, iz teh je treba zgraditi excel") — select one or more
+// already-made plans (any status — Osnutek or Potrjeno) and export them as
+// an Excel file matching the external "Template Drinovec/Rola" layout
+// exactly in structure/labels (Matej explicitly OK'd skipping the red
+// cell-highlight styling — the free SheetJS build can't write cell styles —
+// and OK'd leaving template columns with no real source blank).
+function planSelectableIds() {
+  return [...els.planRows.querySelectorAll('.fert-plan-select-cb')].map(cb => cb.dataset.id);
+}
+function updatePlanSelectAllState(visibleIds) {
+  const cb = document.getElementById('fertPlanSelectAllCb');
+  if (!cb) return;
+  const checkedCount = visibleIds.filter(id => selectedPlanIds.has(id)).length;
+  cb.checked = visibleIds.length > 0 && checkedCount === visibleIds.length;
+  cb.indeterminate = checkedCount > 0 && checkedCount < visibleIds.length;
+}
+document.getElementById('fertPlanSelectAllCb')?.addEventListener('change', e => {
+  const visible = planSelectableIds();
+  const anySelected = visible.some(id => selectedPlanIds.has(id));
+  if (anySelected) visible.forEach(id => selectedPlanIds.delete(id));
+  else visible.forEach(id => selectedPlanIds.add(id));
+  renderPlans();
+  updatePlanSelectionBar();
+});
+
+function buildPlanSelectionBar() {
+  els.planSelectionBar.setAttribute('role', 'toolbar');
+  els.planSelectionBar.setAttribute('aria-label', 'Skupinska dejanja za izbrane načrte');
+  els.planSelectionBar.innerHTML = `
+    <span class="wlg-sel-summary"></span>
+    <button type="button" class="wlg-sel-close" data-action="fert-plan-sel-close" aria-label="Prekliči izbiro" title="Prekliči izbiro">${SEL_ICON_CLOSE}</button>
+    <span class="wlg-sel-sep" aria-hidden="true"></span>
+    <div class="wlg-sel-actions">
+      <button type="button" class="wlg-sel-action" data-action-id="fert-plan-sel-export" aria-label="Izvozi izbrane načrte v Excel" title="Izvozi izbrane načrte v Excel">
+        ${SEL_ICON_DOWNLOAD}<span class="wlg-sel-action-label">Izvozi</span>
+      </button>
+    </div>`;
+  els.planSelectionBar.querySelector('[data-action="fert-plan-sel-close"]').addEventListener('click', clearPlanSelection);
+  els.planSelectionBar.querySelector('[data-action-id="fert-plan-sel-export"]').addEventListener('click', exportSelectedFertPlans);
+}
+buildPlanSelectionBar();
+
+function updatePlanSelectionBar() {
+  const n = selectedPlanIds.size;
+  els.planSelectionBar.classList.toggle('wlg-selection-bar--visible', n > 0);
+  if (n === 0) return;
+  const summaryEl = els.planSelectionBar.querySelector('.wlg-sel-summary');
+  if (summaryEl) summaryEl.textContent = `${n} ${n === 1 ? 'izbran' : 'izbranih'}`;
+}
+function clearPlanSelection() {
+  selectedPlanIds = new Set();
+  els.planRows.querySelectorAll('.fert-plan-select-cb').forEach(cb => { cb.checked = false; });
+  updatePlanSelectionBar();
+  updatePlanSelectAllState(planSelectableIds());
+}
 
 // `preset` = customer + GERK line chosen up front (from Analize tal)
 async function startNewPlan(preset) {

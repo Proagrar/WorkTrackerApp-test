@@ -223,8 +223,8 @@
       <section class="logs-section wo-section">
         <div class="section-header fert-head">
           <div class="fert-subnav" role="tablist" aria-label="Izračun gnojila">
-            <button type="button" class="fert-subnav-btn fert-subnav-btn--active" role="tab" aria-selected="true" data-fert-view="plans">Načrti</button>
             <button type="button" class="fert-subnav-btn" role="tab" aria-selected="false" data-fert-view="lab">Analize tal</button>
+            <button type="button" class="fert-subnav-btn fert-subnav-btn--active" role="tab" aria-selected="true" data-fert-view="plans">Načrti</button>
             <button type="button" class="fert-subnav-btn" role="tab" aria-selected="false" data-fert-view="settings">Nastavitve</button>
           </div>
           <div class="fert-head-actions">
@@ -249,7 +249,7 @@
           </div>
           <div class="reports-table-wrap">
             <table class="evidenca-table fert-table">
-              <thead><tr><th>Datum načrta</th><th>Stranka</th><th>GERK / polje</th><th>Kultura</th><th class="fert-num">ha</th><th class="fert-num">Segmenti</th><th>Status</th><th></th></tr></thead>
+              <thead><tr><th><input type="checkbox" id="fertPlanSelectAllCb" aria-label="Izberi vse"></th><th>Datum načrta</th><th>Stranka</th><th>GERK / polje</th><th>Kultura</th><th class="fert-num">ha</th><th class="fert-num">Segmenti</th><th>Status</th><th></th></tr></thead>
               <tbody id="fertPlanRows"></tbody>
             </table>
           </div>
@@ -830,12 +830,12 @@
        built by buildSledSegSelectionBar() in shipping.js (Matej, 2026-11-11). -->
   <div id="sledSegSelectionBar" class="wlg-selection-bar"></div>
 
-  <!-- Izračun gnojila — Analize tal: same floating bar, one action (Izvozi)
-       — exports every fert_plan tied to the selected rows' GERK/field as an
-       Excel file matching the external "Template Drinovec/Rola" layout
-       (Matej, 2026-11-11). Content built by buildLabSelectionBar() in
-       fertilization.js. -->
-  <div id="fertLabSelectionBar" class="wlg-selection-bar"></div>
+  <!-- Izračun gnojila — Načrti: same floating bar, one action (Izvozi) —
+       exports the selected (already-made) fert_plan rows as an Excel file
+       matching the external "Template Drinovec/Rola" layout (Matej,
+       2026-11-11: "izvoz se je nanašal na narejene načrte"). Content built
+       by buildPlanSelectionBar() in fertilization.js. -->
+  <div id="fertPlanSelectionBar" class="wlg-selection-bar"></div>
 
   <!-- ── Delete Confirm ──────────────────────────────────────── -->
   <!-- ── Work Order Add / Edit Modal ─────────────────────────── -->
