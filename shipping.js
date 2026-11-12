@@ -274,6 +274,16 @@ function invoiceNumberLabel(order) {
   const inv = order.minimax_racun_id ? mmInvoiceById[order.minimax_racun_id] : null;
   return (inv?.year && inv?.invoice_number) ? `${inv.year}-${inv.invoice_number}` : null;
 }
+// Minimax's own invoice-view page — confirmed live 2026-11-12 against two
+// real invoices (Matej pasted both URLs): iracid is exactly minimax_id/
+// minimax_racun_id, pgat=pgatv is just a fixed view-mode flag. Works off
+// minimax_racun_id alone, so the link shows even before the mirror has
+// synced the row invoiceNumberLabel needs.
+function minimaxInvoiceUrl(order) {
+  return order.minimax_racun_id
+    ? `https://moj.minimax.si/SI/VA/WebUI/IzdanRacun/IzdanRacunView.aspx?iracid=${order.minimax_racun_id}&pgat=pgatv`
+    : null;
+}
 const INVOICE_BADGE = {
   'Račun ni izdan': 'fert-badge--neutral',
   'Osnutek računa': 'fert-badge--warn',
@@ -387,6 +397,7 @@ function renderOrders() {
     const invLabel = invoiceStatusLabel(o);
     const invCls = INVOICE_BADGE[invLabel] ?? 'fert-badge--neutral';
     const invNum = invoiceNumberLabel(o);
+    const invUrl = minimaxInvoiceUrl(o);
     return `<tr data-open-order="${esc(o.id)}">
       <td><input type="checkbox" class="sled-select-cb" data-id="${esc(o.id)}" aria-label="Izberi nalog" ${selectedOrderIds.has(o.id) ? 'checked' : ''}></td>
       <td>${esc(o.stevilka)}</td>
@@ -400,7 +411,7 @@ function renderOrders() {
       <td><div class="sled-status-cell">
         ${statusStepperSvg(label)}<span class="fert-badge ${cls}">${esc(label)}</span>
       </div></td>
-      <td><span class="fert-badge ${invCls}">${esc(invLabel)}</span>${invNum ? ` <span class="sled-invoice-num">${esc(invNum)}</span>` : ''}</td>
+      <td><span class="fert-badge ${invCls}">${esc(invLabel)}</span>${invNum ? ` <span class="sled-invoice-num">${esc(invNum)}${invUrl ? ` <a href="${esc(invUrl)}" target="_blank" rel="noopener" class="sled-invoice-link" title="Odpri račun v Minimaxu" aria-label="Odpri račun v Minimaxu">🔗</a>` : ''}</span>` : ''}</td>
       <td class="sled-invoice-icon-col">${invoiceActionIcon(o)}</td>
     </tr>`;
   }).join('');
@@ -411,7 +422,7 @@ els.orderSearch.addEventListener('input', renderOrders);
 // Row click opens the order (checkbox + invoice-icon clicks are handled
 // separately and must not also trigger this).
 els.orderRows.addEventListener('click', e => {
-  if (e.target.closest('.sled-select-cb')) return;
+  if (e.target.closest('.sled-select-cb, .sled-invoice-link')) return;
   const requestBtn = e.target.closest('[data-action="sled-invoice-request"]');
   if (requestBtn) {
     const o = orders.find(x => x.id === requestBtn.dataset.id);
