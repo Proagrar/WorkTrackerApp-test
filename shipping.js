@@ -264,6 +264,16 @@ function invoiceStatusLabel(order) {
   if (order.minimax_racun_status === 'osnutek') return 'Osnutek računa';
   return 'Račun ni izdan';
 }
+// Which actual Minimax invoice this order's draft/invoice became (Matej,
+// 2026-11-12: "kateri račun je bil narejen iz naloga") — same "YYYY-NNN"
+// label Minimax itself uses (and the same convention the external
+// Nalogi_povezovanje reconciliation report already uses). Needs the mirror
+// row (mmInvoiceById); a brand-new draft the mirror hasn't synced yet has
+// no number to show.
+function invoiceNumberLabel(order) {
+  const inv = order.minimax_racun_id ? mmInvoiceById[order.minimax_racun_id] : null;
+  return (inv?.year && inv?.invoice_number) ? `${inv.year}-${inv.invoice_number}` : null;
+}
 const INVOICE_BADGE = {
   'Račun ni izdan': 'fert-badge--neutral',
   'Osnutek računa': 'fert-badge--warn',
@@ -376,6 +386,7 @@ function renderOrders() {
     const cls = PIPELINE_BADGE[label] ?? 'fert-badge--neutral';
     const invLabel = invoiceStatusLabel(o);
     const invCls = INVOICE_BADGE[invLabel] ?? 'fert-badge--neutral';
+    const invNum = invoiceNumberLabel(o);
     return `<tr data-open-order="${esc(o.id)}">
       <td><input type="checkbox" class="sled-select-cb" data-id="${esc(o.id)}" aria-label="Izberi nalog" ${selectedOrderIds.has(o.id) ? 'checked' : ''}></td>
       <td>${esc(o.stevilka)}</td>
@@ -389,7 +400,7 @@ function renderOrders() {
       <td><div class="sled-status-cell">
         ${statusStepperSvg(label)}<span class="fert-badge ${cls}">${esc(label)}</span>
       </div></td>
-      <td><span class="fert-badge ${invCls}">${esc(invLabel)}</span></td>
+      <td><span class="fert-badge ${invCls}">${esc(invLabel)}</span>${invNum ? ` <span class="sled-invoice-num">${esc(invNum)}</span>` : ''}</td>
       <td class="sled-invoice-icon-col">${invoiceActionIcon(o)}</td>
     </tr>`;
   }).join('');
