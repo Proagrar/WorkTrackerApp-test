@@ -472,7 +472,7 @@ function renderOrders() {
       <td><div class="sled-status-cell">
         ${statusStepperSvg(label)}<span class="fert-badge ${cls}">${esc(label)}</span>
       </div></td>
-      <td><span class="fert-badge ${invCls}">${esc(invLabel)}</span>${invNum ? ` <span class="sled-invoice-num">${invUrl
+      <td><span class="fert-badge ${invCls}"${invLabel === 'Zaključeno brez računa' && o.opomba_zakljucek ? ` title="${esc(o.opomba_zakljucek)}"` : ''}>${esc(invLabel)}</span>${invNum ? ` <span class="sled-invoice-num">${invUrl
         ? `<a href="${esc(invUrl)}" target="_blank" rel="noopener" class="sled-invoice-link" title="Odpri račun v Minimaxu">${esc(invNum)} 🔗</a>`
         : esc(invNum)}</span>` : ''}</td>
       <td class="sled-invoice-icon-col">${invoiceActionIcon(o)}</td>
