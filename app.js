@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.92';
+const APP_VERSION = 'v4.93';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -136,8 +136,10 @@ const ipMeta = document.getElementById('ipMeta');
 const invoicePreviewCancelBtn = document.getElementById('invoicePreviewCancelBtn');
 const invoicePreviewConfirmBtn = document.getElementById('invoicePreviewConfirmBtn');
 const ipNoInvoiceCb = document.getElementById('ipNoInvoiceCb');
-const ipNoInvoiceNoteWrap = document.getElementById('ipNoInvoiceNoteWrap');
-const ipNoInvoiceNote = document.getElementById('ipNoInvoiceNote');
+const ipNoInvoiceReasonWrap = document.getElementById('ipNoInvoiceReasonWrap');
+const ipNoInvoiceReason = document.getElementById('ipNoInvoiceReason');
+const ipNoInvoiceOtherWrap = document.getElementById('ipNoInvoiceOtherWrap');
+const ipNoInvoiceOtherNote = document.getElementById('ipNoInvoiceOtherNote');
 const roadTypeSel = document.getElementById('roadType');
 const roadHourSel = document.getElementById('roadHour');
 const roadMinSel  = document.getElementById('roadMin');
@@ -1696,8 +1698,10 @@ function openInvoicePreviewModal(wo) {
   // Reset the "Zaključi brez računa" sub-form every time — a stale checked
   // state/note from a previous order must never carry over.
   ipNoInvoiceCb.checked = false;
-  ipNoInvoiceNote.value = '';
-  ipNoInvoiceNoteWrap.hidden = true;
+  ipNoInvoiceReason.value = '';
+  ipNoInvoiceReasonWrap.hidden = true;
+  ipNoInvoiceOtherNote.value = '';
+  ipNoInvoiceOtherWrap.hidden = true;
   updateInvoicePreviewConfirmLabel();
 
   showModalAnimated(invoicePreviewModal);
@@ -1730,16 +1734,22 @@ function updateInvoicePreviewConfirmLabel() {
     ipNoInvoiceCb.checked ? 'Zaključi brez računa' : 'Potrdi in zahtevaj račun';
 }
 ipNoInvoiceCb.addEventListener('change', () => {
-  ipNoInvoiceNoteWrap.hidden = !ipNoInvoiceCb.checked;
+  ipNoInvoiceReasonWrap.hidden = !ipNoInvoiceCb.checked;
+  if (!ipNoInvoiceCb.checked) ipNoInvoiceOtherWrap.hidden = true;
   updateInvoicePreviewConfirmLabel();
+});
+ipNoInvoiceReason.addEventListener('change', () => {
+  ipNoInvoiceOtherWrap.hidden = ipNoInvoiceReason.value !== 'Drugo';
 });
 
 invoicePreviewConfirmBtn.addEventListener('click', async () => {
   const wo = invoicePreviewWorkOrder;
   if (!wo) return;
   if (ipNoInvoiceCb.checked) {
-    const opomba = ipNoInvoiceNote.value.trim();
-    if (!opomba) { ipNoInvoiceNote.focus(); return; }
+    const reason = ipNoInvoiceReason.value;
+    if (!reason) { ipNoInvoiceReason.focus(); return; }
+    const opomba = reason === 'Drugo' ? ipNoInvoiceOtherNote.value.trim() : reason;
+    if (reason === 'Drugo' && !opomba) { ipNoInvoiceOtherNote.focus(); return; }
     invoicePreviewConfirmBtn.disabled = true;
     invoicePreviewConfirmBtn.querySelector('.btn-label').hidden = true;
     invoicePreviewConfirmBtn.querySelector('.btn-spinner').hidden = false;

@@ -1315,9 +1315,19 @@
           <input type="checkbox" id="ipNoInvoiceCb">
           Zaključi brez računa
         </label>
-        <label class="field" id="ipNoInvoiceNoteWrap" hidden>
+        <label class="field" id="ipNoInvoiceReasonWrap" hidden>
+          <span class="field-label">Razlog <span class="required">*</span></span>
+          <select id="ipNoInvoiceReason" class="field-input">
+            <option value="">— izberi —</option>
+            <option value="Gratis">Gratis</option>
+            <option value="Gotovina">Gotovina</option>
+            <option value="Račun na drugem DN">Račun na drugem DN</option>
+            <option value="Drugo">Drugo</option>
+          </select>
+        </label>
+        <label class="field" id="ipNoInvoiceOtherWrap" hidden>
           <span class="field-label">Opomba <span class="required">*</span></span>
-          <textarea id="ipNoInvoiceNote" class="field-input" rows="2" placeholder="Razlog, da se nalog zaključi brez računa…"></textarea>
+          <textarea id="ipNoInvoiceOtherNote" class="field-input" rows="2" placeholder="Razlog, da se nalog zaključi brez računa…"></textarea>
         </label>
         <div class="form-actions">
           <button type="button" id="invoicePreviewCancelBtn" class="btn btn-secondary btn-flex">Prekliči</button>
