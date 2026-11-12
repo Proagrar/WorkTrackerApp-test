@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.86';
+const APP_VERSION = 'v4.87';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -1331,7 +1331,7 @@ function renderWorkLogGerkRows(rows) {
         <div class="wlg-info" data-action="wlg-highlight-map">
           <span class="wlg-code-line">
             ${isAdminView() ? `<input type="checkbox" class="wlg-select-checkbox" data-action="wlg-select" data-code="${escHtml(r.code)}" aria-label="Izberi GERK" ${selectedGerkCodes.has(r.code) ? 'checked' : ''}>` : ''}
-            <span class="wlg-code">${escHtml(r.code)}</span>${name ? ` <span class="wlg-name">${escHtml(name)}</span>` : ''}
+            <span class="wlg-code">${escHtml(r.code)}</span>${name ? ` <span class="wlg-name">${escHtml(name)}</span>` : (isAdminView() && !r.code.includes('+') ? ` <button type="button" class="wlg-add-name-btn" data-action="wlg-add-name" data-code="${escHtml(r.code)}" title="Dodaj ime GERK-a">+ Ime</button>` : '')}
             <span class="wlg-segmentation-info" data-code="${escHtml(r.code)}"></span>
             <span class="wlg-field-map-slot" data-code="${escHtml(r.code)}">${f?.lat != null && f?.lng != null ? `<a class="wlg-field-map" href="https://www.google.com/maps?q=${f.lat},${f.lng}" target="_blank" rel="noopener" aria-label="Odpri na zemljevidu">📍</a>` : ''}</span>
           </span>
@@ -2942,6 +2942,9 @@ function wireGerkRowButtons() {
   workLogGerkRowsEl.querySelectorAll('[data-action="wlg-remove-gerk"]').forEach(btn => {
     btn.addEventListener('click', () => removeGerkFromOrder(btn));
   });
+  workLogGerkRowsEl.querySelectorAll('[data-action="wlg-add-name"]').forEach(btn => {
+    btn.addEventListener('click', () => addFieldName(btn));
+  });
   workLogGerkRowsEl.querySelectorAll('[data-action="wlg-samples-toggle"]').forEach(btn => {
     btn.addEventListener('click', () => toggleGerkSamples(btn));
   });
@@ -3079,6 +3082,31 @@ async function removeGerkFromOrder(btn) {
   // the modal opened) stay stuck on screen since nothing else here
   // touches the map layers.
   await showWoDetailMap(currentDetailWorkOrder);
+}
+
+// Admin-only: names a GERK code that's never had one (fields has no
+// write RLS of its own — see loadFields()'s comment — so this goes
+// through a SECURITY DEFINER RPC that also backfills field_id on this
+// customer's other still-unlinked lines with the same code).
+async function addFieldName(btn) {
+  const code = btn.dataset.code;
+  const name = prompt(`Ime GERK-a ${code}:`);
+  if (!name || !name.trim()) return;
+
+  btn.disabled = true;
+  const { error } = await supabase.rpc('admin_set_field_name', {
+    p_customer_id: currentDetailWorkOrder.stranka_id,
+    p_cadastre_id: code,
+    p_name: name.trim(),
+  });
+  btn.disabled = false;
+  if (error) return showFormError('Napaka pri shranjevanju imena: ' + error.message);
+
+  const existing = fields.find(f => f.code === code);
+  if (existing) existing.name = name.trim();
+  else fields.push({ code, name: name.trim(), area: null, lat: null, lng: null, customer: null });
+
+  await loadDetailForDate();
 }
 
 // ── GERK selection bar (admin-only multi-select on the detail view) ──

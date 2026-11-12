@@ -962,6 +962,11 @@ input, select, textarea { font-family: inherit; }
 .wlg-code { font-family: monospace; font-weight: 700; font-size: .875rem; color: var(--text-primary); }
 
 .wlg-name { font-size: .8125rem; font-weight: 600; color: var(--text-primary); }
+.wlg-add-name-btn {
+  font-size: .75rem; font-weight: 600; color: var(--blue-600, #2563eb);
+  background: none; border: none; padding: 0 2px; cursor: pointer;
+}
+.wlg-add-name-btn:hover { text-decoration: underline; }
 
 /* Used both as an <a> (GERK-level, opens Google Maps directly) and a
    <button> (sample-level, opens the embedded map modal) — the reset
