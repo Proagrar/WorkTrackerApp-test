@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.85';
+const APP_VERSION = 'v4.86';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -123,6 +123,8 @@ const woHeaderMeta = document.getElementById('woHeaderMeta');
 const invoicePreviewModal = document.getElementById('invoicePreviewModal');
 const invoicePreviewClose = document.getElementById('invoicePreviewClose');
 const invoicePreviewWarning = document.getElementById('invoicePreviewWarning');
+const invoicePreviewWarningText = document.getElementById('invoicePreviewWarningText');
+const invoicePreviewFixCustomerBtn = document.getElementById('invoicePreviewFixCustomerBtn');
 const ipNalog = document.getElementById('ipNalog');
 const ipStranka = document.getElementById('ipStranka');
 const ipVat = document.getElementById('ipVat');
@@ -1665,7 +1667,7 @@ function openInvoicePreviewModal(wo) {
   // BOTH are missing — nothing to match or create a customer from at all.
   invoicePreviewWarning.hidden = !!minimaxId || !!vatNumber;
   if (!minimaxId && !vatNumber) {
-    invoicePreviewWarning.textContent = 'Stranka nima ne davčne številke ne Minimax ID-ja — priprava osnutka bo verjetno spodletela. Dopolnite enega od njiju na kartici stranke (Seznam strank → uredi), ali nadaljujte in popravite kasneje.';
+    invoicePreviewWarningText.textContent = 'Stranka nima ne davčne številke ne Minimax ID-ja — priprava osnutka bo verjetno spodletela. Dopolnite enega od njiju na kartici stranke, ali nadaljujte in popravite kasneje.';
   }
 
   const gerks = wo.delovni_nalogi_gerki || [];
@@ -1709,6 +1711,15 @@ function closeInvoicePreviewModal() {
 invoicePreviewClose.addEventListener('click', closeInvoicePreviewModal);
 invoicePreviewCancelBtn.addEventListener('click', closeInvoicePreviewModal);
 invoicePreviewModal.addEventListener('click', e => { if (e.target === invoicePreviewModal) closeInvoicePreviewModal(); });
+
+// Jumps straight to the edit-customer form for this order's customer —
+// closes this modal first so the edit form isn't stacked underneath it.
+invoicePreviewFixCustomerBtn.addEventListener('click', () => {
+  const wo = invoicePreviewWorkOrder;
+  if (!wo) return;
+  closeInvoicePreviewModal();
+  openEditCustomerModal(wo.stranka_id);
+});
 
 // Toggles the confirm button between "Potrdi in zahtevaj račun" (default)
 // and "Zaključi brez računa" (Matej, 2026-11-11) — same button, same
@@ -6311,7 +6322,7 @@ woSearchSuggestions.addEventListener('mousedown', e => {
 async function loadCustomers() {
   const { data } = await supabase
     .from('customers')
-    .select('id, naziv, company_name, contact_name, email, deleted_at')
+    .select('id, naziv, company_name, contact_name, email, deleted_at, vat_number, minimax_customer_id')
     .order('naziv');
   customers = (data ?? []).map(c => ({
     id: c.id,
@@ -6319,6 +6330,11 @@ async function loadCustomers() {
     contactName: c.contact_name || null,
     email: c.email || null,
     deletedAt: c.deleted_at || null,
+    // Neither set → trg_minimax_customer_on_insert never fires, so this
+    // customer silently never syncs to Minimax until an order of theirs
+    // reaches "Pripravi račun" and that fails — flagged in the list so it
+    // can be fixed in advance (see invoicePreviewWarning for the same check).
+    minimaxUnlinked: !c.vat_number && !c.minimax_customer_id,
   }));
 }
 
@@ -6692,8 +6708,9 @@ function renderDeclCustomerList() {
   }
 
   declCustomerList.innerHTML = matches.map(c => `
-    <div class="decl-customer-row" data-id="${c.id}">
+    <div class="decl-customer-row${c.minimaxUnlinked ? ' decl-customer-row--unlinked' : ''}" data-id="${c.id}">
       <span class="decl-customer-row-name">${escHtml(c.name)}</span>
+      ${c.minimaxUnlinked ? '<span class="decl-customer-row-warn" title="Ni davčne številke ne Minimax ID-ja — računi za to stranko ne bodo šli skozi, dokler ne dopolnite enega od njiju.">⚠</span>' : ''}
       <button type="button" class="btn btn-icon decl-customer-edit-btn" data-id="${c.id}" aria-label="Uredi stranko" title="Uredi stranko">✎</button>
     </div>`
   ).join('');

@@ -1005,6 +1005,14 @@ input, select, textarea { font-family: inherit; }
   box-shadow: 0 0 0 2px var(--blue-800);
 }
 
+/* Persistent version of the same highlight — set by clicking a GERK's
+   shape/zone on the map (focusGerkRowFromMap), not cleared by mouseout like
+   .wlg-row--map-hover is, so it survives after the cursor leaves the shape
+   (Matej, 2026-11-11). */
+.wlg-row--map-focus {
+  box-shadow: 0 0 0 2px var(--blue-800);
+}
+
 .wlg-times {
   display: flex;
   align-items: center;
@@ -3180,6 +3188,8 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .decl-customer-row:hover,
 .decl-customer-row:active { background: var(--blue-50); }
 .decl-customer-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.decl-customer-row--unlinked .decl-customer-row-name { color: var(--error); }
+.decl-customer-row-warn { flex-shrink: 0; color: var(--error); font-size: 1.0625rem; cursor: help; }
 .decl-customer-edit-btn { flex-shrink: 0; width: 32px; height: 32px; font-size: .9375rem; }
 
 .edit-customer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-5); align-items: start; }

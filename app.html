@@ -1289,7 +1289,10 @@
         </button>
       </div>
       <div class="invoice-preview-body work-form">
-        <div id="invoicePreviewWarning" class="alert alert-error" hidden role="alert"></div>
+        <div id="invoicePreviewWarning" class="alert alert-error" hidden role="alert">
+          <span id="invoicePreviewWarningText"></span>
+          <button type="button" id="invoicePreviewFixCustomerBtn" class="btn btn-sm">✎ Uredi stranko</button>
+        </div>
         <dl class="invoice-preview-fields">
           <div><dt>Nalog</dt><dd id="ipNalog"></dd></div>
           <div><dt>Stranka</dt><dd id="ipStranka"></dd></div>
