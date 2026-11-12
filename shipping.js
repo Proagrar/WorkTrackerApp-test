@@ -559,9 +559,9 @@ function renderSegmentRows() {
       <td class="fert-strong">${esc(s.sample_no)}</td>
       <td>${esc(o.stevilka)}</td>
       <td class="fert-num">${ha != null ? ha.toFixed(2) : '—'}</td>
-      <td>${esc(g.gerk_code)}</td>
-      <td>${esc(g.fields?.name ?? '—')}</td>
-      <td title="${esc(customerName(o.customers))}">${esc(customerName(o.customers))}</td>
+      <td class="sled-seg-gerk-cell" title="${esc(g.gerk_code)}">${esc(g.gerk_code)}</td>
+      <td class="sled-customer-cell" title="${esc(g.fields?.name ?? '—')}">${esc(g.fields?.name ?? '—')}</td>
+      <td class="sled-customer-cell" title="${esc(customerName(o.customers))}">${esc(customerName(o.customers))}</td>
       <td>${samplingDate ? esc(fmtDate(samplingDate)) : '—'}</td>
       <td><select class="sample-field-input sled-seg-vzorcenje" data-sample-id="${esc(s.id)}">${opts}</select></td>
       <td><select class="sample-field-input sled-seg-box-select" data-box-select="${esc(s.id)}" ${locked ? 'disabled' : ''}>${boxSelectHtml(s)}</select></td>

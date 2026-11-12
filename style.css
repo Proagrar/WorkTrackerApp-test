@@ -1603,6 +1603,26 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   cursor: default;
 }
 
+/* Segmenti has 10 data columns plus 2 dropdowns — on top of .sled-table's
+   own spacing, this needs its own tighter pass so the whole thing fits in
+   one row without reaching for .reports-table-wrap's horizontal scrollbar
+   (Matej, 2026-11-12: "preširoko, vse mora iti v eno vrstico"). Text
+   columns get a hard cap + ellipsis (full value still on hover via the
+   cell's title), and the two per-row <select>s (Vzorčenje/Pošiljka) get a
+   fixed narrow width instead of sizing to their widest option/label. */
+.sled-seg-table th, .sled-seg-table td { padding: 4px 6px; font-size: .78125rem; }
+.sled-seg-table .fert-sort-btn { padding: 6px 4px; }
+.sled-seg-table .sled-customer-cell { max-width: 110px; }
+.sled-seg-gerk-cell {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+.sled-seg-table .sled-seg-vzorcenje { width: 92px; max-width: 92px; }
+.sled-seg-table .sled-seg-box-select { width: 100px; max-width: 100px; flex: none; }
+
 /* Poročila's table has more columns than Evidenca dela's (12 incl.
    checkbox) — tighter cell padding buys back width before the reader
    needs to reach for the horizontal scrollbar .reports-table-wrap
