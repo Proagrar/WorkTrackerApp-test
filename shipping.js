@@ -52,7 +52,7 @@ const SAMPLE_ACTIONS = ['ne pobereš', 'Zavržen', 'združi', 'združi_1', 'zdru
 
 let orders = [];
 let boxes = [];
-let mmInvoiceById = {}; // minimax_racun_id -> mm_issued_invoices row (admin-only read) — real Osnutek/Poslano/Plačano status
+let mmInvoiceById = {}; // minimax_racun_id -> mm_issued_invoices row (admin-only read) — real Osnutek/Izdan/Plačan status
 let currentOrderId = null;
 let selectedOrderIds = new Set();
 let selectedSegIds = new Set(); // Segmenti view — sample (delovni_nalogi_vzorci) ids
@@ -242,7 +242,7 @@ function orderStatusLabel(order) {
 
 // Invoice/payment status (Matej, 2026-11-09) — a second, independent line
 // shown next to the sample-pipeline status above: Račun ni izdan / Osnutek
-// računa / Račun poslan / Račun plačan. Poslano/Plačano come from the live
+// računa / Račun izdan / Račun plačan. Izdan/Plačan come from the live
 // Minimax mirror (mm_issued_invoices.payment_status), not just whatever
 // this app last wrote — a payment made directly in Minimax shows up here
 // without any app-side action. The "Pripravi račun" trigger itself lives
@@ -255,11 +255,11 @@ function invoiceStatusLabel(order) {
   if (inv) {
     if (inv.document_status === 'O') return 'Osnutek računa';
     if (inv.payment_status === 'Placan') return 'Račun plačan';
-    return 'Račun poslan';
+    return 'Račun izdan';
   }
   // Mirror doesn't have it yet (sync lag) — fall back to this app's own
   // last-written status.
-  if (order.minimax_racun_status === 'izstavljen') return 'Račun poslan';
+  if (order.minimax_racun_status === 'izstavljen') return 'Račun izdan';
   if (order.minimax_racun_status === 'storniran') return 'Račun storniran';
   if (order.minimax_racun_status === 'osnutek') return 'Osnutek računa';
   return 'Račun ni izdan';
@@ -287,7 +287,7 @@ function minimaxInvoiceUrl(order) {
 const INVOICE_BADGE = {
   'Račun ni izdan': 'fert-badge--neutral',
   'Osnutek računa': 'fert-badge--warn',
-  'Račun poslan': 'fert-badge--sent',
+  'Račun izdan': 'fert-badge--sent',
   'Račun plačan': 'fert-badge--ok',
   'Račun storniran': 'fert-badge--neutral',
   'Zaključeno brez računa': 'fert-badge--neutral',
