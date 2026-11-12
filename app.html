@@ -353,6 +353,28 @@
                 </div>
               </div>
             </div>
+            <!-- Invoice-status filter, same multi-select checklist pattern,
+                 with a select-all row like reportsCustomerFilterMenu's
+                 (Matej, 2026-11-13). Values match invoiceStatusLabel()'s
+                 own output strings in shipping.js exactly. -->
+            <div class="wo-status-filter-wrap">
+              <button type="button" id="sledInvoiceStatusFilterBtn" class="btn btn-secondary btn-sm wo-status-filter-btn">Vsi računi</button>
+              <div id="sledInvoiceStatusFilterMenu" class="wo-status-filter-menu" hidden>
+                <label class="wo-gerk-check-item reports-customer-select-all">
+                  <input type="checkbox" id="sledInvoiceStatusSelectAllCb">
+                  <span class="wo-gerk-check-code">Izberi vse</span>
+                </label>
+                <div class="wo-gerk-checklist">
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-invoice-status-filter-cb" value="Račun ni izdan"><span class="wo-gerk-check-code">Račun ni izdan</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-invoice-status-filter-cb" value="Osnutek računa"><span class="wo-gerk-check-code">Osnutek računa</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-invoice-status-filter-cb" value="Račun izdan"><span class="wo-gerk-check-code">Račun izdan</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-invoice-status-filter-cb" value="Račun plačan"><span class="wo-gerk-check-code">Račun plačan</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-invoice-status-filter-cb" value="Preveri v Minimaxu"><span class="wo-gerk-check-code">Preveri v Minimaxu</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-invoice-status-filter-cb" value="Račun storniran"><span class="wo-gerk-check-code">Račun storniran</span></label>
+                  <label class="wo-gerk-check-item"><input type="checkbox" class="sled-invoice-status-filter-cb" value="Zaključeno brez računa"><span class="wo-gerk-check-code">Zaključeno brez računa</span></label>
+                </div>
+              </div>
+            </div>
           </div>
           <div id="sledToolbarSegments" class="sled-sticky-bar-tools" hidden>
             <label class="fert-field">

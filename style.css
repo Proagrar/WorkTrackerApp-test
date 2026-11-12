@@ -3535,7 +3535,8 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .fert-lab-table .fert-row-actions { gap: 6px; align-items: center; }
 .fert-badge--mini { margin-left: 4px; padding: 1px 6px; font-size: .625rem; vertical-align: 1px; }
 .sled-invoice-num { margin-left: 6px; font-size: .6875rem; color: var(--text-secondary); white-space: nowrap; }
-.sled-invoice-link { margin-left: 2px; text-decoration: none; }
+.sled-invoice-link { color: inherit; text-decoration: underline; text-decoration-style: dotted; }
+.sled-invoice-link:hover { text-decoration-style: solid; }
 .fert-sort-btn { display: block; width: 100%; padding: 10px 14px; border: 0; background: transparent; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; text-align: inherit; white-space: nowrap; cursor: pointer; }
 .fert-sort-btn:hover, .fert-sort-btn:focus-visible, .fert-sort-btn--active { color: var(--blue-800); }
 

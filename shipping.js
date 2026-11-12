@@ -22,6 +22,9 @@ const els = {
   selectionBar: document.getElementById('sledSelectionBar'),
   statusFilterBtn: document.getElementById('sledStatusFilterBtn'),
   statusFilterMenu: document.getElementById('sledStatusFilterMenu'),
+  invoiceStatusFilterBtn: document.getElementById('sledInvoiceStatusFilterBtn'),
+  invoiceStatusFilterMenu: document.getElementById('sledInvoiceStatusFilterMenu'),
+  invoiceStatusSelectAllCb: document.getElementById('sledInvoiceStatusSelectAllCb'),
   orderModal: document.getElementById('sledOrderModal'),
   orderModalClose: document.getElementById('sledOrderModalClose'),
   orderModalTitle: document.getElementById('sledOrderModalTitle'),
@@ -62,6 +65,7 @@ let selectedSegIds = new Set(); // Segmenti view — sample (delovni_nalogi_vzor
 // own `checked` attribute in app.html, not hardcoded here, so the two
 // stay in sync by construction.
 let sledStatusFilterValues = new Set([...document.querySelectorAll('.sled-status-filter-cb:checked')].map(cb => cb.value));
+let sledInvoiceStatusFilterValues = new Set([...document.querySelectorAll('.sled-invoice-status-filter-cb:checked')].map(cb => cb.value));
 let sledSegStatusFilterValues = new Set([...document.querySelectorAll('.sled-seg-status-filter-cb:checked')].map(cb => cb.value));
 let segSortKey = 'segment';
 let segSortDir = 'asc';
@@ -355,6 +359,46 @@ els.statusFilterMenu.querySelectorAll('.sled-status-filter-cb').forEach(cb => {
 });
 updateStatusFilterBtnLabel();
 
+// Invoice-status filter, own instance, with a select-all row (same tri-state
+// pattern as reportsCustomerSelectAllCb in app.js) — Matej, 2026-11-13.
+function updateInvoiceStatusFilterBtnLabel() {
+  const n = sledInvoiceStatusFilterValues.size;
+  els.invoiceStatusFilterBtn.textContent = n === 0 ? 'Vsi računi' : n === 1 ? [...sledInvoiceStatusFilterValues][0] : `${n} računi`;
+}
+function syncInvoiceStatusSelectAllCb() {
+  const cbs = [...els.invoiceStatusFilterMenu.querySelectorAll('.sled-invoice-status-filter-cb')];
+  const checked = cbs.filter(cb => cb.checked).length;
+  els.invoiceStatusSelectAllCb.checked = checked > 0 && checked === cbs.length;
+  els.invoiceStatusSelectAllCb.indeterminate = checked > 0 && checked < cbs.length;
+}
+els.invoiceStatusFilterBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  els.invoiceStatusFilterMenu.hidden = !els.invoiceStatusFilterMenu.hidden;
+});
+els.invoiceStatusFilterMenu.addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', () => { els.invoiceStatusFilterMenu.hidden = true; });
+els.invoiceStatusFilterMenu.querySelectorAll('.sled-invoice-status-filter-cb').forEach(cb => {
+  cb.addEventListener('change', () => {
+    if (cb.checked) sledInvoiceStatusFilterValues.add(cb.value);
+    else sledInvoiceStatusFilterValues.delete(cb.value);
+    syncInvoiceStatusSelectAllCb();
+    updateInvoiceStatusFilterBtnLabel();
+    renderOrders();
+  });
+});
+els.invoiceStatusSelectAllCb.addEventListener('change', () => {
+  const cbs = els.invoiceStatusFilterMenu.querySelectorAll('.sled-invoice-status-filter-cb');
+  cbs.forEach(cb => {
+    cb.checked = els.invoiceStatusSelectAllCb.checked;
+    if (cb.checked) sledInvoiceStatusFilterValues.add(cb.value);
+    else sledInvoiceStatusFilterValues.delete(cb.value);
+  });
+  els.invoiceStatusSelectAllCb.indeterminate = false;
+  updateInvoiceStatusFilterBtnLabel();
+  renderOrders();
+});
+updateInvoiceStatusFilterBtnLabel();
+
 // Same pattern, own instance, for the Segmenti view's status filter
 // (Matej, 2026-11-12).
 function updateSegStatusFilterBtnLabel() {
@@ -390,6 +434,7 @@ function filteredOrders() {
       if (!hay.includes(q)) return false;
     }
     if (sledStatusFilterValues.size && !sledStatusFilterValues.has(orderStatusLabel(o))) return false;
+    if (sledInvoiceStatusFilterValues.size && !sledInvoiceStatusFilterValues.has(invoiceStatusLabel(o))) return false;
     return true;
   });
 }
@@ -427,7 +472,9 @@ function renderOrders() {
       <td><div class="sled-status-cell">
         ${statusStepperSvg(label)}<span class="fert-badge ${cls}">${esc(label)}</span>
       </div></td>
-      <td><span class="fert-badge ${invCls}">${esc(invLabel)}</span>${invNum ? ` <span class="sled-invoice-num">${esc(invNum)}${invUrl ? ` <a href="${esc(invUrl)}" target="_blank" rel="noopener" class="sled-invoice-link" title="Odpri račun v Minimaxu" aria-label="Odpri račun v Minimaxu">🔗</a>` : ''}</span>` : ''}</td>
+      <td><span class="fert-badge ${invCls}">${esc(invLabel)}</span>${invNum ? ` <span class="sled-invoice-num">${invUrl
+        ? `<a href="${esc(invUrl)}" target="_blank" rel="noopener" class="sled-invoice-link" title="Odpri račun v Minimaxu">${esc(invNum)} 🔗</a>`
+        : esc(invNum)}</span>` : ''}</td>
       <td class="sled-invoice-icon-col">${invoiceActionIcon(o)}</td>
     </tr>`;
   }).join('');
