@@ -247,18 +247,33 @@ function orderStatusLabel(order) {
 // this app last wrote — a payment made directly in Minimax shows up here
 // without any app-side action. The "Pripravi račun" trigger itself lives
 // in the main Delovni Nalogi list now, not here — this is read-only status.
+// How long to still trust this app's own last-written status after a
+// request when the mirror hasn't caught up yet — the miniMax sync runs on
+// its own schedule (roughly every 2h, see "Minimax osvezitev"), so a
+// request younger than this is just sync lag, not necessarily wrong.
+const MINIMAX_MIRROR_GRACE_MS = 6 * 60 * 60 * 1000;
 function invoiceStatusLabel(order) {
   // "Zaključi brez računa" (Matej, 2026-11-11) — a terminal state, never
   // touches minimax_racun_*/racun_zahtevan_at, so it's checked first.
   if (order.zakljucen_brez_racuna_at) return 'Zaključeno brez računa';
-  const inv = order.minimax_racun_id ? mmInvoiceById[order.minimax_racun_id] : null;
-  if (inv) {
-    if (inv.document_status === 'O') return 'Osnutek računa';
-    if (inv.payment_status === 'Placan') return 'Račun plačan';
-    return 'Račun izdan';
+  if (order.minimax_racun_id) {
+    const inv = mmInvoiceById[order.minimax_racun_id];
+    if (inv) {
+      if (inv.document_status === 'O') return 'Osnutek računa';
+      if (inv.payment_status === 'Placan') return 'Račun plačan';
+      return 'Račun izdan';
+    }
+    // Mirror has no row for this id at all. Past the grace window that's
+    // not just sync lag — the mirror purges any invoice no longer in
+    // Minimax's own full list on every sync (Matej, 2026-11-11), so a
+    // missing row this old means the invoice was deleted directly in
+    // Minimax and this app's own racun_* fields are now stale (Matej,
+    // 2026-11-12: DN 139/Andrej Žura — ERP said "Račun izdan", Minimax had
+    // nothing). Trusting minimax_racun_status here would repeat that.
+    const requestedAt = order.racun_zahtevan_at ? new Date(order.racun_zahtevan_at).getTime() : 0;
+    const freshEnough = requestedAt && (Date.now() - requestedAt) < MINIMAX_MIRROR_GRACE_MS;
+    if (!freshEnough) return 'Preveri v Minimaxu';
   }
-  // Mirror doesn't have it yet (sync lag) — fall back to this app's own
-  // last-written status.
   if (order.minimax_racun_status === 'izstavljen') return 'Račun izdan';
   if (order.minimax_racun_status === 'storniran') return 'Račun storniran';
   if (order.minimax_racun_status === 'osnutek') return 'Osnutek računa';
@@ -291,6 +306,7 @@ const INVOICE_BADGE = {
   'Račun plačan': 'fert-badge--ok',
   'Račun storniran': 'fert-badge--neutral',
   'Zaključeno brez računa': 'fert-badge--neutral',
+  'Preveri v Minimaxu': 'fert-badge--danger',
 };
 
 // Icon-only trigger/retry/cancel (Matej, 2026-11-09: "samo ikono") — this
