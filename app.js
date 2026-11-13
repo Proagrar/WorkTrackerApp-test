@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.98';
+const APP_VERSION = 'v4.99';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -1570,7 +1570,7 @@ function renderSamplesSection(samples, gerkId, gerkCode) {
         </button>
         <div class="wlg-samples-panel" hidden>
           <table class="wlg-samples-table">
-            <thead><tr><th>Št. segmenta</th><th>Vzorčenje</th><th>Globina</th><th>Opomba</th><th></th>${isAdminView() ? '<th></th>' : ''}</tr></thead>
+            <thead><tr><th></th><th>Št. segmenta</th><th>Vzorčenje</th><th>Globina</th><th>Opomba</th>${isAdminView() ? '<th></th>' : ''}</tr></thead>
             <tbody>
               ${samples.map(s => {
                 const flagged = isNoCollectSample(s);
@@ -1580,11 +1580,11 @@ function renderSamplesSection(samples, gerkId, gerkCode) {
                   : groupColor ? `style="background:${groupColor}22;box-shadow:inset 3px 0 0 ${groupColor};"` : '';
                 return `
                 <tr class="${flagged ? 'wlg-sample-row--flagged' : ''}" ${rowStyle}>
+                  <td><button type="button" class="btn btn-icon wlg-zoom-segment-btn" data-action="wlg-zoom-segment" data-sample-id="${escHtml(s.id)}" data-gerk-code="${escHtml(gerkCode || '')}" aria-label="Pokaži segment na zemljevidu" title="Pokaži segment na zemljevidu">📍</button></td>
                   <td>${renderSampleNoCell(s)}</td>
                   <td>${renderSamplingCell(s)}</td>
                   <td>${renderSampleDepthCell(s)}</td>
                   <td>${renderSampleCommentCell(s)}</td>
-                  <td><button type="button" class="btn btn-icon wlg-zoom-segment-btn" data-action="wlg-zoom-segment" data-sample-id="${escHtml(s.id)}" data-gerk-code="${escHtml(gerkCode || '')}" aria-label="Pokaži segment na zemljevidu" title="Pokaži segment na zemljevidu">🔍</button></td>
                   ${isAdminView() ? `<td><button type="button" class="wlg-remove-sample" data-action="wlg-remove-sample" data-sample-id="${escHtml(s.id)}" aria-label="Izbriši segment">✕</button></td>` : ''}
                 </tr>`;
               }).join('')}
