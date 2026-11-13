@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.107';
+const APP_VERSION = 'v4.108';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2043,6 +2043,11 @@ function segmentBaseStyle(row) {
 const WO_MAP_CAPTURED_COLOR = '#16A34A';
 const WO_MAP_SHAPE_HIGHLIGHT_STYLE = { color: '#F59E0B', weight: 4, fillColor: '#F59E0B', fillOpacity: .35 };
 const WO_MAP_SEGMENT_HIGHLIGHT_STYLE = { color: '#F59E0B', weight: 3, dashArray: null, fillColor: '#F59E0B', fillOpacity: .3 };
+// Segment-number pills show only from this zoom up (Matej, 2026-11-14);
+// below it, each field shows its name instead (wo-map-gerk-name-label) —
+// zoomed out, many overlapping number pills turn unreadable, and zone
+// outlines/colors stay visible at every zoom regardless.
+const WO_MAP_LABEL_MIN_ZOOM = 16;
 
 // Map → list: hovering a GERK's marker/shape highlights its row.
 function highlightGerkRow(code, on) {
@@ -2195,12 +2200,6 @@ function ensureWoMap() {
   // A one-time invalidateSize() at open caught the initial size; this
   // catches every size change after that, not just the first.
   new ResizeObserver(() => woMap?.invalidateSize()).observe(woDetailMap.parentElement);
-  // Segment-number labels only past zoom 17 (Matej, 2026-11-14: "na default
-  // zoomu prikaži samo meje, šele pri zoomu 17 prikaži št. segmentove") —
-  // zoomed out, a field with many segments turns into an unreadable pile of
-  // overlapping number pills (every one is a permanent tooltip, always on);
-  // the zone outlines/colors themselves stay visible at every zoom.
-  const WO_MAP_LABEL_MIN_ZOOM = 17;
   woMap.on('zoomend', () => {
     woDetailMap.classList.toggle('wo-map-labels-hidden', woMap.getZoom() < WO_MAP_LABEL_MIN_ZOOM);
   });
@@ -2411,7 +2410,7 @@ async function showWoDetailMap(workOrder) {
   drawCapturedPointsOnMap();
   updateGerkMapLinksFromShapes();
   updateMapCompletedVisibility();
-  woDetailMap.classList.toggle('wo-map-labels-hidden', map.getZoom() < 17);
+  woDetailMap.classList.toggle('wo-map-labels-hidden', map.getZoom() < WO_MAP_LABEL_MIN_ZOOM);
 }
 
 // "Skrij izvedene" (Matej, 2026-11-13) — removes a completed GERK's shapes/

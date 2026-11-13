@@ -2074,8 +2074,8 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   position: absolute;
   top: 8px;
   left: 50%;
-  /* +10px right of center (Matej, 2026-11-14) */
-  transform: translateX(calc(-50% + 10px));
+  /* +20px right of center total (Matej, 2026-11-14, two +10px requests) */
+  transform: translateX(calc(-50% + 20px));
   z-index: 1000;
   max-width: calc(100% - 160px);
   padding: 5px 12px;
@@ -2250,7 +2250,38 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   color: var(--text-secondary);
   cursor: pointer;
 }
-.wo-capture-toggle input { width: 11px; height: 11px; cursor: pointer; }
+/* appearance: none + a fixed box, not just width/height on the native
+   control — some mobile browsers render a checkbox at a minimum native
+   touch size regardless of explicit width/height, which next to this
+   row's tiny 9px text looked like the checkbox's own box was twice as
+   wide as the "Točke" label itself (Matej, 2026-11-14). */
+.wo-capture-toggle input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  border: 1.5px solid var(--border);
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+}
+.wo-capture-toggle input:checked {
+  background: var(--blue-800, #1D4ED8);
+  border-color: var(--blue-800, #1D4ED8);
+  position: relative;
+}
+.wo-capture-toggle input:checked::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 3px;
+  height: 6px;
+  border: solid #fff;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
 
 /* Permanent (always-on, not hover-only) Leaflet tooltip showing each
    imported zone's segment number, centered on its polygon. Overrides
