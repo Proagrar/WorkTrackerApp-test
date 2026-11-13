@@ -2074,7 +2074,8 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   position: absolute;
   top: 8px;
   left: 50%;
-  transform: translateX(-50%);
+  /* +10px right of center (Matej, 2026-11-14) */
+  transform: translateX(calc(-50% + 10px));
   z-index: 1000;
   max-width: calc(100% - 160px);
   padding: 5px 12px;
@@ -2244,6 +2245,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   display: flex;
   align-items: center;
   gap: 4px;
+  margin-left: auto;
   font-size: .5625rem;
   color: var(--text-secondary);
   cursor: pointer;

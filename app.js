@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.100';
+const APP_VERSION = 'v4.101';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -1520,7 +1520,18 @@ function updateMapExpandState() {
   // The map's own container just changed size — Leaflet only re-measures
   // when told to, and needs the new size already applied in the DOM
   // (hence rAF, not immediate) or it reads the stale one mid-transition.
-  requestAnimationFrame(() => woMap?.invalidateSize());
+  requestAnimationFrame(() => {
+    woMap?.invalidateSize();
+    // Shrinking back down (Pomanjšaj) narrows the map's own pixel bounds —
+    // whatever was centered/zoomed while expanded doesn't automatically
+    // stay framed afterward. Re-fit to whatever's currently focused so it
+    // (Matej, 2026-11-14: "mora zemljevid obsegat še to označeno polje").
+    if (!woMapExpanded && woMap) {
+      const segLayer = woMapHighlightedSegmentId ? woMapSegmentPolygonLayers.get(woMapHighlightedSegmentId) : null;
+      if (segLayer) woMap.fitBounds(segLayer.getBounds(), { padding: [60, 60], maxZoom: 19 });
+      else if (woMapHighlightedCode) highlightGerkOnWoMap(woMapHighlightedCode);
+    }
+  });
 }
 
 woMapExpandBtn.addEventListener('click', () => {
