@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.104';
+const APP_VERSION = 'v4.106';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2064,6 +2064,16 @@ function focusGerkRowFromMap(code) {
   const row = workLogGerkRowsEl.querySelector(`.wlg-row[data-code="${CSS.escape(code)}"]`);
   if (row) {
     row.classList.add('wlg-row--map-focus');
+    // On phone (not expanded) the list pages one row at a time via
+    // `hidden` (updateGerkPaging) — adding the focus class alone did
+    // nothing visible if this GERK wasn't the currently-shown page (Matej,
+    // 2026-11-14: "klik na gerk na zemljevidu še vedno ne prikaže gerka
+    // na seznamu"). Jump the pager to its page first.
+    if (isMobile() && !woMapExpanded) {
+      const rows = Array.from(workLogGerkRowsEl.querySelectorAll('.wlg-row:not(.wlg-row--search-hidden)'));
+      const idx = rows.indexOf(row);
+      if (idx !== -1) { woGerkPageIndex = idx; updateGerkPaging(); }
+    }
     row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
   woMapFocusedListCode = code;
@@ -2312,6 +2322,19 @@ async function showWoDetailMap(workOrder) {
     if (!row.geojson || kmlCoveredCodes.has(row.gerk_code)) continue;
     const layer = L.geoJSON(row.geojson, { style: WO_MAP_SHAPE_STYLE })
       .bindTooltip(row.gerk_code).addTo(woMapGerkLayer);
+    // GERK name, permanent — shown below zoom 17, where the individual
+    // segment-number pills are hidden instead (Matej, 2026-11-14: "do 17
+    // nivoja zooma naj se na poljih prikaže ime gerka"). Bounding-box
+    // center, same approximation already used elsewhere for a shape (see
+    // updateGerkMapLinksFromShapes) — fine at this zoomed-out range, unlike
+    // the segment labels' point-on-surface precision need up close.
+    const fieldName = fields.find(f => f.code === row.gerk_code)?.name;
+    if (fieldName && fieldName !== row.gerk_code) {
+      L.tooltip({ permanent: true, direction: 'center', className: 'wo-map-gerk-name-label' })
+        .setLatLng(layer.getBounds().getCenter())
+        .setContent(fieldName)
+        .addTo(woMapGerkLayer);
+    }
     layer.on('mouseover', () => highlightGerkRow(row.gerk_code, true));
     layer.on('mouseout',  () => highlightGerkRow(row.gerk_code, false));
     layer.on('click', () => focusGerkRowFromMap(row.gerk_code));

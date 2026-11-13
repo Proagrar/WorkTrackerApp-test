@@ -2271,6 +2271,20 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
    colors stay but the number pills hide — zoomed out, many overlapping
    segments turn into unreadable clutter otherwise (Matej, 2026-11-14). */
 .wo-detail-map.wo-map-labels-hidden .leaflet-tooltip.wo-map-segment-label { display: none; }
+/* GERK name label — the inverse: only below zoom 17, where the segment
+   numbers above are hidden (Matej, 2026-11-14). */
+.leaflet-tooltip.wo-map-gerk-name-label {
+  background: #2455AA;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: .75rem;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0,0,0,.4);
+  white-space: nowrap;
+}
+.wo-detail-map:not(.wo-map-labels-hidden) .leaflet-tooltip.wo-map-gerk-name-label { display: none; }
 
 .wo-capture-marker {
   display: flex;
