@@ -137,7 +137,7 @@ async function loadAll() {
     supabase.from('delovni_nalogi')
       .select(`id, stevilka, status, ustvarjen, deleted_at, racun_zahtevan_at, racun_napaka,
         minimax_racun_id, minimax_racun_stevilka, minimax_racun_status, datum_vzorcenja,
-        zakljucen_brez_racuna_at, opomba_zakljucek,
+        zakljucen_brez_racuna_at, opomba_zakljucek, stranka_id,
         customers(naziv, company_name, minimax_customer_id, vat_number), profiles(full_name),
         delovni_nalogi_gerki(id, gerk_code, kolicina_ha, field_id, fields(name),
           delovni_nalogi_vzorci(id, sample_no, box_id, sampling_note, area_ha, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS})))`)
