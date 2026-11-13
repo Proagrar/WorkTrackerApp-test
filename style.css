@@ -1139,11 +1139,19 @@ input, select, textarea { font-family: inherit; }
 /* "Don't collect this one" comments ("ne", "ne pobereš"/"ne poberes")
    flagged red — both the row and its comment input, plus a dot on the
    collapsed toggle so it's visible without expanding the panel. */
-.wlg-sample-row--flagged { background: var(--error-bg); }
+/* Black/red, not the light-red used elsewhere for errors (Matej,
+   2026-11-13: "črna/rdeče da ne pobereš") — needs to stand out clearly
+   against the "združi" group-color rows nearby, which also tint the row
+   background. Inline style on the <tr> (renderSamplesSection) sets the
+   actual background/text color; this class is the fallback/selector hook
+   and still styles the nested inputs. */
+.wlg-sample-row--flagged { background: #000; color: #F87171; }
+.wlg-sample-row--flagged td { color: #F87171; }
+.wlg-sample-row--flagged .sample-field-input { background: #1a1a1a; color: #F87171; border-color: #DC2626; }
 .wlg-comment-input--flagged {
-  border-color: var(--error);
-  background: var(--error-bg);
-  color: var(--error);
+  border-color: #DC2626;
+  background: #1a1a1a;
+  color: #F87171;
   font-weight: 600;
 }
 .wlg-sample-flag-dot {
@@ -1184,7 +1192,9 @@ input, select, textarea { font-family: inherit; }
   color: var(--text-primary);
 }
 
-.wlg-gerk-label-row { display: flex; align-items: center; gap: 8px; }
+.wlg-gerk-label-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wlg-hide-completed-toggle { display: flex; align-items: center; gap: 4px; font-size: .75rem; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+.wlg-hide-completed-toggle input { width: 13px; height: 13px; cursor: pointer; }
 .wlg-select-all-label { display: flex; align-items: center; cursor: pointer; }
 .wlg-search-input {
   margin-left: auto;
@@ -1303,6 +1313,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   padding: 2px 6px;
 }
 .wlg-remove-sample:hover { color: var(--danger); }
+.wlg-zoom-segment-btn { width: 24px; height: 24px; font-size: .75rem; flex-shrink: 0; }
 
 /* ── Work order header: start/status button + meta ─────────── */
 
@@ -2226,7 +2237,10 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .wlg-compact-row .wlg-toggle-btn { height: 32px; padding: 0 10px; font-size: .75rem; }
 .wlg-compact-row .wlg-time-value { font-size: .75rem; min-width: 0; }
 
-.wo-capture-btn { width: 100%; white-space: normal; }
+.wo-capture-head { display: flex; align-items: center; gap: 4px; }
+.wo-capture-btn { flex: 1; width: auto; white-space: normal; }
+.wo-capture-toggle-btn { width: 22px; height: 22px; flex-shrink: 0; font-size: .6875rem; }
+.wo-capture-body { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: auto; }
 
 .wo-capture-toggle {
   display: flex;
@@ -2641,6 +2655,13 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
     max-height: none;
   }
   .wo-detail-layout--map-expanded .wo-detail-content { display: none; }
+  /* Full-screen map on phone (Matej, 2026-11-13: "skrij tudi header") —
+     the modal's own title/close bar and drag handle give up their space
+     too, not just the content below the map. Toggled on #formModal itself
+     (updateMapExpandState in app.js) rather than relying on a CSS :has()
+     selector reaching up from .wo-detail-layout. */
+  .wo-modal--map-expanded .modal-head,
+  .wo-modal--map-expanded .modal-handle { display: none; }
   .wo-map-top-left-controls { top: 10px; left: 54px; }
   /* Razširi moves to the map's bottom-right corner on phone (Matej,
      2026-11-10) — out of the way of Ceste/imena and Leaflet's zoom
