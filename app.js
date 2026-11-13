@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.99';
+const APP_VERSION = 'v4.100';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2011,6 +2011,7 @@ let woMapLayersByCode = new Map(); // gerk_code -> { marker, shape, latlng } —
 let woMapHighlightedCode = null;
 let woMapHighlightRing   = null;   // circleMarker used as a highlight ring when a code has no shape
 let woMapFocusedListCode = null;   // gerk_code last focused via a map click (persists until another click, unlike the hover highlight)
+let woMapHighlightedSegmentId = null; // segment_id last zoomed-to via zoomToSampleSegment — its own highlight, separate from the GERK-level one above
 
 const WO_MAP_SHAPE_STYLE = { color: '#2455AA', weight: 2, fillColor: '#2455AA', fillOpacity: .15 };
 const WO_MAP_SEGMENT_STYLE = { color: '#D97706', weight: 2, dashArray: '4,3', fillColor: '#D97706', fillOpacity: .08 };
@@ -2071,6 +2072,20 @@ function zoomToSampleSegment(sampleId, gerkCode) {
   const seg = currentGerkSegments.find(s => s.gerk_code === gerkCode && s.segment_label === sample.sample_no);
   const layer = seg?.segment_id ? woMapSegmentPolygonLayers.get(seg.segment_id) : null;
   if (!layer) return;
+
+  // Visually highlight it too, not just center/zoom — otherwise, among
+  // several same-colored zones, it's not obvious which one was picked
+  // (Matej, 2026-11-14: "mora fokusirat segment ... tudi približati").
+  // Persists until another segment or GERK is focused, same pattern as
+  // highlightGerkOnWoMap's own single-highlight state.
+  if (woMapHighlightedSegmentId && woMapHighlightedSegmentId !== seg.segment_id) {
+    const prevLayer = woMapSegmentPolygonLayers.get(woMapHighlightedSegmentId);
+    prevLayer?.setStyle(prevLayer._wtBaseStyle || WO_MAP_SEGMENT_STYLE);
+  }
+  layer.setStyle(WO_MAP_SEGMENT_HIGHLIGHT_STYLE);
+  layer.bringToFront();
+  woMapHighlightedSegmentId = seg.segment_id;
+
   woMap.fitBounds(layer.getBounds(), { padding: [60, 60], maxZoom: 19 });
   woMapGerkLabel.textContent = `${gerkCode} · ${sample.sample_no}`;
   woMapGerkLabel.hidden = false;
@@ -2182,6 +2197,7 @@ async function showWoDetailMap(workOrder) {
   woMapLayersByCode = new Map();
   woMapHighlightedCode = null;
   woMapFocusedListCode = null;
+  woMapHighlightedSegmentId = null;
   if (woMapHighlightRing) { woMapHighlightRing.remove(); woMapHighlightRing = null; }
   woMapGerkLabel.hidden = true;
   // Phone default is the expanded map (Matej, 2026-11-14: "cel zgornji del
