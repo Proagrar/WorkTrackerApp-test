@@ -2655,6 +2655,11 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
      selector reaching up from .wo-detail-layout. */
   .wo-modal--map-expanded .modal-head,
   .wo-modal--map-expanded .modal-handle { display: none; }
+  /* Hiding the header above removes the only thing that reserved the
+     camera/notch's safe area — without this the map's top edge (and
+     Leaflet's zoom buttons) went straight under it (Matej, 2026-11-14:
+     "zgornji rob zemljevida mora biti pod nivojem kamere"). */
+  .wo-modal--map-expanded .wo-detail-layout { padding-top: env(safe-area-inset-top); }
   .wo-map-top-left-controls { top: 10px; left: 54px; }
   /* Razširi moves to the map's bottom-right corner on phone (Matej,
      2026-11-10) — out of the way of Ceste/imena and Leaflet's zoom
