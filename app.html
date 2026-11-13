@@ -736,22 +736,19 @@
                see showCaptureToast() in app.js. -->
           <div id="woCaptureToast" class="wo-capture-toast" aria-live="polite"></div>
           <div id="woCapturePanel" class="wo-capture-panel">
-            <div class="wo-capture-head">
+            <!-- Plain button + checkbox, no points-list window (Matej,
+                 2026-11-14: "seznama točk ne rabimo" — reverts the brief
+                 collapsible-window version from v4.97). Deleting a point is
+                 now done via its marker's popup on the map instead of a
+                 list row — see drawCapturedPointsOnMap() in app.js. -->
+            <div class="wo-capture-row">
               <button type="button" id="woCaptureBtn" class="btn btn-primary btn-sm wo-capture-btn">📍 Poberi vzorec</button>
-              <!-- Collapses everything below (checkbox/error/list) — the
-                   capture button itself stays reachable either way
-                   (Matej, 2026-11-13: okno s seznamom točk ni vedno
-                   potrebno, naj se da skriti). -->
-              <button type="button" id="woCaptureToggleBtn" class="btn btn-icon wo-capture-toggle-btn" aria-expanded="true" aria-label="Skrij/prikaži okno s točkami" title="Skrij/prikaži okno s točkami">▾</button>
-            </div>
-            <div id="woCaptureBody" class="wo-capture-body">
               <label class="wo-capture-toggle">
                 <input type="checkbox" id="woCaptureShowPoints" checked>
                 Prikaži točke
               </label>
-              <div id="woCaptureError" class="alert alert-error wo-capture-error" hidden role="alert"></div>
-              <div id="woCaptureList" class="wo-capture-list"></div>
             </div>
+            <div id="woCaptureError" class="alert alert-error wo-capture-error" hidden role="alert"></div>
           </div>
         </div>
         <div id="workLogForm" class="work-form wo-detail-content">

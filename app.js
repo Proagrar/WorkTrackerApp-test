@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.97';
+const APP_VERSION = 'v4.98';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -115,12 +115,9 @@ const woDetailMapWrapEl = document.querySelector('.wo-detail-map-wrap');
 let woMapExpanded = false;
 const woCapturePanel = document.getElementById('woCapturePanel');
 const woCaptureBtn  = document.getElementById('woCaptureBtn');
-const woCaptureToggleBtn = document.getElementById('woCaptureToggleBtn');
-const woCaptureBody = document.getElementById('woCaptureBody');
 const woCaptureError = document.getElementById('woCaptureError');
 const woCaptureToast = document.getElementById('woCaptureToast');
 const woCaptureShowPoints = document.getElementById('woCaptureShowPoints');
-const woCaptureList = document.getElementById('woCaptureList');
 const woHeaderMeta = document.getElementById('woHeaderMeta');
 const invoicePreviewModal = document.getElementById('invoicePreviewModal');
 const invoicePreviewClose = document.getElementById('invoicePreviewClose');
@@ -1919,9 +1916,6 @@ async function openWorkOrderDetail(workOrder, planId = null) {
   currentDetailPlanIsHeaderDate = !!planId;
   woDatePanel.hidden = true; // phone-only tap-to-edit — always starts collapsed
   woStatusPanelOpen = false;
-  woCaptureBody.hidden = false;
-  woCaptureToggleBtn.textContent = '▾';
-  woCaptureToggleBtn.setAttribute('aria-expanded', 'true');
   wlgHideCompletedCb.checked = false;
   wlgHideCompleted = false;
   layoutWoDetailSections(); // phone only — see its own comment
@@ -2179,7 +2173,6 @@ async function showWoDetailMap(workOrder) {
   woMapSegmentLabelLayers = new Map();
   woMapSegmentPointLayers = new Map();
   woMapSegmentPolygonLayers = new Map();
-  woCaptureList.innerHTML = '';
   woCaptureError.hidden = true;
   woCaptureShowPoints.checked = true;
   pendingKmlImports = [];
@@ -2191,7 +2184,11 @@ async function showWoDetailMap(workOrder) {
   woMapFocusedListCode = null;
   if (woMapHighlightRing) { woMapHighlightRing.remove(); woMapHighlightRing = null; }
   woMapGerkLabel.hidden = true;
-  woMapExpanded = false;
+  // Phone default is the expanded map (Matej, 2026-11-14: "cel zgornji del
+  // ekrana naj prekriva zemljevid by default") — same layout "Razširi"
+  // already builds, just the starting state on phone instead of something
+  // you have to tap into. Desktop keeps its own unchanged default (false).
+  woMapExpanded = isMobile();
   updateMapExpandState();
 
   // invalidateSize() has to run — with the container actually part of
@@ -2260,7 +2257,6 @@ async function showWoDetailMap(workOrder) {
   if (shapesError || currentDetailWorkOrder?.id !== workOrder.id) return;
 
   currentCapturedPoints = captured || [];
-  renderCapturedPointsList();
 
   currentGerkSegments = segments || [];
   currentGerkShapes = shapes || [];
@@ -2433,7 +2429,12 @@ function drawCapturedPointsOnMap() {
         iconSize: [20, 20],
         iconAnchor: [10, 10],
       }),
-    }).addTo(woMapCapturedLayer);
+    }).bindPopup(`
+        <div class="wo-capture-popup">
+          <span>Točka ${escHtml(String(p.point_no))}</span>
+          <button type="button" class="wo-capture-item-remove" data-action="wo-capture-remove" data-point-id="${escHtml(p.id)}">✕ Izbriši</button>
+        </div>`)
+      .addTo(woMapCapturedLayer);
   }
 }
 
@@ -2485,14 +2486,6 @@ async function removeGerkSegmentation(btn) {
     showFormError(e.message || 'Napaka pri odstranjevanju con.');
     btn.disabled = false;
   }
-}
-
-function renderCapturedPointsList() {
-  woCaptureList.innerHTML = currentCapturedPoints.map(p => `
-    <div class="wo-capture-item" data-id="${escHtml(p.id)}" data-lat="${p.lat}" data-lng="${p.lng}">
-      <span>Točka ${p.point_no}</span>
-      <button type="button" class="wo-capture-item-remove" data-action="wo-capture-remove" aria-label="Izbriši točko">✕</button>
-    </div>`).join('');
 }
 
 // Dedicated slot, not the shared showFormError — that alert lives far
@@ -2553,7 +2546,6 @@ async function captureGerkPoint() {
     if (error) throw error;
     const result = Array.isArray(data) ? data[0] : data;
     currentCapturedPoints.push(result);
-    renderCapturedPointsList();
     drawCapturedPointsOnMap();
     showCaptureToast(`✓ Točka ${result.point_no} zajeta`);
   } catch (e) {
@@ -2564,36 +2556,27 @@ async function captureGerkPoint() {
   }
 }
 
-async function removeCapturedPoint(btn) {
-  const item = btn.closest('.wo-capture-item');
-  const id = item.dataset.id;
+// Deleting a point now happens from its own marker's map popup (Matej,
+// 2026-11-14: "seznama točk ne rabimo") rather than a list row.
+async function removeCapturedPoint(id) {
   woCaptureError.hidden = true;
-  btn.disabled = true;
   try {
     const { error } = await supabase.rpc('remove_gerk_captured_point', { p_point_id: id });
     if (error) throw error;
     currentCapturedPoints = currentCapturedPoints.filter(p => p.id !== id);
-    renderCapturedPointsList();
     drawCapturedPointsOnMap();
   } catch (e) {
     showCaptureError(e.message || 'Napaka pri brisanju točke.');
-    btn.disabled = false;
   }
 }
 
 woCaptureBtn.addEventListener('click', captureGerkPoint);
 woCaptureShowPoints.addEventListener('change', drawCapturedPointsOnMap);
-woCaptureToggleBtn.addEventListener('click', () => {
-  const collapsed = !woCaptureBody.hidden;
-  woCaptureBody.hidden = collapsed;
-  woCaptureToggleBtn.textContent = collapsed ? '▸' : '▾';
-  woCaptureToggleBtn.setAttribute('aria-expanded', String(!collapsed));
-});
-woCaptureList.addEventListener('click', e => {
+// Delegated on document, not the map container — the popup's DOM node
+// lives in a Leaflet pane outside #woDetailMap's own element.
+document.addEventListener('click', e => {
   const removeBtn = e.target.closest('[data-action="wo-capture-remove"]');
-  if (removeBtn) { removeCapturedPoint(removeBtn); return; }
-  const item = e.target.closest('.wo-capture-item');
-  if (item) openMapModal(Number(item.dataset.lat), Number(item.dataset.lng), item.querySelector('span').textContent);
+  if (removeBtn) removeCapturedPoint(removeBtn.dataset.pointId);
 });
 
 function startWatchingMyLocationOnWoMap() {
