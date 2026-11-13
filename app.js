@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.102';
+const APP_VERSION = 'v4.104';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2209,7 +2209,7 @@ async function showWoDetailMap(workOrder) {
   woMapSegmentPointLayers = new Map();
   woMapSegmentPolygonLayers = new Map();
   woCaptureError.hidden = true;
-  woCaptureShowPoints.checked = true;
+  woCaptureShowPoints.checked = false;
   pendingKmlImports = [];
   woImportZonesForm.hidden = true;
   woImportZonesError.hidden = true;
@@ -2220,11 +2220,10 @@ async function showWoDetailMap(workOrder) {
   woMapHighlightedSegmentId = null;
   if (woMapHighlightRing) { woMapHighlightRing.remove(); woMapHighlightRing = null; }
   woMapGerkLabel.hidden = true;
-  // Phone default is the expanded map (Matej, 2026-11-14: "cel zgornji del
-  // ekrana naj prekriva zemljevid by default") — same layout "Razširi"
-  // already builds, just the starting state on phone instead of something
-  // you have to tap into. Desktop keeps its own unchanged default (false).
-  woMapExpanded = isMobile();
+  // Reverted (Matej, 2026-11-14: "zemljevid naj bo pomanjšan by default") —
+  // phone now starts shrunk again, same as desktop; the header-fields-are-
+  // hidden-on-phone change from v4.102 stays regardless of this toggle.
+  woMapExpanded = false;
   updateMapExpandState();
 
   // invalidateSize() has to run — with the container actually part of
