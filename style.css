@@ -2267,6 +2267,10 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   box-shadow: 0 1px 3px rgba(0,0,0,.4);
   white-space: nowrap;
 }
+/* Below zoom 17 (ensureWoMap's zoomend listener in app.js), zone outlines/
+   colors stay but the number pills hide — zoomed out, many overlapping
+   segments turn into unreadable clutter otherwise (Matej, 2026-11-14). */
+.wo-detail-map.wo-map-labels-hidden .leaflet-tooltip.wo-map-segment-label { display: none; }
 
 .wo-capture-marker {
   display: flex;
@@ -2483,32 +2487,22 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
      of a flat value so it degrades safely to plain 10px on a non-notched
      phone (env() resolves to 0 there). */
   .modal-head.wo-modal-head { gap: 4px; padding: calc(10px + env(safe-area-inset-top)) 14px 6px; }
-  .wo-header-fields { gap: 6px; }
+  /* Date/izvajalec/datum vzorčenja/status edit controls aren't needed on
+     phone at all (Matej, 2026-11-14: "ne potrebujemo teh polj v takem
+     pogledu na mobilni napravi") — the summary line above already carries
+     date/izvajalec/status, and removing this block is what lets the map
+     take that space instead, in both the shrunk and expanded states (the
+     latter already hid the whole header via .wo-modal--map-expanded). */
+  .wo-header-fields { display: none; }
 
-  /* Date/status: plain text + pencil instead of an always-visible
-     input/select — tap to reveal the real control (toggleWoDateEdit()/
-     woStatusEditBtn's handler in app.js). */
-  .wo-date-summary { display: inline-block; font-size: .8125rem; font-weight: 600; }
-  .wo-date-edit-btn { display: inline-flex; width: 28px; height: 28px; }
-  /* :not([hidden]), not a flat override — app.js still controls whether
-     this shows at all (admin + phone only) via the hidden attribute;
-     this just supplies its phone-only visual when it's not hidden. */
-  .wo-status-edit-btn:not([hidden]) { display: inline-flex; width: 28px; height: 28px; }
-  .wo-date-panel[hidden] { display: none; }
-  .wo-date-panel:not([hidden]) { margin-top: 4px; width: 100%; }
-
-  /* Čas na poti + Opomba now live outside #workLogForm on phone (JS
-     physically relocates them — see layoutWoDetailSections() in
-     app.js): the entry row sits above the map, the opomba input right
-     below it, as direct flex children of .wo-detail-layout. Desktop
-     keeps both nested inside #workLogForm exactly as before — none of
-     this block's selectors reach there. */
+  /* Čas na poti/traktor + Opomba: same "not needed on phone" call as
+     .wo-header-fields above — hidden outright rather than relocated.
+     Desktop is untouched (these selectors are phone-only; desktop keeps
+     both nested inside #workLogForm exactly as before). */
   .wo-detail-layout > #woTravelTimeField,
   .wo-detail-layout > #roadComment {
-    flex-shrink: 0;
-    margin: 0 14px;
+    display: none;
   }
-  .wo-detail-layout > #woTravelTimeField { margin-top: 10px; }
 
   /* The add-row controls used the same 46px/16px inputs as every other
      form field. Selects are shrunk the same way the header's own
