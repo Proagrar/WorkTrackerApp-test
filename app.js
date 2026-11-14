@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.113';
+const APP_VERSION = 'v4.114';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2536,18 +2536,18 @@ function renderGerkSegmentationInfo() {
     segs.get(row.segmentation_id).count++;
   }
 
-  // Icon-only — full detail (type/count/validity) lives in the title
-  // tooltip instead of always-visible text. For admins the icon itself
-  // is the remove action (confirm() below is the safety net against a
-  // stray click); everyone else just gets a static indicator.
+  // Admin-only now (Matej, 2026-11-14: "odstrani iz navadnega načina,
+  // admin naj še vedno vidi") — regular users no longer get even the
+  // static indicator; the icon itself is still the admin's remove action
+  // (confirm() in removeGerkSegmentation() is the safety net against a
+  // stray click). Full detail (type/count/validity) lives in the title
+  // tooltip instead of always-visible text.
   workLogGerkRowsEl.querySelectorAll('.wlg-segmentation-info').forEach(el => {
     const list = byGerk.get(el.dataset.code);
-    if (!list) { el.innerHTML = ''; return; }
+    if (!list || !isAdminView()) { el.innerHTML = ''; return; }
     el.innerHTML = Array.from(list.values()).map(s => {
       const detail = `${s.type} · ${s.count} ${s.count === 1 ? 'cona' : 'con'} · velja od ${fmtSampleDate(s.validFrom)}${s.validTo ? ' do ' + fmtSampleDate(s.validTo) : ''}`;
-      return isAdminView()
-        ? `<button type="button" class="wlg-segmentation-icon" data-action="wlg-remove-segmentation" data-segmentation-id="${escHtml(s.id)}" title="${escHtml(detail)} — klikni za odstranitev">🌐</button>`
-        : `<span class="wlg-segmentation-icon" title="${escHtml(detail)}">🌐</span>`;
+      return `<button type="button" class="wlg-segmentation-icon" data-action="wlg-remove-segmentation" data-segmentation-id="${escHtml(s.id)}" title="${escHtml(detail)} — klikni za odstranitev">🌐</button>`;
     }).join('');
     el.querySelectorAll('[data-action="wlg-remove-segmentation"]').forEach(btn => {
       btn.addEventListener('click', () => removeGerkSegmentation(btn));
