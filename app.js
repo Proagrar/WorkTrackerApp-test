@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.112';
+const APP_VERSION = 'v4.113';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2041,8 +2041,15 @@ function segmentBaseStyle(row) {
   return WO_MAP_SEGMENT_STYLE;
 }
 const WO_MAP_CAPTURED_COLOR = '#16A34A';
-const WO_MAP_SHAPE_HIGHLIGHT_STYLE = { color: '#F59E0B', weight: 4, fillColor: '#F59E0B', fillOpacity: .35 };
-const WO_MAP_SEGMENT_HIGHLIGHT_STYLE = { color: '#F59E0B', weight: 3, dashArray: null, fillColor: '#F59E0B', fillOpacity: .3 };
+// Highlighting a GERK used to flat-overwrite every one of its zones to
+// this one amber style, wiping out each zone's own "združi" group color
+// or "ne pobereš" black/red (Matej, 2026-11-14: "barve morajo biti
+// ohranjene"). This keeps the zone's own color/fillColor and just
+// emphasizes it — thicker border, lower fill opacity so the underlying
+// imagery still shows through more ("opacity zmanjša, bolj poudarjeno").
+function emphasizeStyle(style) {
+  return { ...style, weight: (style.weight || 2) + 2, fillOpacity: Math.max((style.fillOpacity ?? .15) * 0.5, .05) };
+}
 // Segment-number pills show only from this zoom up (Matej, 2026-11-14);
 // below it, each field shows its name instead (wo-map-gerk-name-label) —
 // zoomed out, many overlapping number pills turn unreadable, and zone
@@ -2108,7 +2115,7 @@ function zoomToSampleSegment(sampleId, gerkCode) {
     const prevLayer = woMapSegmentPolygonLayers.get(woMapHighlightedSegmentId);
     prevLayer?.setStyle(prevLayer._wtBaseStyle || WO_MAP_SEGMENT_STYLE);
   }
-  layer.setStyle(WO_MAP_SEGMENT_HIGHLIGHT_STYLE);
+  layer.setStyle(emphasizeStyle(layer._wtBaseStyle || WO_MAP_SEGMENT_STYLE));
   layer.bringToFront();
   woMapHighlightedSegmentId = seg.segment_id;
 
@@ -2149,7 +2156,7 @@ function highlightGerkOnWoMap(code) {
     // of them together, not just the first.
     let combined = entry.shapes[0].getBounds();
     for (const l of entry.shapes) {
-      l.setStyle(WO_MAP_SHAPE_HIGHLIGHT_STYLE);
+      l.setStyle(emphasizeStyle(WO_MAP_SHAPE_STYLE));
       l.bringToFront();
       combined = combined.extend(l.getBounds());
     }
@@ -2160,7 +2167,7 @@ function highlightGerkOnWoMap(code) {
     // combined extent instead.
     let combined = entry.zoneLayers[0].getBounds();
     for (const l of entry.zoneLayers) {
-      l.setStyle(WO_MAP_SEGMENT_HIGHLIGHT_STYLE);
+      l.setStyle(emphasizeStyle(l._wtBaseStyle || WO_MAP_SEGMENT_STYLE));
       l.bringToFront();
       combined = combined.extend(l.getBounds());
     }
