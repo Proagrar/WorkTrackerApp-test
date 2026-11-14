@@ -2155,7 +2155,10 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .wo-map-top-left-controls {
   position: absolute;
   top: 13px;
-  left: 58px;
+  /* Used to clear Leaflet's +/- zoom control, which shared this corner —
+     removed in v4.121, so this just needs a minimal edge margin now
+     (Matej, 2026-11-14: "ne čist ob rob, minimalen odmik od roba"). */
+  left: 8px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -2726,7 +2729,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
      Leaflet's zoom buttons) went straight under it (Matej, 2026-11-14:
      "zgornji rob zemljevida mora biti pod nivojem kamere"). */
   .wo-modal--map-expanded .wo-detail-layout { padding-top: env(safe-area-inset-top); }
-  .wo-map-top-left-controls { top: 10px; left: 54px; }
+  .wo-map-top-left-controls { top: 10px; left: 8px; }
   /* Razširi moves to the map's bottom-right corner on phone (Matej,
      2026-11-10) — out of the way of Ceste/imena and Leaflet's zoom
      control, which otherwise share the top-left corner. */
