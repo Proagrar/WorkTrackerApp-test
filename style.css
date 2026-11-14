@@ -2524,16 +2524,10 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   .wo-header-stranka, #woStatusBadge, #woHeaderMeta {
     display: none;
   }
-  .wo-header-summary {
-    display: block;
-    font-size: .8125rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 2px 0;
-  }
+  /* Removed outright (Matej, 2026-11-14) — with .wo-header-fields already
+     hidden on phone (v4.102), this one-line summary was the only thing
+     left in the header besides back/title/X, and isn't wanted either. */
+  .wo-header-summary { display: none; }
   /* iOS status bar / Dynamic Island sits right over the fixed-position
      sheet's top edge once it's fullscreen (no bottom-sheet margin to
      absorb it any more) — top padding extended by the real inset instead
@@ -2609,6 +2603,12 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   }
   .wo-detail-layout:not(.wo-detail-layout--map-expanded) #workLogForm.wo-detail-content {
     flex: 0 1 auto;
+    /* Pushes the list down 20px — since the map above is flex:1 (fills
+       whatever the list doesn't use), this 20px comes straight off the
+       list's own claimed space and goes to the map instead, growing it
+       by the same amount (Matej, 2026-11-14: "premakni seznam za 20px
+       dol, za isto širino razširi tudi zemljevid"). */
+    margin-top: 20px;
   }
 
   /* #workLogForm now wraps only the GERKI field on phone (Čas na poti
@@ -2737,19 +2737,17 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
     flex: 1;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
+    /* Row 1 (search/Skrij izvedene) sized to its own content; row 2
+       (card + pager) takes all remaining height instead of leaving it as
+       blank space below — Matej, 2026-11-14: "spodnje polje naj bo tudi
+       zapolnjeno". The card itself then stretches into that row (see
+       .wlg-table .wlg-row below) instead of just sitting at the top of it. */
+    grid-template-rows: auto 1fr;
     column-gap: 8px;
-    /* Without this, the grid's default align-content (stretch) spreads
-       any leftover height — whenever the GERK info is shorter than the
-       flex-allocated space — into BOTH "auto" rows, inflating the
-       label's own row into a tall gap above the card and padding the
-       card out at the bottom. start packs both rows to their real
-       content size and leaves any extra space below row 2, where it
-       just reads as (harmless) blank space instead of a stretched gap. */
-    align-content: start;
   }
   .wo-gerk-field > .field-label { grid-column: 1 / -1; }
-  .wlg-table { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; min-width: 0; }
+  .wlg-table { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .wlg-table .wlg-row:not([hidden]) { flex: 1; min-height: 0; overflow-y: auto; }
   /* No forced min-height here (an earlier version used one, ~42dvh, to
      keep the card looking tall even with sparse content) — on top of
      the header/Čas na poti/map/opomba already above it, that floor
