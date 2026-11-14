@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.114';
+const APP_VERSION = 'v4.115';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2091,6 +2091,16 @@ function focusGerkRowFromMap(code) {
   woMapFocusedListCode = code;
 }
 
+// Map → both: clicking a GERK's shape/zone (or, since 2026-11-14, its
+// name label when zoomed out past WO_MAP_LABEL_MIN_ZOOM) zooms in on it
+// AND focuses its row in the list — previously only the list side
+// happened on a map click, zooming in was map→list-click-driven via
+// highlightGerkOnWoMap only (reached from the list, not the map).
+function focusAndZoomGerk(code) {
+  focusGerkRowFromMap(code);
+  highlightGerkOnWoMap(code);
+}
+
 // List → map, segment-level (Matej, 2026-11-13: "klik na segment ti da
 // focus na sam segment") — zooms to just that one imported zone instead of
 // the whole GERK, since a GERK can be split into several. Matched the same
@@ -2331,7 +2341,7 @@ async function showWoDetailMap(workOrder) {
     // GERK name, permanent — shown below zoom 17, where the individual
     layer.on('mouseover', () => highlightGerkRow(row.gerk_code, true));
     layer.on('mouseout',  () => highlightGerkRow(row.gerk_code, false));
-    layer.on('click', () => focusGerkRowFromMap(row.gerk_code));
+    layer.on('click', () => focusAndZoomGerk(row.gerk_code));
     const entry = woMapLayersByCode.get(row.gerk_code) || { marker: null, latlng: null };
     // A compound "A+B+C" code (see get_work_order_gerk_shapes) returns
     // one row per real GERK sharing this same gerk_code — accumulate
@@ -2365,7 +2375,7 @@ async function showWoDetailMap(workOrder) {
     }
     layer.on('mouseover', () => highlightGerkRow(row.gerk_code, true));
     layer.on('mouseout',  () => highlightGerkRow(row.gerk_code, false));
-    layer.on('click', () => focusGerkRowFromMap(row.gerk_code));
+    layer.on('click', () => focusAndZoomGerk(row.gerk_code));
     segmentLayers.push(layer);
     // A GERK known only by a text name has no official shape/centroid
     // at all (see highlightGerkOnWoMap) — its imported zones are the
@@ -2409,10 +2419,18 @@ async function showWoDetailMap(workOrder) {
     if (!boundsSource?.length) continue;
     let combined = boundsSource[0].getBounds();
     for (const l of boundsSource.slice(1)) combined = combined.extend(l.getBounds());
-    L.tooltip({ permanent: true, direction: 'center', className: 'wo-map-gerk-name-label' })
+    const nameLabel = L.tooltip({ permanent: true, direction: 'center', className: 'wo-map-gerk-name-label' })
       .setLatLng(combined.getCenter())
       .setContent(labelText)
       .addTo(woMapGerkLayer);
+    // Clickable too (Matej, 2026-11-14: "tudi klik na napis naj približa
+    // gerk in pokaže gerk na seznamu, ne samo klik na polje") — the field
+    // itself can be a sliver at this zoom level, easy to miss; the label
+    // is a much bigger, easier target. CSS (.wo-map-gerk-name-label)
+    // re-enables pointer-events, which Leaflet's own tooltip base style
+    // disables by default so tooltips don't block clicks on what's under
+    // them — fine for a hover tip, not for one meant to be clicked.
+    nameLabel.getElement()?.addEventListener('click', () => focusAndZoomGerk(code));
   }
 
   // Fit to whatever real shape data exists — official GERK boundaries

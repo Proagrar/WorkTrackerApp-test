@@ -2321,6 +2321,11 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   font-weight: 700;
   box-shadow: 0 1px 3px rgba(0,0,0,.4);
   white-space: nowrap;
+  /* Leaflet's own tooltip base style sets pointer-events:none so a hover
+     tip never blocks clicks on what's under it — re-enabled here since
+     this one is meant to be clicked (Matej, 2026-11-14). */
+  pointer-events: auto;
+  cursor: pointer;
 }
 .wo-detail-map:not(.wo-map-labels-hidden) .leaflet-tooltip.wo-map-gerk-name-label { display: none; }
 
