@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.117';
+const APP_VERSION = 'v4.118';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2355,6 +2355,11 @@ async function showWoDetailMap(workOrder) {
     // logic can combine all of them.
     entry.shapes = entry.shapes || [];
     entry.shapes.push(layer);
+    // The instant placeholder pin (plain L.marker, Leaflet's default blue
+    // icon — see the "Plain center-point markers" block above) is now
+    // redundant and was never removed once the real shape arrived (Matej,
+    // 2026-11-14: stray blue markers on DN 138, confirmed this is why).
+    if (entry.marker) { woMapGerkLayer.removeLayer(entry.marker); entry.marker = null; }
     woMapLayersByCode.set(row.gerk_code, entry);
     shapeLayers.push(layer);
   }
@@ -2390,6 +2395,7 @@ async function showWoDetailMap(workOrder) {
     const entry = woMapLayersByCode.get(row.gerk_code) || { marker: null, latlng: null };
     entry.zoneLayers = entry.zoneLayers || [];
     entry.zoneLayers.push(layer);
+    if (entry.marker) { woMapGerkLayer.removeLayer(entry.marker); entry.marker = null; }
     woMapLayersByCode.set(row.gerk_code, entry);
     for (const p of (row.points || [])) {
       const [lng, lat] = p.geojson.coordinates;
