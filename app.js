@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.108';
+const APP_VERSION = 'v4.109';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2322,18 +2322,6 @@ async function showWoDetailMap(workOrder) {
     const layer = L.geoJSON(row.geojson, { style: WO_MAP_SHAPE_STYLE })
       .bindTooltip(row.gerk_code).addTo(woMapGerkLayer);
     // GERK name, permanent — shown below zoom 17, where the individual
-    // segment-number pills are hidden instead (Matej, 2026-11-14: "do 17
-    // nivoja zooma naj se na poljih prikaže ime gerka"). Bounding-box
-    // center, same approximation already used elsewhere for a shape (see
-    // updateGerkMapLinksFromShapes) — fine at this zoomed-out range, unlike
-    // the segment labels' point-on-surface precision need up close.
-    const fieldName = fields.find(f => f.code === row.gerk_code)?.name;
-    if (fieldName && fieldName !== row.gerk_code) {
-      L.tooltip({ permanent: true, direction: 'center', className: 'wo-map-gerk-name-label' })
-        .setLatLng(layer.getBounds().getCenter())
-        .setContent(fieldName)
-        .addTo(woMapGerkLayer);
-    }
     layer.on('mouseover', () => highlightGerkRow(row.gerk_code, true));
     layer.on('mouseout',  () => highlightGerkRow(row.gerk_code, false));
     layer.on('click', () => focusGerkRowFromMap(row.gerk_code));
@@ -2390,6 +2378,27 @@ async function showWoDetailMap(workOrder) {
         woMapSegmentPointLayers.get(row.segment_id).push({ layer: ptLayer, pointNo: p.point_no });
       }
     }
+  }
+
+  // GERK name labels — shown below zoom WO_MAP_LABEL_MIN_ZOOM, where the
+  // segment-number pills are hidden instead (Matej, 2026-11-14). One pass
+  // over woMapLayersByCode rather than inside the shapeLayers loop above:
+  // a GERK with an imported KML zone has its official .shapes skipped
+  // entirely (kmlCoveredCodes, above), so a label tied only to .shapes
+  // never appeared for exactly the GERKs that actually have segments to
+  // zoom out from (confirmed missing on a real 15-segment GERK, Matej
+  // 2026-11-14). Falls back to .zoneLayers' combined bounds in that case.
+  for (const [code, entry] of woMapLayersByCode) {
+    const fieldName = fields.find(f => f.code === code)?.name;
+    if (!fieldName || fieldName === code) continue;
+    const boundsSource = entry.shapes?.length ? entry.shapes : entry.zoneLayers;
+    if (!boundsSource?.length) continue;
+    let combined = boundsSource[0].getBounds();
+    for (const l of boundsSource.slice(1)) combined = combined.extend(l.getBounds());
+    L.tooltip({ permanent: true, direction: 'center', className: 'wo-map-gerk-name-label' })
+      .setLatLng(combined.getCenter())
+      .setContent(fieldName)
+      .addTo(woMapGerkLayer);
   }
 
   // Fit to whatever real shape data exists — official GERK boundaries

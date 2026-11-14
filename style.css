@@ -2056,10 +2056,17 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   top: 8px;
   right: 8px;
   max-height: 50%;
-  width: 128px;
+  /* fit-content, not a flat 128px — when the capture button is hidden
+     (order not Plan/V delu) only the "Točke" checkbox is left, and the
+     fixed width left a big empty translucent box beside it (Matej,
+     2026-11-14, confirmed on a real Izvedeno order). max-width still caps
+     it when the button IS showing and needs room for its label. */
+  width: fit-content;
+  max-width: 128px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 6px;
   padding: 8px;
   background: rgba(255, 255, 255, .55);
@@ -2333,6 +2340,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 }
 
 .wo-capture-error {
+  align-self: stretch;
   padding: 6px 8px;
   font-size: .6875rem;
   line-height: 1.3;
