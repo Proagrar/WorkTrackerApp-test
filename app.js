@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.111';
+const APP_VERSION = 'v4.112';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2389,12 +2389,14 @@ async function showWoDetailMap(workOrder) {
   // never appeared for exactly the GERKs that actually have segments to
   // zoom out from (confirmed missing on a real 15-segment GERK, Matej
   // 2026-11-14). Falls back to .zoneLayers' combined bounds in that case.
-  // No field name at all (Matej, 2026-11-14) — falls back to the
-  // customer's own name instead of just leaving the GERK unlabeled.
-  const customerFallbackName = currentDetailWorkOrder?.customers?.naziv || currentDetailWorkOrder?.customers?.company_name || null;
+  // No field name at all (Matej, 2026-11-14, reverted the customer-name
+  // version — wrong fallback; see DN 150's Zečević 1..6, hand-typed names
+  // used directly as the gerk_code with no separate `fields.name`) — falls
+  // back to the GERK code itself, which for exactly these cases already
+  // reads as a real name.
   for (const [code, entry] of woMapLayersByCode) {
     const fieldName = fields.find(f => f.code === code)?.name;
-    const labelText = (fieldName && fieldName !== code) ? fieldName : customerFallbackName;
+    const labelText = (fieldName && fieldName !== code) ? fieldName : code;
     if (!labelText) continue;
     const boundsSource = entry.shapes?.length ? entry.shapes : entry.zoneLayers;
     if (!boundsSource?.length) continue;
