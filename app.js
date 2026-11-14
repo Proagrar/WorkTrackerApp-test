@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.116';
+const APP_VERSION = 'v4.117';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -1931,7 +1931,13 @@ async function openWorkOrderDetail(workOrder, planId = null) {
   wlgHideCompleted = false;
   layoutWoDetailSections(); // phone only — see its own comment
 
-  modalTitle.textContent = workOrder.stevilka || 'Delovni nalog';
+  // Matej, 2026-11-14: with .wo-header-fields hidden on phone (v4.102) and
+  // .wo-header-summary removed (v4.110), the bare order number was the
+  // only thing left up top — no customer name visible at all anymore.
+  const titleCustomerName = workOrder.customers?.naziv || workOrder.customers?.company_name || '';
+  modalTitle.textContent = workOrder.stevilka
+    ? (titleCustomerName ? `${workOrder.stevilka} - ${titleCustomerName}` : workOrder.stevilka)
+    : 'Delovni nalog';
   hideFormFeedback();
   updateTractorDatalist();
 

@@ -1996,6 +1996,15 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   font-size: 1.0625rem;
   font-weight: 700;
   letter-spacing: -.01em;
+  /* Title can now carry "<stevilka> - <stranka>" (Matej, 2026-11-14) —
+     needs to actually truncate instead of overflowing/pushing the back/X
+     buttons, which a bare order number never risked before. */
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .work-form {
