@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.118';
+const APP_VERSION = 'v4.119';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2435,6 +2435,9 @@ async function showWoDetailMap(workOrder) {
       .setLatLng(combined.getCenter())
       .setContent(labelText)
       .addTo(woMapGerkLayer);
+    // Stored on the same entry so "Skrij izvedene" can hide the name label
+    // too, not just the shape/zone underneath it (Matej, 2026-11-14).
+    entry.nameLabel = nameLabel;
     // Clickable too (Matej, 2026-11-14: "tudi klik na napis naj približa
     // gerk in pokaže gerk na seznamu, ne samo klik na polje") — the field
     // itself can be a sliver at this zoom level, easy to miss; the label
@@ -2477,6 +2480,7 @@ function updateMapCompletedVisibility() {
     const hide = wlgHideCompleted && !!row?.classList.contains('wlg-row--completed');
     (entry.shapes || []).forEach(l => { if (hide) woMapGerkLayer.removeLayer(l); else woMapGerkLayer.addLayer(l); });
     (entry.zoneLayers || []).forEach(l => { if (hide) woMapSegmentLayer.removeLayer(l); else woMapSegmentLayer.addLayer(l); });
+    if (entry.nameLabel) { if (hide) woMapGerkLayer.removeLayer(entry.nameLabel); else woMapGerkLayer.addLayer(entry.nameLabel); }
   }
 }
 
