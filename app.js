@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.110';
+const APP_VERSION = 'v4.111';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2381,23 +2381,28 @@ async function showWoDetailMap(workOrder) {
   }
 
   // GERK name labels — shown below zoom WO_MAP_LABEL_MIN_ZOOM, where the
-  // segment-number pills are hidden instead (Matej, 2026-11-14). One pass
+  // segment-number pills are hidden instead (Matej, 2026-11-14); falls back
+  // to the customer's name when the field itself has none. One pass
   // over woMapLayersByCode rather than inside the shapeLayers loop above:
   // a GERK with an imported KML zone has its official .shapes skipped
   // entirely (kmlCoveredCodes, above), so a label tied only to .shapes
   // never appeared for exactly the GERKs that actually have segments to
   // zoom out from (confirmed missing on a real 15-segment GERK, Matej
   // 2026-11-14). Falls back to .zoneLayers' combined bounds in that case.
+  // No field name at all (Matej, 2026-11-14) — falls back to the
+  // customer's own name instead of just leaving the GERK unlabeled.
+  const customerFallbackName = currentDetailWorkOrder?.customers?.naziv || currentDetailWorkOrder?.customers?.company_name || null;
   for (const [code, entry] of woMapLayersByCode) {
     const fieldName = fields.find(f => f.code === code)?.name;
-    if (!fieldName || fieldName === code) continue;
+    const labelText = (fieldName && fieldName !== code) ? fieldName : customerFallbackName;
+    if (!labelText) continue;
     const boundsSource = entry.shapes?.length ? entry.shapes : entry.zoneLayers;
     if (!boundsSource?.length) continue;
     let combined = boundsSource[0].getBounds();
     for (const l of boundsSource.slice(1)) combined = combined.extend(l.getBounds());
     L.tooltip({ permanent: true, direction: 'center', className: 'wo-map-gerk-name-label' })
       .setLatLng(combined.getCenter())
-      .setContent(fieldName)
+      .setContent(labelText)
       .addTo(woMapGerkLayer);
   }
 
