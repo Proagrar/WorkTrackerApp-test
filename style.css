@@ -2084,16 +2084,13 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   overflow-y: auto;
 }
 
-/* Highlighted GERK's name, floated over the map — purely informational
-   (pointer-events: none) so it never blocks dragging/zooming under it. */
+/* Highlighted GERK's name — purely informational (pointer-events: none) so
+   it never blocks dragging/zooming under it. Moved (Matej, 2026-11-14) from
+   a hand-tuned top-center absolute position (which needed repeated +10px
+   nudges) into .wo-map-top-left-controls' own flex column, directly below
+   "Ceste/imena" — no more magic-number positioning. */
 .wo-map-gerk-label {
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  /* +40px right of center total (Matej, 2026-11-14, three requests) */
-  transform: translateX(calc(-50% + 40px));
-  z-index: 1000;
-  max-width: calc(100% - 160px);
+  max-width: 220px;
   padding: 5px 12px;
   background: rgba(255, 255, 255, .85);
   color: var(--text-primary);

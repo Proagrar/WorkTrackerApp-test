@@ -719,6 +719,13 @@
                rendered height changed slightly. -->
           <div class="wo-map-top-left-controls">
             <button type="button" id="woMapLayersBtn" class="wo-map-layers-btn wo-map-layers-btn--detail" aria-pressed="false" title="Prikaži/skrij ceste in imena krajev">🛣 Ceste/imena</button>
+            <!-- Set by highlightGerkOnWoMap() when a GERK row is clicked —
+                 just a name label, so it's clear which GERK is highlighted
+                 while panning/zooming, not an interactive control. Moved
+                 here (Matej, 2026-11-14) — stacks below "Ceste/imena" via
+                 this column's own gap, instead of a hand-tuned top-center
+                 offset that kept needing +10px nudges. -->
+            <div id="woMapGerkLabel" class="wo-map-gerk-label" hidden></div>
           </div>
           <!-- Own absolute position (not stacked in the controls column
                above) so it can sit in the map's bottom-right corner on
@@ -728,10 +735,6 @@
                the rest of the screen (phone) — see renderCompactGerkList()
                and updateMapExpandState() in app.js. -->
           <button type="button" id="woMapExpandBtn" class="wo-map-expand-btn">⛶ Razširi</button>
-          <!-- Set by highlightGerkOnWoMap() when a GERK row is clicked —
-               just a name label, so it's clear which GERK is highlighted
-               while panning/zooming, not an interactive control. -->
-          <div id="woMapGerkLabel" class="wo-map-gerk-label" hidden></div>
           <!-- Fades out on its own after a successful "Poberi vzorec" —
                see showCaptureToast() in app.js. -->
           <div id="woCaptureToast" class="wo-capture-toast" aria-live="polite"></div>
