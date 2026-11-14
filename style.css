@@ -2081,8 +2081,8 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   position: absolute;
   top: 8px;
   left: 50%;
-  /* +20px right of center total (Matej, 2026-11-14, two +10px requests) */
-  transform: translateX(calc(-50% + 20px));
+  /* +40px right of center total (Matej, 2026-11-14, three requests) */
+  transform: translateX(calc(-50% + 40px));
   z-index: 1000;
   max-width: calc(100% - 160px);
   padding: 5px 12px;
