@@ -1193,8 +1193,24 @@ input, select, textarea { font-family: inherit; }
 }
 
 .wlg-gerk-label-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.wlg-hide-completed-toggle { display: flex; align-items: center; gap: 4px; font-size: .75rem; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
-.wlg-hide-completed-toggle input { width: 13px; height: 13px; cursor: pointer; }
+/* Moved onto the map itself, in .wo-map-top-left-controls below "Ceste/
+   imena" (Matej, 2026-11-14) — same pill look as .wo-map-layers-btn,
+   since it's now a map overlay control rather than a plain form label. */
+.wo-map-hide-completed-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .85);
+  color: var(--text-primary);
+  font-size: .75rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.wo-map-hide-completed-toggle input { width: 13px; height: 13px; cursor: pointer; }
 .wlg-select-all-label { display: flex; align-items: center; cursor: pointer; }
 .wlg-search-input {
   margin-left: auto;

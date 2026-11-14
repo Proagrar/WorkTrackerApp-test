@@ -726,6 +726,15 @@
                  this column's own gap, instead of a hand-tuned top-center
                  offset that kept needing +10px nudges. -->
             <div id="woMapGerkLabel" class="wo-map-gerk-label" hidden></div>
+            <!-- Moved here from next to the GERKI search field (Matej,
+                 2026-11-14: "namesto zraven seznama") — hides a completed
+                 GERK's shape/zone/name label on the map (and, unchanged,
+                 its row below) — see updateMapCompletedVisibility()/
+                 applyGerkSearch() in app.js. -->
+            <label class="wo-map-hide-completed-toggle">
+              <input type="checkbox" id="wlgHideCompletedCb">
+              Skrij izvedene
+            </label>
           </div>
           <!-- Own absolute position (not stacked in the controls column
                above) so it can sit in the map's bottom-right corner on
@@ -788,13 +797,6 @@
             </label>
             <label class="field-label">GERKI</label>
             <input type="text" id="wlgSearchInput" class="wlg-search-input" placeholder="Išči GERK..." aria-label="Išči GERK" autocomplete="off">
-            <!-- Hides GERKs whose work is already done (start+end logged,
-                 same .wlg-row--completed state the row already carries)
-                 both here and as map shapes/zones (Matej, 2026-11-13). -->
-            <label class="wlg-hide-completed-toggle">
-              <input type="checkbox" id="wlgHideCompletedCb">
-              Skrij izvedene
-            </label>
           </div>
           <div id="workLogGerkRows" class="wlg-table"></div>
           <p class="field-hint" id="wlgSearchNoResults" hidden>Ni najdenih GERKOV.</p>

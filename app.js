@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.120';
+const APP_VERSION = 'v4.121';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -2198,7 +2198,11 @@ function highlightGerkOnWoMap(code) {
 
 function ensureWoMap() {
   if (woMap) return woMap;
-  woMap = L.map(woDetailMap);
+  // zoomControl: false — Matej, 2026-11-14: "odstrani '+ -' za zoom na
+  // zemljevidu". Pinch-to-zoom/scroll-to-zoom still work; this only drops
+  // the on-screen +/- buttons, which also clears the top-left corner
+  // they used to share with "Ceste/imena".
+  woMap = L.map(woDetailMap, { zoomControl: false });
   // Esri World Imagery (free, no API key) — satellite detail matters
   // more here than street-map labels for seeing actual field/crop
   // conditions, and unlike Google's tiles this is fine to embed
