@@ -596,6 +596,28 @@ input, select, textarea { font-family: inherit; }
 .wo-select-cell { display: flex; align-items: center; justify-content: center; }
 .wo-select-checkbox { width: 16px; height: 16px; cursor: pointer; }
 
+/* Real narrow phones only (never tablets — smallest tablet, iPad mini
+   portrait, is 744px) — the 8 fixed-width compact columns plus gaps/
+   padding add up to ~500px before Stranka's own 1fr gets any space at
+   all, so on a ~375-414px phone Stranka was being squeezed to nothing
+   (Matej, 2026-11-15: "stranka column is missing" on phone, visible on
+   tablet). Drop Izvajalec (his choice of what to sacrifice) to free up
+   its 70px track for Stranka. */
+@media (max-width: 480px) {
+  .wo-c-izvajalec,
+  .wo-th[data-sort="izvajalec"] {
+    display: none;
+  }
+  .wo-lc-header.wo-lc-header,
+  .wo-compact.wo-compact {
+    grid-template-columns: 34px 56px 1fr 52px 40px 48px 80px;
+  }
+  .wo-lc-header.wo-lc-header.wo-lc-header--selectable,
+  .wo-compact.wo-compact.wo-compact--selectable {
+    grid-template-columns: 22px 34px 56px 1fr 52px 40px 48px 80px;
+  }
+}
+
 .wo-th {
   appearance: none;
   border: none;
