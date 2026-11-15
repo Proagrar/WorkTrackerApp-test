@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.122';
+const APP_VERSION = 'v4.123';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -1238,11 +1238,13 @@ function renderSampleCommentCell(s) {
 }
 
 
-// Phone (max-width:899px) vs desktop — the app's one real breakpoint
-// (style.css has a matching comment at its own phone-only block). Used
-// wherever a layout decision needs JS, not just CSS.
+// "Compact" layout (phone + tablet, max-width:1023px) vs desktop — the
+// app's one real breakpoint (style.css has matching @media rules at the
+// same value). Raised from 899px to 1023px (Matej, 2026-11-15: tablets
+// should get the same compact layout as phones, not the desktop one) —
+// used wherever a layout decision needs JS, not just CSS.
 function isMobile() {
-  return window.matchMedia('(max-width: 899px)').matches;
+  return window.matchMedia('(max-width: 1023px)').matches;
 }
 
 // Phone only: moves #woTravelTimeField above the map and #roadComment

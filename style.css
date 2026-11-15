@@ -664,7 +664,7 @@ input, select, textarea { font-family: inherit; }
   white-space: nowrap;
 }
 
-/* Maps column — desktop-only (900px+ below), hidden here so the base
+/* Maps column — desktop-only (1024px+ below), hidden here so the base
    grid-template-columns stays accurate on mobile even though the
    element is always present in the markup. Shared by both the header
    span (wo-th wo-th-center wo-c-maps) and the row cells — the header
@@ -1764,7 +1764,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .wo-overview-tooltip { text-align: center; }
 .wo-overview-tooltip > div:first-child { font-weight: 600; }
 
-@media (min-width: 900px) {
+@media (min-width: 1024px) {
   .wo-list-layout--map-active { flex-direction: row; gap: 16px; align-items: flex-start; }
   .wo-list-layout--map-active #workOrdersList { width: 50%; }
   .wo-list-layout--map-active .wo-list-map-wrap { width: 50%; height: 70vh; max-height: 700px; margin-top: 0; }
@@ -2055,7 +2055,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 
 .wo-detail-map-wrap {
   position: relative;
-  height: 27vh; /* was 22vh — grown back ~20% once the GERK card below no longer needed the extra room (desktop overrides this at min-width:900px) */
+  height: 27vh; /* was 22vh — grown back ~20% once the GERK card below no longer needed the extra room (desktop overrides this at min-width:1024px) */
   max-height: 230px; /* was 190px */
   flex-shrink: 0;
 }
@@ -2236,7 +2236,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
    content column); on phone there's no width to grow into (the map's
    already 100% there, stacked above the content) so the phone-only rule
    further down grows its height instead — see the mobile media query. */
-@media (min-width: 900px) {
+@media (min-width: 1024px) {
   .wo-detail-layout--map-expanded .wo-detail-map-wrap { width: 78%; }
   .wo-detail-layout--map-expanded .wo-detail-content  { width: 22%; }
 }
@@ -2390,7 +2390,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   font-weight: 600;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 1024px) {
   .wo-detail-layout   { flex-direction: row; }
   /* height:auto + min-height (not a fixed height, and no max-height
      cap): both of this wrap's children (#woDetailMap, .wo-capture-panel)
@@ -2413,21 +2413,21 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   height: 320px;
   width: 100%;
 }
-@media (min-width: 900px) {
+@media (min-width: 1024px) {
   .map-container { height: 420px; }
 }
 
 
 /* ============================================================
    RESPONSIVE — phone-only polish (exact complement of the
-   min-width:900px "wider screens" block below — nothing here should
-   ever be visible at ≥900px). Addresses three specific complaints on
+   min-width:1024px "wider screens" block below — nothing here should
+   ever be visible at ≥1024px). Addresses three specific complaints on
    phone-class widths: the ha/time chip row wrapping to two lines, the
    toolbar's filter/search/map buttons wrapping in whatever order they
    happen to fit, and the map overview opening in normal flow below
    the full (possibly long) list instead of staying in view.
    ============================================================ */
-@media (max-width: 899px) {
+@media (max-width: 1023px) {
   /* Header: min-width:0 overrides the default min-width:auto a flex
      item gets — without it, .header-user refuses to shrink below its
      own content's natural width (dot+name+badge+switch+logout), which
@@ -2834,7 +2834,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 /* Laptop/desktop is now the primary target — phone stays fully usable via
    everything above, this layer just stops the app looking like a stretched
    phone screen once there's real width to work with. */
-@media (min-width: 900px) {
+@media (min-width: 1024px) {
   .app-main { max-width: 1100px; }
   /* Gnojilni načrt's tables (plans, lab results with 12 columns, settings)
      need the whole screen; the other tabs keep the 1100px column
