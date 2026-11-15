@@ -1341,11 +1341,32 @@
           <div><dt>Sklic (v Minimaxu)</dt><dd id="ipSklic"></dd></div>
         </dl>
         <p class="invoice-preview-note">Aplikacija ne pošlje ničesar neposredno v Minimax — zabeleži se samo ta zahteva. Ločena skripta nato v Minimaxu ustvari <strong>prazen osnutek</strong> računa za zgornjega kupca.</p>
-        <table class="invoice-preview-table">
-          <thead><tr><th>GERK</th><th>Ha</th></tr></thead>
+        <p class="invoice-preview-meta" id="ipExistingRacuni" hidden></p>
+        <!-- Mode is locked in by this order's FIRST delovni_nalogi_racuni
+             row (DB trigger trg_racun_rezim_locked enforces it too) — the
+             chooser only shows before that first request; after it, only
+             the locked mode's screen shows (openInvoicePreviewModal sets
+             this). -->
+        <div class="field" id="ipRezimChooserWrap">
+          <span class="field-label">Način fakturiranja</span>
+          <div class="radio-group">
+            <label><input type="radio" name="ipRezim" value="gerki" id="ipRezimGerki" checked> Po GERK-ih</label>
+            <label><input type="radio" name="ipRezim" value="odstotek" id="ipRezimOdstotek"> Po deležu (%)</label>
+          </div>
+        </div>
+        <p class="invoice-preview-meta" id="ipRezimLockedNote" hidden></p>
+        <table class="invoice-preview-table" id="ipGerkModeWrap">
+          <thead><tr><th></th><th>GERK</th><th>Ha</th></tr></thead>
           <tbody id="ipGerkRows"></tbody>
-          <tfoot><tr><td>Skupaj</td><td id="ipGerkTotal"></td></tr></tfoot>
+          <tfoot><tr><td></td><td>Skupaj</td><td id="ipGerkTotal"></td></tr></tfoot>
         </table>
+        <div id="ipPercentModeWrap" hidden>
+          <p class="invoice-preview-meta" id="ipPercentRemainingNote"></p>
+          <label class="field">
+            <span class="field-label">Odstotek tega računa <span class="required">*</span></span>
+            <input type="number" id="ipPercentInput" class="field-input" min="0.01" max="100" step="0.01" placeholder="npr. 20">
+          </label>
+        </div>
         <p class="invoice-preview-meta" id="ipMeta"></p>
         <!-- Alternative to requesting an invoice — for work that's done but
              will never be invoiced (Matej, 2026-11-11). Deliberately does

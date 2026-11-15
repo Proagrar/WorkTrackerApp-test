@@ -1393,6 +1393,21 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   font-size: .8125rem;
   color: var(--text-secondary);
 }
+.radio-group {
+  display: flex;
+  gap: 16px;
+  margin-top: 4px;
+}
+.radio-group label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .8125rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+.ip-gerk-checkbox-cell { width: 28px; text-align: center; }
+.ip-gerk-row--already-invoiced { color: var(--text-secondary); font-style: italic; }
 
 /* ── Greeting ───────────────────────────────────────────────── */
 .greeting-section {
@@ -3610,6 +3625,11 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .sled-status-cell { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .sled-status-stepper { display: block; }
 .sled-invoice-icon-col { text-align: center; }
+/* Multi/partial invoice support (16.11.2026) — an order can show several
+   racun rows stacked (one badge+number line each in the status cell, one
+   action icon each in the icon cell) instead of a single fixed status. */
+.sled-racun-line { display: flex; align-items: center; white-space: nowrap; }
+.sled-racun-line:not(:last-child) { margin-bottom: 3px; }
 .fert-link-btn { height: 30px; padding: 0 10px; }
 .fert-pick-list { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); white-space: normal; }
 

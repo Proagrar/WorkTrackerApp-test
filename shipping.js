@@ -135,12 +135,14 @@ async function loadAll() {
   els.orderRows.innerHTML = `<tr><td colspan="12" class="fert-empty">Nalaganje …</td></tr>`;
   const [{ data: orderData, error: orderError }, { data: boxData, error: boxError }, { data: mmInvoices }] = await Promise.all([
     supabase.from('delovni_nalogi')
-      .select(`id, stevilka, status, ustvarjen, deleted_at, racun_zahtevan_at, racun_napaka,
-        minimax_racun_id, minimax_racun_stevilka, minimax_racun_status, datum_vzorcenja,
+      .select(`id, stevilka, status, ustvarjen, deleted_at, datum_vzorcenja,
         zakljucen_brez_racuna_at, opomba_zakljucek, stranka_id,
         customers(naziv, company_name, minimax_customer_id, vat_number), profiles(full_name),
         delovni_nalogi_gerki(id, gerk_code, kolicina_ha, field_id, fields(name),
-          delovni_nalogi_vzorci(id, sample_no, box_id, sampling_note, area_ha, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS})))`)
+          delovni_nalogi_vzorci(id, sample_no, box_id, sampling_note, area_ha, sample_boxes(id, label, status, sent_at), lab_soil_result(${LAB_COLS}))),
+        delovni_nalogi_racuni(id, stevilka_racuna, rezim, delez_odstotek, opomba, racun_zahtevan_at,
+          minimax_racun_id, minimax_racun_stevilka, minimax_racun_status, racun_napaka,
+          delovni_nalogi_racuni_gerki(delovni_nalog_gerk_id))`)
       .is('deleted_at', null)
       .order('ustvarjen', { ascending: false }),
     supabase.from('sample_boxes').select('*').order('created_at', { ascending: false }),
@@ -256,12 +258,46 @@ function orderStatusLabel(order) {
 // its own schedule (roughly every 2h, see "Minimax osvezitev"), so a
 // request younger than this is just sync lag, not necessarily wrong.
 const MINIMAX_MIRROR_GRACE_MS = 6 * 60 * 60 * 1000;
-function invoiceStatusLabel(order) {
-  // "Zaključi brez računa" (Matej, 2026-11-11) — a terminal state, never
-  // touches minimax_racun_*/racun_zahtevan_at, so it's checked first.
-  if (order.zakljucen_brez_racuna_at) return 'Zaključeno brez računa';
-  if (order.minimax_racun_id) {
-    const inv = mmInvoiceById[order.minimax_racun_id];
+
+// Multi/partial invoice support (16.11.2026) — an order's old single flat
+// minimax_racun_*/racun_* columns are gone; every invoice REQUEST is now
+// its own row in delovni_nalogi_racuni (nested in the loadAll() select
+// above), locked to one "rezim" per order ('gerki' = covers specific GERK
+// lines via its own delovni_nalogi_racuni_gerki junction rows, 'odstotek' =
+// covers a percentage of the whole order, no GERK subset at all). An order
+// can have several racun rows over time — the status/action cells below
+// render one line per row instead of one fixed status for the whole order.
+function racuniOf(order) { return order.delovni_nalogi_racuni || []; }
+function rezimLocked(order) {
+  const r = racuniOf(order);
+  return r.length ? r[0].rezim : null;
+}
+function invoicedGerkIds(order) {
+  const ids = new Set();
+  for (const r of racuniOf(order)) for (const g of (r.delovni_nalogi_racuni_gerki || [])) ids.add(g.delovni_nalog_gerk_id);
+  return ids;
+}
+function remainingHa(order) {
+  const invoiced = invoicedGerkIds(order);
+  return (order.delovni_nalogi_gerki || []).reduce((s, g) => invoiced.has(g.id) ? s : s + (Number(g.kolicina_ha) || 0), 0);
+}
+function remainingPercent(order) {
+  const used = racuniOf(order).filter(r => r.rezim === 'odstotek').reduce((s, r) => s + (Number(r.delez_odstotek) || 0), 0);
+  return Math.max(0, 100 - used);
+}
+// Whether "+ nov račun" should still show at all — true for an order with
+// no racun rows yet (nothing requested) or one that hasn't covered its
+// full ha/100% yet under its locked rezim.
+function hasRemainingToInvoice(order) {
+  return rezimLocked(order) === 'odstotek' ? remainingPercent(order) > 0.001 : remainingHa(order) > 0.001;
+}
+// One racun row's status label — same shape invoiceStatusLabel used to
+// compute for the whole order, now per-row (a row with no minimax_racun_id
+// yet is either pending or errored, handled by invoiceRowActionIcon instead
+// of a status label at all, same as before).
+function racunStatusLabel(racun) {
+  if (racun.minimax_racun_id) {
+    const inv = mmInvoiceById[racun.minimax_racun_id];
     if (inv) {
       if (inv.document_status === 'O') return 'Osnutek računa';
       if (inv.payment_status === 'Placan') return 'Račun plačan';
@@ -274,23 +310,35 @@ function invoiceStatusLabel(order) {
     // Minimax and this app's own racun_* fields are now stale (Matej,
     // 2026-11-12: DN 139/Andrej Žura — ERP said "Račun izdan", Minimax had
     // nothing). Trusting minimax_racun_status here would repeat that.
-    const requestedAt = order.racun_zahtevan_at ? new Date(order.racun_zahtevan_at).getTime() : 0;
+    const requestedAt = racun.racun_zahtevan_at ? new Date(racun.racun_zahtevan_at).getTime() : 0;
     const freshEnough = requestedAt && (Date.now() - requestedAt) < MINIMAX_MIRROR_GRACE_MS;
     if (!freshEnough) return 'Preveri v Minimaxu';
   }
-  if (order.minimax_racun_status === 'izstavljen') return 'Račun izdan';
-  if (order.minimax_racun_status === 'storniran') return 'Račun storniran';
-  if (order.minimax_racun_status === 'osnutek') return 'Osnutek računa';
+  if (racun.minimax_racun_status === 'izstavljen') return 'Račun izdan';
+  if (racun.minimax_racun_status === 'storniran') return 'Račun storniran';
+  if (racun.minimax_racun_status === 'osnutek') return 'Osnutek računa';
   return 'Račun ni izdan';
 }
-// Which actual Minimax invoice this order's draft/invoice became (Matej,
+// Whole-order status, kept for the invoice-status FILTER dropdown only
+// (one value per order there, same UX as before) — the most "active" row
+// wins, or the terminal/zero-request labels when there's nothing to pick.
+function invoiceStatusLabel(order) {
+  if (order.zakljucen_brez_racuna_at) return 'Zaključeno brez računa';
+  const rows = racuniOf(order);
+  if (!rows.length) return 'Račun ni izdan';
+  const PRIORITY = ['Preveri v Minimaxu', 'Osnutek računa', 'Račun izdan', 'Račun plačan', 'Račun storniran'];
+  const labels = rows.map(racunStatusLabel);
+  for (const p of PRIORITY) if (labels.includes(p)) return p;
+  return labels[0];
+}
+// Which actual Minimax invoice a racun row's draft/invoice became (Matej,
 // 2026-11-12: "kateri račun je bil narejen iz naloga") — same "YYYY-NNN"
 // label Minimax itself uses (and the same convention the external
 // Nalogi_povezovanje reconciliation report already uses). Needs the mirror
 // row (mmInvoiceById); a brand-new draft the mirror hasn't synced yet has
 // no number to show.
-function invoiceNumberLabel(order) {
-  const inv = order.minimax_racun_id ? mmInvoiceById[order.minimax_racun_id] : null;
+function invoiceNumberLabel(racun) {
+  const inv = racun.minimax_racun_id ? mmInvoiceById[racun.minimax_racun_id] : null;
   return (inv?.year && inv?.invoice_number) ? `${inv.year}-${inv.invoice_number}` : null;
 }
 // Minimax's own invoice-view page — confirmed live 2026-11-12 against two
@@ -298,9 +346,9 @@ function invoiceNumberLabel(order) {
 // minimax_racun_id, pgat=pgatv is just a fixed view-mode flag. Works off
 // minimax_racun_id alone, so the link shows even before the mirror has
 // synced the row invoiceNumberLabel needs.
-function minimaxInvoiceUrl(order) {
-  return order.minimax_racun_id
-    ? `https://moj.minimax.si/SI/VA/WebUI/IzdanRacun/IzdanRacunView.aspx?iracid=${order.minimax_racun_id}&pgat=pgatv`
+function minimaxInvoiceUrl(racun) {
+  return racun.minimax_racun_id
+    ? `https://moj.minimax.si/SI/VA/WebUI/IzdanRacun/IzdanRacunView.aspx?iracid=${racun.minimax_racun_id}&pgat=pgatv`
     : null;
 }
 const INVOICE_BADGE = {
@@ -313,28 +361,56 @@ const INVOICE_BADGE = {
   'Preveri v Minimaxu': 'fert-badge--danger',
 };
 
+// One line per racun row (badge + number/link), used by renderOrders()
+// instead of a single status for the whole order.
+function invoiceStatusCellHtml(order) {
+  if (order.zakljucen_brez_racuna_at) {
+    const cls = INVOICE_BADGE['Zaključeno brez računa'];
+    const title = order.opomba_zakljucek ? ` title="${esc(order.opomba_zakljucek)}"` : '';
+    return `<span class="fert-badge ${cls}"${title}>Zaključeno brez računa</span>`;
+  }
+  const rows = racuniOf(order);
+  if (!rows.length) return `<span class="fert-badge ${INVOICE_BADGE['Račun ni izdan']}">Račun ni izdan</span>`;
+  return rows.map(r => {
+    const label = racunStatusLabel(r);
+    const cls = INVOICE_BADGE[label] ?? 'fert-badge--neutral';
+    const num = invoiceNumberLabel(r);
+    const url = minimaxInvoiceUrl(r);
+    const tag = r.rezim === 'odstotek' ? `${r.delez_odstotek}%` : `#${r.stevilka_racuna}`;
+    const numHtml = num
+      ? ` <span class="sled-invoice-num">${url ? `<a href="${esc(url)}" target="_blank" rel="noopener" class="sled-invoice-link" title="Odpri račun v Minimaxu">${esc(num)} 🔗</a>` : esc(num)}</span>`
+      : '';
+    return `<div class="sled-racun-line"><span class="fert-badge ${cls}" title="Račun ${esc(tag)}">${esc(tag)} · ${esc(label)}</span>${numHtml}</div>`;
+  }).join('');
+}
+
 // Icon-only trigger/retry/cancel (Matej, 2026-11-09: "samo ikono") — this
 // tab is already admin-only at the app.js level (the tab button itself is
 // hidden otherwise), so no separate admin check here. The actual write
 // logic (review modal, retry, cancel) lives in app.js — reached through
 // the window.* bridge it sets up — so it stays the single source of truth
 // for what "Pripravi račun" actually does, not duplicated here.
-function invoiceActionIcon(order) {
+// One icon per ACTIONABLE racun row (pending → cancel, errored → retry),
+// plus a trailing "+" trigger if there's still something left to invoice —
+// an order can show several icons stacked now, not just one.
+function invoiceActionCellHtml(order) {
   if (order.zakljucen_brez_racuna_at) {
     const title = order.opomba_zakljucek ? `Zaključeno brez računa: ${order.opomba_zakljucek} — klikni za preklic` : 'Zaključeno brez računa — klikni za preklic';
     return `<button type="button" class="wo-invoice-btn wo-invoice-btn--pending" data-action="sled-invoice-cancel-no-invoice" data-id="${esc(order.id)}" title="${esc(title)}" aria-label="Zaključeno brez računa, prekliči">↺</button>`;
   }
-  if (order.racun_napaka) {
-    return `<button type="button" class="wo-invoice-btn wo-invoice-btn--error" data-action="sled-invoice-retry" data-id="${esc(order.id)}" title="${esc(order.racun_napaka)} — klikni za ponovni poskus" aria-label="Napaka pri računu, ponovno poskusi">⚠</button>`;
+  const icons = [];
+  for (const r of racuniOf(order)) {
+    if (r.racun_napaka) {
+      icons.push(`<button type="button" class="wo-invoice-btn wo-invoice-btn--error" data-action="sled-invoice-retry" data-racun-id="${esc(r.id)}" title="${esc(r.racun_napaka)} — klikni za ponovni poskus" aria-label="Napaka pri računu, ponovno poskusi">⚠</button>`);
+    } else if (r.racun_zahtevan_at && !r.minimax_racun_id) {
+      icons.push(`<button type="button" class="wo-invoice-btn wo-invoice-btn--pending" data-action="sled-invoice-cancel" data-racun-id="${esc(r.id)}" title="Račun v pripravi — klikni za preklic" aria-label="Račun v pripravi, prekliči">⏳</button>`);
+    }
   }
-  if (order.racun_zahtevan_at && !order.minimax_racun_id) {
-    return `<button type="button" class="wo-invoice-btn wo-invoice-btn--pending" data-action="sled-invoice-cancel" data-id="${esc(order.id)}" title="Račun v pripravi — klikni za preklic" aria-label="Račun v pripravi, prekliči">⏳</button>`;
-  }
-  const eligible = (order.status === 'Izvedeno' || order.status === 'Izdan Račun') && !order.deleted_at && !order.minimax_racun_id && !order.racun_zahtevan_at;
+  const eligible = (order.status === 'Izvedeno' || order.status === 'Izdan Račun') && !order.deleted_at && hasRemainingToInvoice(order);
   if (eligible) {
-    return `<button type="button" class="wo-invoice-btn" data-action="sled-invoice-request" data-id="${esc(order.id)}" title="Pripravi račun" aria-label="Pripravi račun">🧾</button>`;
+    icons.push(`<button type="button" class="wo-invoice-btn" data-action="sled-invoice-request" data-id="${esc(order.id)}" title="${racuniOf(order).length ? 'Pripravi nov račun' : 'Pripravi račun'}" aria-label="Pripravi račun">🧾</button>`);
   }
-  return '';
+  return icons.map(i => `<div class="sled-racun-line">${i}</div>`).join('');
 }
 
 // ── Status filter (multi-select — same button+checklist pattern as the
@@ -455,10 +531,6 @@ function renderOrders() {
     const receivedDate = earliest(segs.flatMap(s => (s.lab_soil_result || []).map(r => r.analysis_date)).filter(Boolean));
     const label = orderStatusLabel(o);
     const cls = PIPELINE_BADGE[label] ?? 'fert-badge--neutral';
-    const invLabel = invoiceStatusLabel(o);
-    const invCls = INVOICE_BADGE[invLabel] ?? 'fert-badge--neutral';
-    const invNum = invoiceNumberLabel(o);
-    const invUrl = minimaxInvoiceUrl(o);
     return `<tr data-open-order="${esc(o.id)}">
       <td><input type="checkbox" class="sled-select-cb" data-id="${esc(o.id)}" aria-label="Izberi nalog" ${selectedOrderIds.has(o.id) ? 'checked' : ''}></td>
       <td>${esc(o.stevilka)}</td>
@@ -472,10 +544,8 @@ function renderOrders() {
       <td><div class="sled-status-cell">
         ${statusStepperSvg(label)}<span class="fert-badge ${cls}">${esc(label)}</span>
       </div></td>
-      <td><span class="fert-badge ${invCls}"${invLabel === 'Zaključeno brez računa' && o.opomba_zakljucek ? ` title="${esc(o.opomba_zakljucek)}"` : ''}>${esc(invLabel)}</span>${invNum ? ` <span class="sled-invoice-num">${invUrl
-        ? `<a href="${esc(invUrl)}" target="_blank" rel="noopener" class="sled-invoice-link" title="Odpri račun v Minimaxu">${esc(invNum)} 🔗</a>`
-        : esc(invNum)}</span>` : ''}</td>
-      <td class="sled-invoice-icon-col">${invoiceActionIcon(o)}</td>
+      <td>${invoiceStatusCellHtml(o)}</td>
+      <td class="sled-invoice-icon-col">${invoiceActionCellHtml(o)}</td>
     </tr>`;
   }).join('');
   updateSelectAllState(rows.map(o => o.id));
@@ -494,14 +564,12 @@ els.orderRows.addEventListener('click', e => {
   }
   const retryBtn = e.target.closest('[data-action="sled-invoice-retry"]');
   if (retryBtn) {
-    const o = orders.find(x => x.id === retryBtn.dataset.id);
-    if (o) window.retryInvoiceRequest?.(o);
+    window.retryInvoiceRequest?.(retryBtn.dataset.racunId);
     return;
   }
   const cancelBtn = e.target.closest('[data-action="sled-invoice-cancel"]');
   if (cancelBtn) {
-    const o = orders.find(x => x.id === cancelBtn.dataset.id);
-    if (o) window.cancelInvoiceRequest?.(o);
+    window.cancelInvoiceRequest?.(cancelBtn.dataset.racunId);
     return;
   }
   const cancelNoInvoiceBtn = e.target.closest('[data-action="sled-invoice-cancel-no-invoice"]');

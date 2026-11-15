@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.126';
+const APP_VERSION = 'v4.127';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -129,8 +129,17 @@ const ipStranka = document.getElementById('ipStranka');
 const ipVat = document.getElementById('ipVat');
 const ipMinimaxId = document.getElementById('ipMinimaxId');
 const ipSklic = document.getElementById('ipSklic');
+const ipExistingRacuni = document.getElementById('ipExistingRacuni');
+const ipRezimChooserWrap = document.getElementById('ipRezimChooserWrap');
+const ipRezimGerki = document.getElementById('ipRezimGerki');
+const ipRezimOdstotek = document.getElementById('ipRezimOdstotek');
+const ipRezimLockedNote = document.getElementById('ipRezimLockedNote');
+const ipGerkModeWrap = document.getElementById('ipGerkModeWrap');
 const ipGerkRows = document.getElementById('ipGerkRows');
 const ipGerkTotal = document.getElementById('ipGerkTotal');
+const ipPercentModeWrap = document.getElementById('ipPercentModeWrap');
+const ipPercentRemainingNote = document.getElementById('ipPercentRemainingNote');
+const ipPercentInput = document.getElementById('ipPercentInput');
 const ipMeta = document.getElementById('ipMeta');
 const invoicePreviewCancelBtn = document.getElementById('invoicePreviewCancelBtn');
 const invoicePreviewConfirmBtn = document.getElementById('invoicePreviewConfirmBtn');
@@ -1699,11 +1708,61 @@ function updateOrderHeader() {
 }
 
 // "Pripravi račun" lives in the work-orders list (one icon/number cell
-// per row — see renderWoInvoiceCell()), not in the detail view. The app
-// only ever writes racun_zahtevan_at/by: a separate script (not this
-// app) polls that, creates the Minimax draft, and fills in
-// minimax_racun_*/racun_napaka.
+// per row — see invoiceActionCellHtml()/invoiceStatusCellHtml() in
+// shipping.js), not in the detail view. The app
+// writes one delovni_nalogi_racuni row per request (multi/partial invoice
+// support, 16.11.2026 — was a single racun_zahtevan_at/by write on
+// delovni_nalogi itself, before an order could only ever have one
+// invoice); a separate script/Edge Function polls that row and fills in
+// minimax_racun_*/racun_napaka on it.
 let invoicePreviewWorkOrder = null;
+
+// Shared with shipping.js's own copies of these (duplicated there
+// deliberately, same reasoning as its other cross-file duplication) —
+// this module needs them for the request modal itself.
+function racuniOf(wo) { return wo.delovni_nalogi_racuni || []; }
+function rezimLocked(wo) {
+  const r = racuniOf(wo);
+  return r.length ? r[0].rezim : null;
+}
+function invoicedGerkIds(wo) {
+  const ids = new Set();
+  for (const r of racuniOf(wo)) for (const g of (r.delovni_nalogi_racuni_gerki || [])) ids.add(g.delovni_nalog_gerk_id);
+  return ids;
+}
+function remainingHa(wo) {
+  const invoiced = invoicedGerkIds(wo);
+  return (wo.delovni_nalogi_gerki || []).reduce((s, g) => invoiced.has(g.id) ? s : s + (Number(g.kolicina_ha) || 0), 0);
+}
+function remainingPercent(wo) {
+  const used = racuniOf(wo).filter(r => r.rezim === 'odstotek').reduce((s, r) => s + (Number(r.delez_odstotek) || 0), 0);
+  return Math.max(0, 100 - used);
+}
+
+// Mode chooser (first request on an order only — later ones skip straight
+// to the locked mode) and the percent-mode "remaining" note both need to
+// react to which radio is picked, so this isn't just set up once in
+// openInvoicePreviewModal.
+function updateInvoicePreviewModeUi(wo) {
+  const locked = rezimLocked(wo);
+  const chosen = locked || (ipRezimOdstotek.checked ? 'odstotek' : 'gerki');
+  ipGerkModeWrap.hidden = chosen !== 'gerki';
+  ipPercentModeWrap.hidden = chosen !== 'odstotek';
+  if (chosen === 'odstotek') {
+    const remaining = remainingPercent(wo);
+    ipPercentRemainingNote.textContent = `Preostane za fakturiranje: ${remaining.toFixed(2)}%`;
+    if (!ipPercentInput.value) ipPercentInput.value = remaining > 0 ? remaining.toFixed(2) : '';
+  }
+}
+ipRezimGerki.addEventListener('change', () => updateInvoicePreviewModeUi(invoicePreviewWorkOrder));
+ipRezimOdstotek.addEventListener('change', () => updateInvoicePreviewModeUi(invoicePreviewWorkOrder));
+
+function updateIpGerkTotal() {
+  const checked = Array.from(ipGerkRows.querySelectorAll('.ip-gerk-cb:checked'));
+  const total = checked.reduce((s, cb) => s + (Number(cb.dataset.ha) || 0), 0);
+  ipGerkTotal.textContent = fmtHa(total);
+}
+ipGerkRows.addEventListener('change', e => { if (e.target.matches('.ip-gerk-cb')) updateIpGerkTotal(); });
 
 // First-time request only — opens a review modal summarizing exactly
 // what the separate Minimax sync script will have to work with, so an
@@ -1720,7 +1779,9 @@ function openInvoicePreviewModal(wo) {
   ipStranka.textContent = customerName;
   ipVat.textContent = vatNumber || '—';
   ipMinimaxId.textContent = minimaxId || 'ni nastavljen';
-  ipSklic.textContent = `DN ${wo.stevilka || ''}`.trim();
+  const racuni = racuniOf(wo);
+  const nextStevilka = racuni.reduce((m, r) => Math.max(m, r.stevilka_racuna), 0) + 1;
+  ipSklic.textContent = `DN ${wo.stevilka || ''}-${nextStevilka}`.trim();
 
   // The real ERP↔Minimax customer link is the davčna številka — if the
   // customer has one, the sync script looks it up in Minimax and creates
@@ -1732,12 +1793,45 @@ function openInvoicePreviewModal(wo) {
     invoicePreviewWarningText.textContent = 'Stranka nima ne davčne številke ne Minimax ID-ja — priprava osnutka bo verjetno spodletela. Dopolnite enega od njiju na kartici stranke, ali nadaljujte in popravite kasneje.';
   }
 
+  // Existing racuni for this order, if any — shown above the mode
+  // chooser/table so an admin sees what's already been requested before
+  // picking what this new request should cover.
+  ipExistingRacuni.hidden = !racuni.length;
+  if (racuni.length) {
+    ipExistingRacuni.textContent = 'Obstoječi računi: ' + racuni.map(r =>
+      r.rezim === 'odstotek' ? `#${r.stevilka_racuna} — ${r.delez_odstotek}%` : `#${r.stevilka_racuna} — po GERK-ih`
+    ).join(', ');
+  }
+
+  // Mode is locked in by this order's FIRST racun row (DB trigger
+  // trg_racun_rezim_locked also enforces it) — the chooser only shows
+  // before that first request.
+  const locked = rezimLocked(wo);
+  ipRezimChooserWrap.hidden = !!locked;
+  ipRezimLockedNote.hidden = !locked;
+  if (locked) {
+    ipRezimLockedNote.textContent = locked === 'odstotek' ? 'Način: po deležu (%) (zaklenjeno za ta nalog)' : 'Način: po GERK-ih (zaklenjeno za ta nalog)';
+    ipRezimGerki.checked = locked === 'gerki';
+    ipRezimOdstotek.checked = locked === 'odstotek';
+  } else {
+    ipRezimGerki.checked = true;
+    ipRezimOdstotek.checked = false;
+  }
+  ipPercentInput.value = '';
+
+  const invoiced = invoicedGerkIds(wo);
   const gerks = wo.delovni_nalogi_gerki || [];
-  ipGerkRows.innerHTML = gerks.map(g => `
-    <tr><td>${escHtml(g.gerk_code || '—')}</td><td>${fmtHa(g.kolicina_ha)}</td></tr>`
-  ).join('') || '<tr><td colspan="2">Brez GERK-ov.</td></tr>';
-  const totalHa = gerks.reduce((s, g) => s + (Number(g.kolicina_ha) || 0), 0);
-  ipGerkTotal.textContent = fmtHa(totalHa);
+  ipGerkRows.innerHTML = gerks.map(g => {
+    const already = invoiced.has(g.id);
+    const onRacun = already ? racuni.find(r => (r.delovni_nalogi_racuni_gerki || []).some(x => x.delovni_nalog_gerk_id === g.id)) : null;
+    return `<tr class="${already ? 'ip-gerk-row--already-invoiced' : ''}">
+      <td class="ip-gerk-checkbox-cell"><input type="checkbox" class="ip-gerk-cb" data-gerk-id="${escHtml(g.id)}" data-ha="${Number(g.kolicina_ha) || 0}" ${already ? '' : 'checked'}></td>
+      <td>${escHtml(g.gerk_code || '—')}${already && onRacun ? ` (že na računu #${onRacun.stevilka_racuna})` : ''}</td>
+      <td>${fmtHa(g.kolicina_ha)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="3">Brez GERK-ov.</td></tr>';
+  updateIpGerkTotal();
+  updateInvoicePreviewModeUi(wo);
 
   // Accurate per-GERK duration only exists once the detail view has
   // loaded it (currentAllGerkEntries); triggered straight from the list,
@@ -1810,6 +1904,13 @@ invoicePreviewConfirmBtn.addEventListener('click', async () => {
     if (!reason) { ipNoInvoiceReason.focus(); return; }
     const opomba = reason === 'Drugo' ? ipNoInvoiceOtherNote.value.trim() : reason;
     if (reason === 'Drugo' && !opomba) { ipNoInvoiceOtherNote.focus(); return; }
+    // The DB-level `.is('minimax_racun_id', null)` guard below only still
+    // protects legacy (pre-16.11.2026) orders — a new-model order's own
+    // delovni_nalogi.minimax_racun_id never gets written at all anymore, so
+    // check its actual racuni here instead.
+    if (racuniOf(wo).some(r => r.minimax_racun_id)) {
+      return alert('Ta nalog že ima izdan/osnutek račun — zaključek brez računa ni mogoč.');
+    }
     invoicePreviewConfirmBtn.disabled = true;
     invoicePreviewConfirmBtn.querySelector('.btn-label').hidden = true;
     invoicePreviewConfirmBtn.querySelector('.btn-spinner').hidden = false;
@@ -1829,22 +1930,46 @@ invoicePreviewConfirmBtn.addEventListener('click', async () => {
     window.sledenjeRefreshOrders?.();
     return;
   }
+  // Multi/partial invoice support (16.11.2026): which mode this request
+  // uses — locked by the order's first racun row if it has one, otherwise
+  // whichever radio is picked — and the two very different payloads each
+  // mode needs (a checked-GERK list vs a single percentage).
+  const locked = rezimLocked(wo);
+  const chosen = locked || (ipRezimOdstotek.checked ? 'odstotek' : 'gerki');
+  let checkedGerkIds = [];
+  let percent = null;
+  if (chosen === 'gerki') {
+    checkedGerkIds = Array.from(ipGerkRows.querySelectorAll('.ip-gerk-cb:checked')).map(cb => cb.dataset.gerkId);
+    if (!checkedGerkIds.length) { alert('Izberi vsaj en GERK za ta račun.'); return; }
+  } else {
+    percent = parseFloat(ipPercentInput.value);
+    if (!percent || percent <= 0) { ipPercentInput.focus(); return; }
+    const remaining = remainingPercent(wo);
+    if (percent > remaining + 0.001 && !confirm(`Vnesenih ${percent}% presega preostanek za fakturiranje (${remaining.toFixed(2)}%). Nadaljuj?`)) return;
+  }
+  const nextStevilka = racuniOf(wo).reduce((m, r) => Math.max(m, r.stevilka_racuna), 0) + 1;
+
   invoicePreviewConfirmBtn.disabled = true;
   invoicePreviewConfirmBtn.querySelector('.btn-label').hidden = true;
   invoicePreviewConfirmBtn.querySelector('.btn-spinner').hidden = false;
-  const { error } = await supabase
-    .from('delovni_nalogi')
-    .update({ racun_zahtevan_at: new Date().toISOString(), racun_zahtevan_by: currentUser.id, racun_napaka: null })
-    .eq('id', wo.id)
-    .eq('status', 'Izvedeno')
-    .is('deleted_at', null)
-    .is('minimax_racun_id', null);
+  const { data: racunRow, error } = await supabase
+    .from('delovni_nalogi_racuni')
+    .insert({
+      delovni_nalog_id: wo.id, stevilka_racuna: nextStevilka, rezim: chosen,
+      delez_odstotek: chosen === 'odstotek' ? percent : null,
+      racun_zahtevan_at: new Date().toISOString(), racun_zahtevan_by: currentUser.id,
+    })
+    .select('id').single();
   invoicePreviewConfirmBtn.disabled = false;
   invoicePreviewConfirmBtn.querySelector('.btn-label').hidden = false;
   invoicePreviewConfirmBtn.querySelector('.btn-spinner').hidden = true;
   if (error) { closeInvoicePreviewModal(); return alert('Napaka pri zahtevi za račun.'); }
-  wo.racun_zahtevan_at = new Date().toISOString();
-  wo.racun_napaka = null;
+  if (chosen === 'gerki') {
+    const { error: linkError } = await supabase
+      .from('delovni_nalogi_racuni_gerki')
+      .insert(checkedGerkIds.map(gid => ({ racun_id: racunRow.id, delovni_nalog_gerk_id: gid })));
+    if (linkError) { closeInvoicePreviewModal(); return alert('Račun je bil zahtevan, a povezava z izbranimi GERK-i ni uspela — preveri ročno.'); }
+  }
   closeInvoicePreviewModal();
   window.sledenjeRefreshOrders?.();
 });
@@ -1866,29 +1991,35 @@ async function cancelCloseWithoutInvoice(wo) {
 
 // Direct (no modal) — already reviewed once via the preview modal; this
 // just resubmits the same request after Minimax sync reported an error.
-async function retryInvoiceRequest(wo) {
+// Multi/partial invoice support (16.11.2026): per racun row now, not per
+// order (data-racun-id from shipping.js's invoiceActionCellHtml) — the DB
+// trigger trg_minimax_draft_on_retry_racun (miniMax repo migration 018)
+// fires on this same UPDATE OF racun_zahtevan_at, same as the old
+// per-order trigger did.
+async function retryInvoiceRequest(racunId) {
+  if (!racunId) return;
   const { error } = await supabase
-    .from('delovni_nalogi')
+    .from('delovni_nalogi_racuni')
     .update({ racun_napaka: null, racun_zahtevan_at: new Date().toISOString() })
-    .eq('id', wo.id);
+    .eq('id', racunId);
   if (error) return alert('Napaka pri ponovnem poskusu.');
-  wo.racun_napaka = null;
-  wo.racun_zahtevan_at = new Date().toISOString();
   window.sledenjeRefreshOrders?.();
 }
 
-// Direct (no modal) — withdraws a not-yet-processed request; blocked by
-// the is('minimax_racun_id', null) once the sync script has picked it up.
-async function cancelInvoiceRequest(wo) {
-  if (!confirm(`Preklicati zahtevo za račun za nalog ${wo.stevilka}?`)) return;
+// Direct (no modal) — withdraws a not-yet-processed request by deleting its
+// racun row outright (it only ever existed to represent this request); any
+// delovni_nalogi_racuni_gerki rows for it cascade-delete with it. Blocked
+// by is('minimax_racun_id', null) once the sync script has picked it up,
+// same guard the old per-order version used.
+async function cancelInvoiceRequest(racunId) {
+  if (!racunId) return;
+  if (!confirm('Preklicati to zahtevo za račun?')) return;
   const { error } = await supabase
-    .from('delovni_nalogi')
-    .update({ racun_zahtevan_at: null, racun_zahtevan_by: null })
-    .eq('id', wo.id)
+    .from('delovni_nalogi_racuni')
+    .delete()
+    .eq('id', racunId)
     .is('minimax_racun_id', null);
   if (error) return alert('Napaka pri preklicu.');
-  wo.racun_zahtevan_at = null;
-  wo.racun_zahtevan_by = null;
   window.sledenjeRefreshOrders?.();
 }
 
