@@ -1764,7 +1764,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .wo-overview-tooltip { text-align: center; }
 .wo-overview-tooltip > div:first-child { font-weight: 600; }
 
-@media (min-width: 1025px) {
+@media (min-width: 1025px) and (pointer: fine) {
   .wo-list-layout--map-active { flex-direction: row; gap: 16px; align-items: flex-start; }
   .wo-list-layout--map-active #workOrdersList { width: 50%; }
   .wo-list-layout--map-active .wo-list-map-wrap { width: 50%; height: 70vh; max-height: 700px; margin-top: 0; }
@@ -2236,7 +2236,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
    content column); on phone there's no width to grow into (the map's
    already 100% there, stacked above the content) so the phone-only rule
    further down grows its height instead — see the mobile media query. */
-@media (min-width: 1025px) {
+@media (min-width: 1025px) and (pointer: fine) {
   .wo-detail-layout--map-expanded .wo-detail-map-wrap { width: 78%; }
   .wo-detail-layout--map-expanded .wo-detail-content  { width: 22%; }
 }
@@ -2390,7 +2390,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   font-weight: 600;
 }
 
-@media (min-width: 1025px) {
+@media (min-width: 1025px) and (pointer: fine) {
   .wo-detail-layout   { flex-direction: row; }
   /* height:auto + min-height (not a fixed height, and no max-height
      cap): both of this wrap's children (#woDetailMap, .wo-capture-panel)
@@ -2413,7 +2413,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   height: 320px;
   width: 100%;
 }
-@media (min-width: 1025px) {
+@media (min-width: 1025px) and (pointer: fine) {
   .map-container { height: 420px; }
 }
 
@@ -2421,13 +2421,19 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 /* ============================================================
    RESPONSIVE — phone-only polish (exact complement of the
    min-width:1025px "wider screens" block below — nothing here should
-   ever be visible at ≥1025px). Addresses three specific complaints on
-   phone-class widths: the ha/time chip row wrapping to two lines, the
-   toolbar's filter/search/map buttons wrapping in whatever order they
-   happen to fit, and the map overview opening in normal flow below
-   the full (possibly long) list instead of staying in view.
+   ever be visible at ≥1025px AND pointer:fine, i.e. on a mouse-driven
+   desktop/laptop). Addresses three specific complaints on phone-class
+   widths: the ha/time chip row wrapping to two lines, the toolbar's
+   filter/search/map buttons wrapping in whatever order they happen to
+   fit, and the map overview opening in normal flow below the full
+   (possibly long) list instead of staying in view.
+   Also applies to any touch-primary device regardless of width/orientation
+   (pointer:coarse) — Matej, 2026-11-15: tablets should get the compact
+   layout in landscape too, not just portrait, since a tablet is used
+   like a phone (touch, held in hand) rather than like a laptop even
+   when its landscape CSS width lands in "desktop" territory.
    ============================================================ */
-@media (max-width: 1024px) {
+@media (max-width: 1024px), (pointer: coarse) {
   /* Header: min-width:0 overrides the default min-width:auto a flex
      item gets — without it, .header-user refuses to shrink below its
      own content's natural width (dot+name+badge+switch+logout), which
@@ -2834,7 +2840,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 /* Laptop/desktop is now the primary target — phone stays fully usable via
    everything above, this layer just stops the app looking like a stretched
    phone screen once there's real width to work with. */
-@media (min-width: 1025px) {
+@media (min-width: 1025px) and (pointer: fine) {
   .app-main { max-width: 1100px; }
   /* Gnojilni načrt's tables (plans, lab results with 12 columns, settings)
      need the whole screen; the other tabs keep the 1100px column

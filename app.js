@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.124';
+const APP_VERSION = 'v4.125';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -1238,15 +1238,20 @@ function renderSampleCommentCell(s) {
 }
 
 
-// "Compact" layout (phone + tablet, max-width:1024px) vs desktop — the
+// "Compact" layout (phone + tablet, any orientation) vs desktop — the
 // app's one real breakpoint (style.css has matching @media rules at the
-// same value). Raised from 899px to 1024px (Matej, 2026-11-15: tablets
+// same values). Raised from 899px to 1024px (Matej, 2026-11-15: tablets
 // should get the same compact layout as phones, not the desktop one;
 // bumped once more same day to 1024px so iPad Pro 13" portrait, whose CSS
-// viewport is exactly 1024px wide, falls on the compact side too) — used
-// wherever a layout decision needs JS, not just CSS.
+// viewport is exactly 1024px wide, falls on the compact side too), then
+// extended with "or pointer:coarse" so a tablet in LANDSCAPE (which can be
+// 1200-1500+ CSS px wide, past the 1024px cutoff) still gets compact mode —
+// a tablet is held and touched like a phone, not used with a mouse like a
+// laptop, regardless of its reported width. pointer:coarse also matches a
+// touchscreen laptop even with a mouse attached, by design (Matej,
+// 2026-11-15). Used wherever a layout decision needs JS, not just CSS.
 function isMobile() {
-  return window.matchMedia('(max-width: 1024px)').matches;
+  return window.matchMedia('(max-width: 1024px), (pointer: coarse)').matches;
 }
 
 // Phone only: moves #woTravelTimeField above the map and #roadComment
