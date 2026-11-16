@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.127';
+const APP_VERSION = 'v4.128';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -4618,6 +4618,22 @@ async function confirmKmlImport(btn) {
             // order was closed and reopened.
             gerk.delovni_nalogi_vzorci = [...(gerk.delovni_nalogi_vzorci || []), ...(insertedSegs || [])];
           }
+        }
+
+        // A label already present (skipped above — created earlier by
+        // hand or via the lab-sheet paste, before this zone existed) still
+        // needs its OWN area_ha backfilled from the just-imported geometry
+        // — same "KML wins" priority as kolicina_ha above, just per-segment
+        // instead of per-GERK. Previously this case was silently skipped
+        // entirely, leaving area_ha permanently null (Matej, 2026-11-16:
+        // DN 155/156 exported with no segment size — root cause of the
+        // backfill done that day).
+        for (const s of (gerk.delovni_nalogi_vzorci || [])) {
+          const area = areaByLabel.get(s.sample_no);
+          if (area == null || s.area_ha === area) continue;
+          const { error: areaError } = await supabase.from('delovni_nalogi_vzorci').update({ area_ha: area }).eq('id', s.id);
+          if (areaError) console.warn('area_ha backfill failed for', s.sample_no, areaError);
+          else s.area_ha = area;
         }
 
         importedFiles++;
