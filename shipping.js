@@ -60,6 +60,11 @@ const els = {
   boxModal: document.getElementById('sledBoxModal'),
   boxModalClose: document.getElementById('sledBoxModalClose'),
   boxModalTitle: document.getElementById('sledBoxModalTitle'),
+  sendDateModal: document.getElementById('sledSendDateModal'),
+  sendDateModalClose: document.getElementById('sledSendDateModalClose'),
+  sendDateInput: document.getElementById('sledSendDateInput'),
+  sendDateCancelBtn: document.getElementById('sledSendDateCancelBtn'),
+  sendDateConfirmBtn: document.getElementById('sledSendDateConfirmBtn'),
   boxContentRows: document.getElementById('sledBoxContentRows'),
 };
 
@@ -1195,21 +1200,36 @@ function samplesInBox(boxId) {
 }
 
 // A box can leave the day before or after it's marked "zaključeno" in the
-// app — asking for the actual date instead of always stamping "now"
-// (Matej, 2026-11-19). Returns an ISO timestamp (local noon, so fmtDate's
-// plain new Date(iso).getDate()/... can't shift it a day under any
-// timezone), null if cancelled, or undefined if the typed value was invalid
-// (already alerted — caller just bails).
+// app — asking for the actual date (via a real calendar picker, not a text
+// prompt — Matej, 2026-11-19) instead of always stamping "now". Resolves
+// to an ISO timestamp (local noon, so fmtDate's plain
+// new Date(iso).getDate()/... can't shift it a day under any timezone), or
+// null if cancelled.
 function promptSendDate(defaultIso) {
-  const input = prompt('Datum pošiljanja (LLLL-MM-DD):', defaultIso);
-  if (input === null) return null;
-  const trimmed = input.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    alert(`Neveljaven datum — uporabi obliko LLLL-MM-DD, npr. ${defaultIso}.`);
-    return undefined;
-  }
-  const [y, m, d] = trimmed.split('-').map(Number);
-  return new Date(y, m - 1, d, 12, 0, 0).toISOString();
+  return new Promise(resolve => {
+    els.sendDateInput.value = defaultIso;
+    showModal(els.sendDateModal);
+    function finish(result) {
+      hideModal(els.sendDateModal);
+      els.sendDateConfirmBtn.removeEventListener('click', onConfirm);
+      els.sendDateCancelBtn.removeEventListener('click', onCancel);
+      els.sendDateModalClose.removeEventListener('click', onCancel);
+      els.sendDateModal.removeEventListener('click', onBackdrop);
+      resolve(result);
+    }
+    function onConfirm() {
+      const val = els.sendDateInput.value;
+      if (!val) { alert('Izberi datum.'); return; }
+      const [y, m, d] = val.split('-').map(Number);
+      finish(new Date(y, m - 1, d, 12, 0, 0).toISOString());
+    }
+    function onCancel() { finish(null); }
+    function onBackdrop(e) { if (e.target === els.sendDateModal) finish(null); }
+    els.sendDateConfirmBtn.addEventListener('click', onConfirm);
+    els.sendDateCancelBtn.addEventListener('click', onCancel);
+    els.sendDateModalClose.addEventListener('click', onCancel);
+    els.sendDateModal.addEventListener('click', onBackdrop);
+  });
 }
 
 async function setDpdTracking(boxId) {
@@ -1236,7 +1256,7 @@ async function handleBoxRowClick(e) {
     if (!box) return;
     const n = samplesInBox(box.id).length;
     if (!confirm(`Zaključiti in poslati pošiljko "${box.label}" (${n} vzorcev skupaj, lahko iz več naročil) laboratoriju?`)) return;
-    const sentAt = promptSendDate(new Date().toISOString().slice(0, 10));
+    const sentAt = await promptSendDate(new Date().toISOString().slice(0, 10));
     if (sentAt == null) return;
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from('sample_boxes').update({ status: 'Poslano', sent_at: sentAt, sent_by: user?.id ?? null }).eq('id', box.id);

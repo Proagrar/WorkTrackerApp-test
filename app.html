@@ -511,6 +511,37 @@
       </div>
     </div>
 
+    <!-- ── Sledenje naročilom — Pošiljke: "Zaključi in pošlji" vpraša za
+         dejanski datum pošiljanja (lahko včeraj ali jutri, ne nujno danes —
+         Matej, 2026-11-19) prek pravega koledarja (<input type="date">),
+         ne prek prompt()-a. promptSendDate() v shipping.js odpre to
+         modalno okno in vrne Promise, razrešen z izbranim datumom ali
+         null ob Prekliči. -->
+    <div id="sledSendDateModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="sledSendDateModalTitle">
+      <div class="modal-sheet modal-sheet-compact">
+        <div class="modal-handle" aria-hidden="true"></div>
+        <div class="modal-head">
+          <h3 id="sledSendDateModalTitle" class="modal-title">Datum pošiljanja</h3>
+          <button id="sledSendDateModalClose" class="btn btn-icon" aria-label="Zapri">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="work-form">
+          <div class="field">
+            <label class="field-label" for="sledSendDateInput">Datum pošiljanja</label>
+            <input class="field-input" type="date" id="sledSendDateInput">
+          </div>
+          <div class="form-actions">
+            <button type="button" id="sledSendDateCancelBtn" class="btn btn-secondary btn-flex">Prekliči</button>
+            <button type="button" id="sledSendDateConfirmBtn" class="btn btn-primary btn-flex">Potrdi</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Poročila (admin only) — full-screen view, not a tab-bar
          entry (opened from the + menu, no persistent button). The tab
          bar itself hides while this is shown; ← Nazaj returns to
