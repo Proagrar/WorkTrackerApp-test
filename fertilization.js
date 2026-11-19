@@ -45,6 +45,13 @@ const els = {
   labNotice: document.getElementById('fertLabNotice'),
   labHead: document.getElementById('fertLabHead'),
   labRows: document.getElementById('fertLabRows'),
+  labEditModal: document.getElementById('fertLabEditModal'),
+  labEditModalClose: document.getElementById('fertLabEditModalClose'),
+  labEditSubtitle: document.getElementById('fertLabEditSubtitle'),
+  labEditFields: document.getElementById('fertLabEditFields'),
+  labEditError: document.getElementById('fertLabEditError'),
+  labEditCancelBtn: document.getElementById('fertLabEditCancelBtn'),
+  labEditSaveBtn: document.getElementById('fertLabEditSaveBtn'),
   settingsBody: document.getElementById('fertSettingsBody'),
 };
 
@@ -84,6 +91,19 @@ function fmtDate(iso) {
 }
 function customerName(c) {
   return c ? (c.naziv || c.company_name || '—') : '—';
+}
+
+// Same fade/slide modal open-close as shipping.js's own showModal/hideModal —
+// small local copy, same reasoning as that module's own comment (not worth
+// importing across modules for four lines).
+const MODAL_CLOSE_MS = 300;
+function showModal(el) {
+  el.hidden = false;
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('modal-backdrop--visible')));
+}
+function hideModal(el) {
+  el.classList.remove('modal-backdrop--visible');
+  setTimeout(() => { el.hidden = true; }, MODAL_CLOSE_MS);
 }
 
 // PostgREST returns at most 1000 rows per request (Supabase's max-rows), so
@@ -262,14 +282,22 @@ const LAB_VALUE_COLUMNS = [
   // needs to stand out here just as much as the file name does for a
   // normally-imported one.
   { key: 'file',  label: 'Vir', value: r => r.lab_import_file?.file_name,
-    render: r => r.isMissing
-      ? `<td><span class="fert-badge fert-badge--danger" title="Nalog ima že vsaj en rezultat, ta segment pa ga še nima">⚠ Manjka</span></td>`
-      : r.lab_import_file
-        // long names ("Proagrar d.o.o._21.10.2026.xlsx") cut with … — full name + import date on hover
-        ? `<td class="fert-muted fert-ellipsis" title="${esc(`${r.lab_import_file.file_name} · uvoženo ${fmtDate(r.lab_import_file.imported_at)}`)}">${esc(r.lab_import_file.file_name)}</td>`
-        : r.isManual
-          ? `<td><span class="fert-badge fert-badge--ok" title="Ni iz uvoza Excel datoteke — vneseno ročno ali prek MCP">✓ Ročno</span></td>`
-          : `<td class="fert-muted">—</td>` },
+    render: r => {
+      const badge = r.isMissing
+        ? `<span class="fert-badge fert-badge--danger" title="Nalog ima že vsaj en rezultat, ta segment pa ga še nima">⚠ Manjka</span>`
+        : r.lab_import_file
+          // long names ("Proagrar d.o.o._21.10.2026.xlsx") cut with … — full name + import date on hover
+          ? `<span class="fert-muted fert-ellipsis" title="${esc(`${r.lab_import_file.file_name} · uvoženo ${fmtDate(r.lab_import_file.imported_at)}`)}">${esc(r.lab_import_file.file_name)}</span>`
+          : r.isManual
+            ? `<span class="fert-badge fert-badge--ok" title="Ni iz uvoza Excel datoteke — vneseno ročno ali prek MCP">✓ Ročno</span>`
+            : `<span class="fert-muted">—</span>`;
+      // Edit button only for a "linked"-mode row (always carries .gerk) —
+      // ročno urejanje dela tako na manjkajočih kot na že uvoženih
+      // rezultatih (Matej, 2026-11-20). An "unlinked" raw lab_soil_result
+      // row has no vzorec_id to attach values to yet (that's "Poveži"'s job).
+      const editBtn = r.gerk ? `<button type="button" class="btn btn-secondary btn-sm" data-lab-edit="${esc(r.id)}">Uredi</button>` : '';
+      return `<td><div class="fert-row-actions">${badge}${editBtn}</div></td>`;
+    } },
 ];
 const LAB_LINKED_COLUMNS = [
   { key: 'order',    label: 'Nalog',  value: r => labGerk(r)?.delovni_nalogi?.stevilka, render: r => `<td>${esc(labGerk(r)?.delovni_nalogi?.stevilka ?? '—')}</td>` },
@@ -390,6 +418,102 @@ els.labRows.addEventListener('click', async event => {
     if (!g || !c) return;
     return startNewPlan({ customer_id: c.id, customer_name: customerName(c), delovni_nalog_gerk_id: g.id,
       gerk_code: g.gerk_code, field_id: g.field_id, field_name: g.fields?.name ?? null });
+  }
+  const editBtn = event.target.closest('[data-lab-edit]');
+  if (editBtn) return openLabEditModal(editBtn.dataset.labEdit);
+});
+
+// ── Analize tal — ročno urejanje enega rezultata (Matej, 2026-11-20):
+// dela tako na manjkajočem segmentu (vstavi nov lab_soil_result) kot na že
+// uvoženem (prepiše vrednosti — za razliko od MCP-jevega set_lab_result,
+// ki dopolni samo še prazna polja, tu admin vidi trenutne vrednosti in jih
+// zavestno spreminja, zato je prepis pravilen). Isti stolpci kot
+// LAB_EXPORT_COLS v shipping.js (en sam dogovorjen nabor polj analize).
+const LAB_EDIT_FIELDS = [
+  ['lab_sample_code', 'Lab. koda', 'text'],
+  ['analysis_date', 'Datum analize', 'date'],
+  ['ph_kcl', 'pH (KCl)', 'number'],
+  ['ka', 'KA', 'number'],
+  ['caco3_pct', 'CaCO3 %', 'number'],
+  ['humus_pct', 'Humus %', 'number'],
+  ['no3_no2_n', 'NO3+NO2-N', 'number'],
+  ['p2o5', 'P2O5', 'number'],
+  ['k2o', 'K2O', 'number'],
+  ['mg', 'Mg', 'number'],
+  ['na', 'Na', 'number'],
+  ['zn', 'Zn', 'number'],
+  ['cu', 'Cu', 'number'],
+  ['mn', 'Mn', 'number'],
+  ['salts_pct', 'Soli %', 'number'],
+  ['so4_s', 'SO4-S', 'number'],
+  ['fe', 'Fe', 'number'],
+  ['notes', 'Opomba', 'text'],
+];
+
+let labEditRow = null; // the labAllRows entry currently open in the modal
+
+function renderLabEditFields(row) {
+  els.labEditFields.innerHTML = LAB_EDIT_FIELDS.map(([key, label, type]) => {
+    const raw = row[key];
+    const value = raw == null ? '' : (type === 'number' ? Number(raw) : raw);
+    return `<label class="fert-field">
+      <span class="field-label">${esc(label)}</span>
+      <input class="field-input" type="${type}" ${type === 'number' ? 'step="any"' : ''} id="fertLabEditField_${key}" value="${esc(value)}">
+    </label>`;
+  }).join('');
+}
+
+function openLabEditModal(rowId) {
+  const row = labAllRows.find(r => r.id === rowId);
+  if (!row) return;
+  labEditRow = row;
+  const g = labGerk(row);
+  els.labEditSubtitle.textContent = `Nalog ${g?.delovni_nalogi?.stevilka ?? '—'} · ${customerName(g?.delovni_nalogi?.customers)} · GERK ${g?.gerk_code ?? '—'} · Vzorec ${row.sample_no ?? '—'}`;
+  els.labEditError.hidden = true;
+  renderLabEditFields(row);
+  showModal(els.labEditModal);
+}
+function closeLabEditModal() {
+  hideModal(els.labEditModal);
+  labEditRow = null;
+}
+els.labEditModalClose.addEventListener('click', closeLabEditModal);
+els.labEditCancelBtn.addEventListener('click', closeLabEditModal);
+els.labEditModal.addEventListener('click', e => { if (e.target === els.labEditModal) closeLabEditModal(); });
+
+els.labEditSaveBtn.addEventListener('click', async () => {
+  if (!labEditRow) return;
+  const values = {};
+  for (const [key, label, type] of LAB_EDIT_FIELDS) {
+    const input = document.getElementById(`fertLabEditField_${key}`);
+    const raw = input.value.trim();
+    if (!raw) { values[key] = null; continue; }
+    if (type === 'number') {
+      const n = Number(raw.replace(',', '.'));
+      if (Number.isNaN(n)) { els.labEditError.textContent = `Neveljavna vrednost pri »${label}«.`; els.labEditError.hidden = false; return; }
+      values[key] = n;
+    } else {
+      values[key] = raw;
+    }
+  }
+  els.labEditError.hidden = true;
+  els.labEditSaveBtn.disabled = true;
+  els.labEditSaveBtn.querySelector('.btn-label').hidden = true;
+  els.labEditSaveBtn.querySelector('.btn-spinner').hidden = false;
+  try {
+    const { error } = labEditRow.isMissing
+      ? await supabase.from('lab_soil_result').insert({ sample_no: labEditRow.sample_no, vzorec_id: labEditRow.vzorec_id, raw_values: {}, ...values })
+      : await supabase.from('lab_soil_result').update(values).eq('id', labEditRow.id);
+    if (error) throw error;
+    closeLabEditModal();
+    await loadLabResults();
+  } catch (err) {
+    els.labEditError.textContent = 'Napaka pri shranjevanju: ' + (err.message || err);
+    els.labEditError.hidden = false;
+  } finally {
+    els.labEditSaveBtn.disabled = false;
+    els.labEditSaveBtn.querySelector('.btn-label').hidden = false;
+    els.labEditSaveBtn.querySelector('.btn-spinner').hidden = true;
   }
 });
 

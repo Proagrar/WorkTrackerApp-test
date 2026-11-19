@@ -312,6 +312,38 @@
       </section>
     </div>
 
+    <!-- ── Analize tal — ročno urejanje enega rezultata (manjkajočega ali
+         že uvoženega) — modal, odpre se z gumbom »Uredi« v stolpcu Vir
+         (Matej, 2026-11-20: "omogoči tudi ročno urejanje rezultatov analiz,
+         tam kjer manjkajo podatki, pa tudi na uvoženih"). Polja rendered
+         dinamično v fertilization.js (LAB_EDIT_FIELDS/renderLabEditFields). -->
+    <div id="fertLabEditModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="fertLabEditModalTitle">
+      <div class="modal-sheet modal-sheet-wide">
+        <div class="modal-handle" aria-hidden="true"></div>
+        <div class="modal-head">
+          <h3 id="fertLabEditModalTitle" class="modal-title">Uredi rezultat analize</h3>
+          <button id="fertLabEditModalClose" class="btn btn-icon" aria-label="Zapri">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <line x1="17" y1="3" x2="3" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="work-form">
+          <p id="fertLabEditSubtitle" class="fert-hint"></p>
+          <div id="fertLabEditFields" class="fert-form-grid"></div>
+          <div id="fertLabEditError" class="alert alert-error" hidden role="alert"></div>
+          <div class="form-actions">
+            <button type="button" id="fertLabEditCancelBtn" class="btn btn-secondary btn-flex">Prekliči</button>
+            <button type="button" id="fertLabEditSaveBtn" class="btn btn-primary btn-flex">
+              <span class="btn-label">Shrani</span>
+              <span class="btn-spinner" hidden aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Tab: Sledenje naročilom (admin-only) — track which sample
          (a GERK's segment == one delovni_nalogi_vzorci row) has been
          packed into which physical box, and send a box off to the lab.
