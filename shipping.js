@@ -48,6 +48,7 @@ const els = {
   segRows: document.getElementById('sledSegRows'),
   segStatusFilterBtn: document.getElementById('sledSegStatusFilterBtn'),
   segStatusFilterMenu: document.getElementById('sledSegStatusFilterMenu'),
+  segHideBoxedCb: document.getElementById('sledSegHideBoxedCb'),
   segSelectAllCb: document.getElementById('sledSegSelectAllCb'),
   segSelectionBar: document.getElementById('sledSegSelectionBar'),
   viewBoxes: document.getElementById('sledViewBoxes'),
@@ -648,6 +649,7 @@ function filteredSegmentRows() {
   const qStranka = els.segSearchStranka.value.trim().toLowerCase();
   return allSegmentRows().filter(({ sample: s, gerk: g, order: o }) => {
     if (sledSegStatusFilterValues.size && !sledSegStatusFilterValues.has(orderStatusLabel(o))) return false;
+    if (els.segHideBoxedCb.checked && segmentBoxed(s)) return false;
     if (qSeg && !String(s.sample_no ?? '').toLowerCase().includes(qSeg)) return false;
     if (qGerk && !`${g.gerk_code ?? ''} ${g.fields?.name ?? ''}`.toLowerCase().includes(qGerk)) return false;
     if (qStranka && !customerName(o.customers).toLowerCase().includes(qStranka)) return false;
@@ -754,6 +756,7 @@ function renderSegmentRows() {
 els.segSearchSeg.addEventListener('input', renderSegmentRows);
 els.segSearchGerk.addEventListener('input', renderSegmentRows);
 els.segSearchStranka.addEventListener('input', renderSegmentRows);
+els.segHideBoxedCb.addEventListener('change', renderSegmentRows);
 // Row click opens the segment's own order (same modal as the Naročila
 // view) — the checkbox and the Vzorčenje/Pošiljka <select>s must not also
 // trigger it.
@@ -793,7 +796,7 @@ els.segRows.addEventListener('change', async e => {
   if (!boxSel) return;
   const segId = boxSel.dataset.boxSelect;
   if (boxSel.value === '__new__') {
-    const label = prompt('Oznaka nove pošiljke:');
+    const label = prompt('Oznaka nove pošiljke:', suggestBoxLabel());
     if (!label || !label.trim()) { renderSegmentRows(); return; }
     const box = await createBox(label.trim());
     if (box) await assignSegmentToBox(segId, box.id);
@@ -889,6 +892,7 @@ async function bulkSetVzorcenje(value) {
     if (sample) sample.sampling_note = value;
   }
   renderSegmentRows();
+  clearSegSelection();
 }
 async function bulkAssignBox(boxId) {
   // Same lock rule as a single row's own box <select> — already-sent or
@@ -910,6 +914,7 @@ async function bulkAssignBox(boxId) {
   renderOrders();
   renderBoxesList();
   if (currentOrderId) renderOrderModal(orders.find(o => o.id === currentOrderId));
+  clearSegSelection();
 }
 
 function buildSledSegSelectionBar() {
@@ -935,7 +940,7 @@ function buildSledSegSelectionBar() {
     if (v === '__placeholder__') return;
     let boxId = null;
     if (v === '__new__') {
-      const label = prompt('Oznaka nove pošiljke:');
+      const label = prompt('Oznaka nove pošiljke:', suggestBoxLabel());
       if (!label || !label.trim()) { e.target.value = '__placeholder__'; return; }
       const box = await createBox(label.trim());
       if (!box) { e.target.value = '__placeholder__'; return; }
@@ -1129,7 +1134,7 @@ els.orderGerks.addEventListener('change', async e => {
   if (!sel) return;
   const segId = sel.dataset.boxSelect;
   if (sel.value === '__new__') {
-    const label = prompt('Oznaka nove pošiljke:');
+    const label = prompt('Oznaka nove pošiljke:', suggestBoxLabel());
     if (!label || !label.trim()) { renderOrderGerks(orders.find(o => o.id === currentOrderId)); return; }
     const box = await createBox(label.trim());
     if (box) await assignSegmentToBox(segId, box.id);
@@ -1157,7 +1162,21 @@ async function assignSegmentToBox(segId, boxId) {
   renderBoxesList();
 }
 
+// Next free "BOXn" — suggested as the prompt's default, not forced (Matej,
+// 2026-11-19 still typed it by hand and got two boxes both named "BOX1").
+function suggestBoxLabel() {
+  const max = boxes.reduce((m, b) => {
+    const n = /^BOX(\d+)$/i.exec((b.label || '').trim())?.[1];
+    return n ? Math.max(m, parseInt(n, 10)) : m;
+  }, 0);
+  return `BOX${max + 1}`;
+}
+
 async function createBox(label) {
+  if (boxes.some(b => (b.label || '').trim().toLowerCase() === label.trim().toLowerCase())) {
+    alert(`Pošiljka z imenom "${label}" že obstaja — izberi drugo ime.`);
+    return null;
+  }
   const { data: { user } } = await supabase.auth.getUser();
   const { data, error } = await supabase.from('sample_boxes').insert({ label, created_by: user?.id ?? null }).select('*').single();
   if (error) { alert('Napaka pri ustvarjanju pošiljke: ' + error.message); return null; }
