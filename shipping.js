@@ -618,6 +618,13 @@ els.subnavBtns.forEach(btn => btn.addEventListener('click', () => {
   els.toolbarOrders.hidden = view !== 'orders';
   els.toolbarSegments.hidden = view !== 'segments';
   els.toolbarBoxes.hidden = view !== 'boxes';
+  // Each view's own floating selection bar is a fixed-position element, not
+  // scoped to its view's hidden container — without this it stays visible
+  // (and its selection active) after switching away (Matej, 2026-11-19:
+  // the Segmenti bar kept showing on top of Pošiljke).
+  if (view !== 'orders') clearSelection();
+  if (view !== 'segments') clearSegSelection();
+  if (view !== 'boxes') clearBoxSelection();
 }));
 
 // ── Segmenti view — obrnjena perspektiva: en delovni_nalogi_vzorci vrstica
