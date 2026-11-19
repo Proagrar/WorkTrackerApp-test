@@ -61,6 +61,7 @@ els.importNameFilter.value = `proagrar ${new Date().getFullYear()}`;
 
 let currentView = 'plans';
 let labResults = [];
+let labAllRows = []; // "linked" mode's real row set — see loadQualifyingSegments()
 let labLoaded = false;
 let labMode = 'linked';   // Analize tal: 'linked' (default) | 'unlinked'
 let labPlans = new Map(); // delovni_nalog_gerk_id → newest live plan; null = failed to load
@@ -142,18 +143,21 @@ els.tab.addEventListener('click', () => showView(canLeaveView('plans') ? 'plans'
 
 // ── Analize tal: list ────────────────────────────────────────
 // Read in the order the work flows (Matej, 2026-10-29): work order → GERK
-// segment (sample) → lab analysis → gnojilni načrt. By default only results
-// linked to a work-order sample are listed — most lab rows (pre-app sample
-// numbers, other customers) never link and would bury the useful ones; they
+// segment (sample) → lab analysis → gnojilni načrt. By default every segment
+// of an order that already has at least one matched lab result is listed —
+// not just the segments that already have their own result — so a sibling
+// segment still missing its result shows up as a visible gap instead of
+// silently not appearing at all (Matej, 2026-11-20). Lab rows that never
+// match any order sample at all (pre-app sample numbers, other customers)
 // stay reachable under Prikaz: Nepovezani for manual linking.
 async function loadLabResults() {
   els.labRows.innerHTML = `<tr><td colspan="${labColumns().length}" class="fert-empty">Nalaganje …</td></tr>`;
   const [{ data, error }] = await Promise.all([
     fetchAll(() => supabase
       .from('lab_soil_result')
-      .select('id, sample_no, lab_sample_code, ph_kcl, p2o5, k2o, humus_pct, mg, raw_values, notes, analysis_date, created_at, vzorec_id, '
+      .select('id, sample_no, lab_sample_code, ph_kcl, p2o5, k2o, humus_pct, mg, raw_values, notes, analysis_date, created_at, vzorec_id, import_file_id, '
         + 'lab_import_file(file_name, imported_at), '
-        + 'delovni_nalogi_vzorci(id, sample_no, delovni_nalogi_gerki(id, gerk_code, field_id, fields(name), delovni_nalogi(stevilka, customers(id, naziv, company_name))))')
+        + 'delovni_nalogi_vzorci(id, sample_no, delovni_nalogi_gerki(id, gerk_code, field_id, fields(name), delovni_nalogi(id, stevilka, customers(id, naziv, company_name))))')
       .order('created_at', { ascending: false })
       .order('id')),
     loadLabPlans(),
@@ -163,8 +167,37 @@ async function loadLabResults() {
     return;
   }
   labResults = data ?? [];
+  await loadQualifyingSegments();
   labLoaded = true;
   renderLabResults();
+}
+
+// Builds labAllRows: one row per non-skipped segment of every order that has
+// at least one segment already matched to a lab_soil_result — the real
+// result row where one exists, a synthetic "missing" placeholder otherwise.
+async function loadQualifyingSegments() {
+  const resultByVzorec = new Map();
+  for (const r of labResults) if (r.vzorec_id) resultByVzorec.set(r.vzorec_id, r);
+  const orderIds = [...new Set(labResults.map(r => labGerk(r)?.delovni_nalogi?.id).filter(Boolean))];
+  if (!orderIds.length) { labAllRows = []; return; }
+  const { data, error } = await fetchAll(() => supabase
+    .from('delovni_nalogi_gerki')
+    .select('id, gerk_code, field_id, fields(name), delovni_nalog_id, delovni_nalogi(id, stevilka, customers(id, naziv, company_name)), delovni_nalogi_vzorci(id, sample_no, sampling_note)')
+    .in('delovni_nalog_id', orderIds)
+    .order('delovni_nalog_id'));
+  if (error) { labAllRows = []; return; }
+  const rows = [];
+  for (const g of (data ?? [])) {
+    for (const s of (g.delovni_nalogi_vzorci ?? [])) {
+      if (s.sampling_note === 'ne pobereš') continue; // never sampled on purpose — not a real gap
+      const result = resultByVzorec.get(s.id);
+      rows.push(result
+        ? { ...result, gerk: g, isMissing: false, isManual: !result.import_file_id }
+        : { id: `missing:${s.id}`, sample_no: s.sample_no, lab_sample_code: null, ph_kcl: null, p2o5: null, k2o: null, humus_pct: null, mg: null,
+            raw_values: null, analysis_date: null, lab_import_file: null, import_file_id: null, vzorec_id: s.id, gerk: g, isMissing: true, isManual: false });
+    }
+  }
+  labAllRows = rows;
 }
 
 // Newest live plan per GERK line of a work order (one plan per field, dated —
@@ -182,7 +215,11 @@ async function loadLabPlans() {
   for (const p of data ?? []) if (!labPlans.has(p.delovni_nalog_gerk_id)) labPlans.set(p.delovni_nalog_gerk_id, p);
 }
 
-const labGerk = r => r.delovni_nalogi_vzorci?.delovni_nalogi_gerki;
+// r.gerk is precomputed on every labAllRows display row (both a real matched
+// result and a synthetic "missing" placeholder — see loadQualifyingSegments);
+// the raw delovni_nalogi_vzorci path is the fallback for a plain
+// lab_soil_result row (used while still building labAllRows itself).
+const labGerk = r => r.gerk ?? r.delovni_nalogi_vzorci?.delovni_nalogi_gerki;
 const labPlan = r => labPlans?.get(labGerk(r)?.id) ?? null;
 
 // raw text wins for display when the lab wrote a qualifier ("<25"), so the
@@ -219,9 +256,20 @@ const LAB_VALUE_COLUMNS = [
   { key: 'humus', label: 'Humus %',  value: r => r.humus_pct, num: true, render: r => `<td class="fert-num">${esc(fmtNum(r.humus_pct))}</td>` },
   { key: 'mg',    label: 'Mg',       value: r => r.mg,        num: true, render: r => `<td class="fert-num">${esc(fmtNum(r.mg))}</td>` },
   { key: 'date',  label: 'Analiza', value: r => r.analysis_date, render: r => `<td title="Datum analize">${esc(fmtDate(r.analysis_date))}</td>` },
-  { key: 'file',  label: 'Datoteka', value: r => r.lab_import_file?.file_name,
-    // long names ("Proagrar d.o.o._21.10.2026.xlsx") cut with … — full name + import date on hover
-    render: r => `<td class="fert-muted fert-ellipsis" title="${esc(r.lab_import_file ? `${r.lab_import_file.file_name} · uvoženo ${fmtDate(r.lab_import_file.imported_at)}` : '')}">${esc(r.lab_import_file?.file_name ?? '—')}</td>` },
+  // Doubles as the "missing"/"manual" flag for the "linked" (= all segments
+  // of a qualifying order) list (Matej, 2026-11-20): a segment with no
+  // result yet, or one filled in by hand/MCP instead of the Excel import,
+  // needs to stand out here just as much as the file name does for a
+  // normally-imported one.
+  { key: 'file',  label: 'Vir', value: r => r.lab_import_file?.file_name,
+    render: r => r.isMissing
+      ? `<td><span class="fert-badge fert-badge--danger" title="Nalog ima že vsaj en rezultat, ta segment pa ga še nima">⚠ Manjka</span></td>`
+      : r.lab_import_file
+        // long names ("Proagrar d.o.o._21.10.2026.xlsx") cut with … — full name + import date on hover
+        ? `<td class="fert-muted fert-ellipsis" title="${esc(`${r.lab_import_file.file_name} · uvoženo ${fmtDate(r.lab_import_file.imported_at)}`)}">${esc(r.lab_import_file.file_name)}</td>`
+        : r.isManual
+          ? `<td><span class="fert-badge fert-badge--ok" title="Ni iz uvoza Excel datoteke — vneseno ročno ali prek MCP">✓ Ročno</span></td>`
+          : `<td class="fert-muted">—</td>` },
 ];
 const LAB_LINKED_COLUMNS = [
   { key: 'order',    label: 'Nalog',  value: r => labGerk(r)?.delovni_nalogi?.stevilka, render: r => `<td>${esc(labGerk(r)?.delovni_nalogi?.stevilka ?? '—')}</td>` },
@@ -243,7 +291,7 @@ const LAB_UNLINKED_COLUMNS = [
 ];
 const labColumns = () => labMode === 'unlinked' ? LAB_UNLINKED_COLUMNS : LAB_LINKED_COLUMNS;
 
-let labSortKey = 'sample'; // default: Vzorec, newest (highest) sample number first (Matej, 2026-10-29)
+let labSortKey = 'order'; // default: Nalog, newest (highest) first (Matej, 2026-11-20)
 let labSortDir = 'desc';
 const textCollator = new Intl.Collator('sl', { numeric: true, sensitivity: 'base' });
 
@@ -288,21 +336,20 @@ function labMatchState(row) {
 
 function renderLabResults() {
   const query = els.labSearch.value.trim().toLowerCase();
-  const linkedCount = labResults.filter(r => labMatchState(r) === 'linked').length;
-  const unlinkedCount = labResults.length - linkedCount;
-  els.labMode.options[0].textContent = `Povezani z nalogi (${linkedCount})`;
+  const unlinkedCount = labResults.filter(r => labMatchState(r) !== 'linked').length;
+  const missingCount = labAllRows.filter(r => r.isMissing).length;
+  els.labMode.options[0].textContent = `Vsi segmenti (${labAllRows.length})`;
   els.labMode.options[1].textContent = `Nepovezani (${unlinkedCount})`;
-  if (!labColumns().some(c => c.key === labSortKey)) { labSortKey = 'sample'; labSortDir = 'desc'; }
+  if (!labColumns().some(c => c.key === labSortKey)) { labSortKey = 'order'; labSortDir = 'desc'; }
   renderLabHead();
 
   const flash = labFlash ? `<div class="fert-notice fert-notice--ok">${esc(labFlash)}</div>` : '';
   els.labNotice.innerHTML = flash + (labMode === 'unlinked'
     ? `<div class="fert-notice fert-notice--warn"><strong>${unlinkedCount} ${unlinkedCount === 1 ? 'rezultat ni povezan' : 'rezultatov ni povezanih'} z vzorcem.</strong> Številka vzorca iz laboratorija se ne ujema z natanko enim vzorcem v delovnih nalogih — preveri številko ali poveži ročno.</div>`
-    : (unlinkedCount ? `<p class="fert-hint">${unlinkedCount} ${unlinkedCount === 1 ? 'rezultat ni povezan' : 'rezultatov ni povezanih'} z vzorcem iz delovnega naloga — niso prikazani (Prikaz: Nepovezani).</p>` : '')
+    : (missingCount ? `<p class="fert-hint">⚠ ${missingCount} ${missingCount === 1 ? 'segment še nima' : 'segmentov še nima'} rezultata (nalog že ima vsaj enega) — dopolni ročno ali prek MCP.</p>` : '')
       + (labPlans ? '' : '<div class="fert-notice fert-notice--warn">Izračunov gnojila ni bilo mogoče naložiti.</div>'));
 
-  const rows = labResults.filter(r => {
-    if ((labMatchState(r) === 'linked') !== (labMode === 'linked')) return false;
+  const rows = (labMode === 'unlinked' ? labResults.filter(r => labMatchState(r) !== 'linked') : labAllRows).filter(r => {
     if (!query) return true;
     const g = labGerk(r);
     const hay = [r.sample_no, r.lab_sample_code, g?.gerk_code, customerName(g?.delovni_nalogi?.customers), g?.delovni_nalogi?.stevilka, r.lab_import_file?.file_name].join(' ').toLowerCase();
@@ -313,7 +360,7 @@ function renderLabResults() {
   if (!rows.length) {
     const empty = !labResults.length ? 'Še ni uvoženih rezultatov — klikni ⬆ Uvoz Excel.'
       : query ? 'Ni zadetkov.'
-      : labMode === 'linked' ? 'Noben rezultat še ni povezan z vzorcem iz delovnega naloga.' : 'Vsi rezultati so povezani z vzorci.';
+      : labMode === 'linked' ? 'Noben nalog še nima rezultata, povezanega z vzorcem.' : 'Vsi rezultati so povezani z vzorci.';
     els.labRows.innerHTML = `<tr><td colspan="${cols.length}" class="fert-empty">${empty}</td></tr>`;
     return;
   }
@@ -336,8 +383,9 @@ els.labRows.addEventListener('click', async event => {
   const newBtn = event.target.closest('[data-lab-plan-new]');
   if (newBtn) {
     // new plan for this row's GERK line — the wizard opens on step 1 with
-    // customer and GERK already chosen
-    const g = labGerk(labResults.find(r => r.id === newBtn.dataset.labPlanNew) ?? {});
+    // customer and GERK already chosen. labAllRows, not labResults — a
+    // "missing" row (no lab_soil_result at all yet) only exists there.
+    const g = labGerk(labAllRows.find(r => r.id === newBtn.dataset.labPlanNew) ?? {});
     const c = g?.delovni_nalogi?.customers;
     if (!g || !c) return;
     return startNewPlan({ customer_id: c.id, customer_name: customerName(c), delovni_nalog_gerk_id: g.id,
