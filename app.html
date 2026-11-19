@@ -445,7 +445,7 @@
         <div id="sledViewBoxes" class="fert-view" hidden>
           <div class="reports-table-wrap">
             <table class="evidenca-table fert-table sled-table">
-              <thead><tr><th>Oznaka</th><th>Status</th><th class="fert-num">Vzorcev</th><th title="Datum pošiljanja">Poslano</th><th></th></tr></thead>
+              <thead><tr><th><input type="checkbox" id="sledBoxSelectAllCb" aria-label="Izberi vse pošiljke"></th><th>Oznaka</th><th>Status</th><th class="fert-num">Vzorcev</th><th title="Datum pošiljanja">Poslano</th><th>DPD</th><th></th></tr></thead>
               <tbody id="sledBoxRows"></tbody>
             </table>
           </div>
@@ -475,7 +475,7 @@
             <h4 class="sled-gerk-title">Pošiljke v tem nalogu</h4>
             <div class="reports-table-wrap">
               <table class="evidenca-table fert-table">
-                <thead><tr><th>Oznaka</th><th>Status</th><th class="fert-num">Vzorcev (v tem nalogu)</th><th>Poslano</th><th></th></tr></thead>
+                <thead><tr><th>Oznaka</th><th>Status</th><th class="fert-num">Vzorcev (v tem nalogu)</th><th>Poslano</th><th>DPD</th><th></th></tr></thead>
                 <tbody id="sledOrderBoxRows"></tbody>
               </table>
             </div>
@@ -920,6 +920,12 @@
        several selected segments at once (Vzorčenje / Pošiljka), content
        built by buildSledSegSelectionBar() in shipping.js (Matej, 2026-11-11). -->
   <div id="sledSegSelectionBar" class="wlg-selection-bar"></div>
+
+  <!-- Sledenje naročilom — Škatle: same floating bar, for bulk-exporting
+       several selected boxes at once (plain CSV "Izvozi" + the Eurofins
+       lab-template xlsx export), content built by buildSledBoxSelectionBar()
+       in shipping.js (Matej, 2026-11-19). -->
+  <div id="sledBoxSelectionBar" class="wlg-selection-bar"></div>
 
   <!-- Izračun gnojila — Načrti: same floating bar, one action (Izvozi) —
        exports the selected (already-made) fert_plan rows as an Excel file
