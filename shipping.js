@@ -88,8 +88,8 @@ let selectedBoxIds = new Set(); // Škatle view — sample_boxes ids
 let sledStatusFilterValues = new Set([...document.querySelectorAll('.sled-status-filter-cb:checked')].map(cb => cb.value));
 let sledInvoiceStatusFilterValues = new Set([...document.querySelectorAll('.sled-invoice-status-filter-cb:checked')].map(cb => cb.value));
 let sledSegStatusFilterValues = new Set([...document.querySelectorAll('.sled-seg-status-filter-cb:checked')].map(cb => cb.value));
-let segSortKey = 'segment';
-let segSortDir = 'asc';
+let segSortKey = 'nalog';
+let segSortDir = 'desc';
 const textCollator = new Intl.Collator('sl', { numeric: true, sensitivity: 'base' });
 
 function esc(value) {
