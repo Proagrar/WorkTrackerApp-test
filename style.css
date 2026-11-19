@@ -2295,15 +2295,16 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .wlg-compact-row:last-child { border-bottom: none; }
 .wlg-compact-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: 4px 10px;
   cursor: pointer;
 }
 .wlg-compact-head:hover .wlg-compact-code { color: var(--blue-800); }
 .wlg-compact-code { font-weight: 600; font-size: .8125rem; flex-shrink: 0; }
 .wlg-compact-name { font-weight: 400; color: var(--text-secondary); }
-.wlg-compact-segs { font-size: .6875rem; color: var(--text-secondary); text-align: right; overflow-wrap: anywhere; }
+.wlg-compact-segs { font-size: .6875rem; color: var(--text-secondary); text-align: right; flex-basis: 100%; }
 .wlg-compact-row .wlg-toggle-btn { height: 32px; padding: 0 10px; font-size: .75rem; }
 .wlg-compact-row .wlg-time-value { font-size: .75rem; min-width: 0; }
 

@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.128';
+const APP_VERSION = 'v4.129';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -1326,6 +1326,13 @@ function applyGerkSearch() {
     const matches = matchesSearch && !hiddenAsCompleted;
     r.classList.toggle('wlg-row--search-hidden', !matches);
     if (matches) visibleCount++;
+    // The compact list (shown instead of these real rows while the map is
+    // expanded — see renderCompactGerkList) is a separate set of elements
+    // and was never filtered here at all (Matej, 2026-11-19: "ne dela
+    // iskalnik gerkov v tem načinu") — mirror the same matches verdict
+    // onto its row for this code, if the compact list is currently shown.
+    const compactRow = wlgCompactList.querySelector(`.wlg-compact-row[data-code="${CSS.escape(r.dataset.code || '')}"]`);
+    if (compactRow) compactRow.hidden = !matches;
   });
   wlgSearchNoResults.hidden = !((term || wlgHideCompleted) && visibleCount === 0);
   woGerkPageIndex = 0;
