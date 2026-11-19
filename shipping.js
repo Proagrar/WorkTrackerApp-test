@@ -209,8 +209,7 @@ const PIPELINE_BADGE = {
   'Plan': 'fert-badge--neutral',
   'V delu': 'fert-badge--warn',
   'Izvedeno': 'fert-badge--neutral',
-  'Pakiranje vzorcev': 'fert-badge--warn',
-  'Pripravljeni na pošiljanje': 'fert-badge--ok',
+  'Paket v pripravi': 'fert-badge--warn',
   'Poslani': 'fert-badge--sent',
   'Delno prejeta analiza': 'fert-badge--warn',
   'Analiza prejeta': 'fert-badge--ok',
@@ -218,10 +217,12 @@ const PIPELINE_BADGE = {
 
 // Full start-to-finish ladder, in order — the stepper below always has
 // this many segments ("št. stageov prilagodi številu statusov"), filled
-// up to and including the current status's position.
+// up to and including the current status's position. "Pakiranje vzorcev"
+// and "Pripravljeni na pošiljanje" were merged into one "Paket v pripravi"
+// (Matej, 2026-11-19) — partially vs. fully boxed wasn't a distinction
+// worth a whole extra status.
 const STATUS_SEQUENCE = [
-  'Plan', 'V delu', 'Izvedeno', 'Pakiranje vzorcev',
-  'Pripravljeni na pošiljanje', 'Poslani', 'Delno prejeta analiza', 'Analiza prejeta',
+  'Plan', 'V delu', 'Izvedeno', 'Paket v pripravi', 'Poslani', 'Delno prejeta analiza', 'Analiza prejeta',
 ];
 
 function statusStepperSvg(label) {
@@ -257,8 +258,7 @@ function orderStatusLabel(order) {
   const sent = segs.filter(segmentSent).length;
   if (sent === n) return 'Poslani';
   const boxed = segs.filter(segmentBoxed).length;
-  if (boxed === n) return 'Pripravljeni na pošiljanje';
-  if (boxed > 0) return 'Pakiranje vzorcev';
+  if (boxed > 0) return 'Paket v pripravi';
   return 'Izvedeno';
 }
 
