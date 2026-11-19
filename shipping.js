@@ -31,7 +31,9 @@ const els = {
   orderGerks: document.getElementById('sledOrderGerks'),
   orderBoxesWrap: document.getElementById('sledOrderBoxesWrap'),
   orderBoxRows: document.getElementById('sledOrderBoxRows'),
-  segSearch: document.getElementById('sledSegSearch'),
+  segSearchSeg: document.getElementById('sledSegSearchSeg'),
+  segSearchGerk: document.getElementById('sledSegSearchGerk'),
+  segSearchStranka: document.getElementById('sledSegSearchStranka'),
   segHead: document.getElementById('sledSegHead'),
   segRows: document.getElementById('sledSegRows'),
   segStatusFilterBtn: document.getElementById('sledSegStatusFilterBtn'),
@@ -618,12 +620,18 @@ function allSegmentRows() {
   return rows;
 }
 function filteredSegmentRows() {
-  const q = els.segSearch.value.trim().toLowerCase();
+  // Separate boxes, not one combined search — a GERK code and a segment
+  // number can share the same digits (Matej, 2026-11-19: typing "13881"
+  // matched both), so each box only searches its own column.
+  const qSeg = els.segSearchSeg.value.trim().toLowerCase();
+  const qGerk = els.segSearchGerk.value.trim().toLowerCase();
+  const qStranka = els.segSearchStranka.value.trim().toLowerCase();
   return allSegmentRows().filter(({ sample: s, gerk: g, order: o }) => {
     if (sledSegStatusFilterValues.size && !sledSegStatusFilterValues.has(orderStatusLabel(o))) return false;
-    if (!q) return true;
-    const hay = `${o.stevilka ?? ''} ${customerName(o.customers)} ${g.gerk_code ?? ''} ${g.fields?.name ?? ''} ${s.sample_no ?? ''}`.toLowerCase();
-    return hay.includes(q);
+    if (qSeg && !String(s.sample_no ?? '').toLowerCase().includes(qSeg)) return false;
+    if (qGerk && !`${g.gerk_code ?? ''} ${g.fields?.name ?? ''}`.toLowerCase().includes(qGerk)) return false;
+    if (qStranka && !customerName(o.customers).toLowerCase().includes(qStranka)) return false;
+    return true;
   });
 }
 
@@ -723,7 +731,9 @@ function renderSegmentRows() {
   }).join('');
   updateSegSelectAllState(rows.map(r => r.sample.id));
 }
-els.segSearch.addEventListener('input', renderSegmentRows);
+els.segSearchSeg.addEventListener('input', renderSegmentRows);
+els.segSearchGerk.addEventListener('input', renderSegmentRows);
+els.segSearchStranka.addEventListener('input', renderSegmentRows);
 // Row click opens the segment's own order (same modal as the Naročila
 // view) — the checkbox and the Vzorčenje/Pošiljka <select>s must not also
 // trigger it.
