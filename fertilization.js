@@ -1685,8 +1685,8 @@ async function openPlan(id, { copy }) {
   openPlanGroup(group, { copy });
 }
 
-// Ustvarjanje praznega moteno. Prikaz več ločenih (ne nujno istega batch_id)
-// načrtov v EN skupen rezultat — "Prikaži skupaj" na seznamu Načrti (Matej,
+// Prikaz več ločenih (ne nujno istega batch_id) načrtov v EN skupen
+// rezultat — "Prikaži skupaj" na seznamu Načrti (Matej,
 // 2026-11-24: "tako kot zdaj naredi gumb odpri", samo za poljubno izbrane
 // načrte namesto samo za en batch). Vedno samo za ogled — različni
 // izbrani načrti si lahko delijo kulturo/gnojila po naključju, ne po
@@ -1700,7 +1700,7 @@ async function openPlansCombined(ids) {
   openPlanGroup(group, { copy: false, forceReadOnly: true });
 }
 
-function openPlanGroup(group, { copy, forceReadOnly }) {
+async function openPlanGroup(group, { copy, forceReadOnly }) {
   const p = group[0];
   const params = Array.isArray(p.fert_plan_parameters) ? p.fert_plan_parameters[0] : p.fert_plan_parameters;
   const confirmed = group.some(g => g.status === 'potrjeno');
