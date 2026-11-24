@@ -60,6 +60,7 @@ const els = {
 // couple of inline SVGs.
 const SEL_ICON_CLOSE = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><line x1="4" y1="4" x2="16" y2="16" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/><line x1="16" y1="4" x2="4" y2="16" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>`;
 const SEL_ICON_DOWNLOAD = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v9m0 0-3.5-3.5M10 12l3.5-3.5M4 14v1.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const SEL_ICON_VIEW = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.3" stroke="currentColor" stroke-width="1.4"/></svg>`;
 
 // Default name filter: the lab's own result files for the current season
 // ("Proagrar d.o.o._21.10.2026.xlsx"); the shared LAB RESULTS folder also
@@ -1629,11 +1630,15 @@ function buildPlanSelectionBar() {
     <button type="button" class="wlg-sel-close" data-action="fert-plan-sel-close" aria-label="Prekliči izbiro" title="Prekliči izbiro">${SEL_ICON_CLOSE}</button>
     <span class="wlg-sel-sep" aria-hidden="true"></span>
     <div class="wlg-sel-actions">
+      <button type="button" class="wlg-sel-action" data-action-id="fert-plan-sel-view" aria-label="Prikaži izbrane načrte skupaj" title="Prikaži izbrane načrte skupaj (en rezultat, kot Odpri)">
+        ${SEL_ICON_VIEW}<span class="wlg-sel-action-label">Prikaži skupaj</span>
+      </button>
       <button type="button" class="wlg-sel-action" data-action-id="fert-plan-sel-export" aria-label="Izvozi izbrane načrte v Excel" title="Izvozi izbrane načrte v Excel">
         ${SEL_ICON_DOWNLOAD}<span class="wlg-sel-action-label">Izvozi</span>
       </button>
     </div>`;
   els.planSelectionBar.querySelector('[data-action="fert-plan-sel-close"]').addEventListener('click', clearPlanSelection);
+  els.planSelectionBar.querySelector('[data-action-id="fert-plan-sel-view"]').addEventListener('click', () => openPlansCombined([...selectedPlanIds]));
   els.planSelectionBar.querySelector('[data-action-id="fert-plan-sel-export"]').addEventListener('click', exportSelectedFertPlans);
 }
 buildPlanSelectionBar();
@@ -1664,18 +1669,39 @@ async function startNewPlan(preset) {
 }
 els.newPlanBtn.addEventListener('click', () => startNewPlan(null));
 
+const FERT_PLAN_GROUP_SELECT = '*, customers(naziv, company_name), fert_plan_parameters(*), fert_plan_lime_ph(*), fert_plan_map_factor(*), fert_plan_organic(*), fert_plan_segment(*)';
+
 async function openPlan(id, { copy }) {
   try { await loadDefaults(); } catch (err) { alert('Nastavitev ni bilo mogoče naložiti: ' + err.message); return; }
-  const select = '*, customers(naziv, company_name), fert_plan_parameters(*), fert_plan_lime_ph(*), fert_plan_map_factor(*), fert_plan_organic(*), fert_plan_segment(*)';
-  const { data: p, error } = await supabase.from('fert_plan').select(select).eq('id', id).single();
+  const { data: p, error } = await supabase.from('fert_plan').select(FERT_PLAN_GROUP_SELECT).eq('id', id).single();
   if (error) { alert('Načrta ni bilo mogoče odpreti: ' + error.message); return; }
   // a plan made together with other fields opens (and is copied) as the whole group
   let group = [p];
   if (p.batch_id) {
-    const { data: rows, error: gErr } = await supabase.from('fert_plan').select(select).eq('batch_id', p.batch_id).is('deleted_at', null);
+    const { data: rows, error: gErr } = await supabase.from('fert_plan').select(FERT_PLAN_GROUP_SELECT).eq('batch_id', p.batch_id).is('deleted_at', null);
     if (gErr) { alert('Skupine načrtov ni bilo mogoče odpreti: ' + gErr.message); return; }
     if (rows?.length) group = rows.sort((a, b) => String(a.gerk_code).localeCompare(String(b.gerk_code)));
   }
+  openPlanGroup(group, { copy });
+}
+
+// Ustvarjanje praznega moteno. Prikaz več ločenih (ne nujno istega batch_id)
+// načrtov v EN skupen rezultat — "Prikaži skupaj" na seznamu Načrti (Matej,
+// 2026-11-24: "tako kot zdaj naredi gumb odpri", samo za poljubno izbrane
+// načrte namesto samo za en batch). Vedno samo za ogled — različni
+// izbrani načrti si lahko delijo kulturo/gnojila po naključju, ne po
+// načrtu, zato urejanje ne bi imelo smisla.
+async function openPlansCombined(ids) {
+  try { await loadDefaults(); } catch (err) { alert('Nastavitev ni bilo mogoče naložiti: ' + err.message); return; }
+  const { data: rows, error } = await supabase.from('fert_plan').select(FERT_PLAN_GROUP_SELECT).in('id', [...ids]).is('deleted_at', null);
+  if (error) { alert('Načrtov ni bilo mogoče odpreti: ' + error.message); return; }
+  if (!rows?.length) { alert('Izbranih načrtov ni bilo mogoče najti.'); return; }
+  const group = rows.sort((a, b) => String(a.gerk_code).localeCompare(String(b.gerk_code)));
+  openPlanGroup(group, { copy: false, forceReadOnly: true });
+}
+
+function openPlanGroup(group, { copy, forceReadOnly }) {
+  const p = group[0];
   const params = Array.isArray(p.fert_plan_parameters) ? p.fert_plan_parameters[0] : p.fert_plan_parameters;
   const confirmed = group.some(g => g.status === 'potrjeno');
   const fields = group.map(g => ({
@@ -1704,12 +1730,12 @@ async function openPlan(id, { copy }) {
   if (!params) refreshDefaultedParams(plan);
   if (!plan.lime.length) plan.lime = defaultLime();
   if (!plan.mapFactors.length) plan.mapFactors = defaultFactors();
-  const readOnly = plan.status === 'potrjeno';
+  const readOnly = forceReadOnly || plan.status === 'potrjeno';
   const copyText = fields.length > 1
     ? `Kopija skupinskega načrta (${nPolj(fields.length)}) — shrani jo kot nove osnutke (datum načrta je nastavljen na danes).`
     : 'Kopija načrta — shrani jo kot nov osnutek (datum načrta je nastavljen na danes).';
   wiz = { plan, fields, removedIds: [], step: readOnly ? 4 : 0, maxStep: STEPS.length - 1, readOnly, dirty: copy, fieldSources: null, customerQuery: '',
-    viewCustomerId: fields[0]?.customer_id ?? null, notice: copy ? { kind: 'info', text: copyText } : null };
+    viewCustomerId: fields[0]?.customer_id ?? null, notice: copy ? { kind: 'info', text: copyText } : null, noCopy: !!forceReadOnly };
   showView('wizard');
   await prepareStep();
   renderWizard();
@@ -2044,7 +2070,7 @@ function renderWizard() {
       <h2 class="section-title fert-title">${title}</h2>
       ${statusBadge}
     </div>
-    ${readOnly ? `<div class="fert-notice fert-notice--info">${group ? 'Načrti so potrjeni' : 'Načrt je potrjen'} in ${group ? 'jih' : 'ga'} ni več mogoče spreminjati. Za spremembe naredi kopijo (Kopiraj kot nov osnutek).</div>` : ''}
+    ${readOnly ? `<div class="fert-notice fert-notice--info">${wiz.noCopy ? 'Skupen ogled izbranih načrtov — samo za branje.' : `${group ? 'Načrti so potrjeni' : 'Načrt je potrjen'} in ${group ? 'jih' : 'ga'} ni več mogoče spreminjati. Za spremembe naredi kopijo (Kopiraj kot nov osnutek).`}</div>` : ''}
     <ol class="fert-stepper">${stepper}</ol>
     ${notice}
     ${groupWarning}
@@ -2052,7 +2078,7 @@ function renderWizard() {
     <div class="fert-actions fert-wiz-nav">
       ${step > 0 ? '<button type="button" class="btn btn-secondary" data-wiz="prev">← Nazaj</button>' : ''}
       <span class="fert-spacer"></span>
-      ${readOnly ? '<button type="button" class="btn btn-secondary" data-wiz="copy">Kopiraj kot nov osnutek</button>'
+      ${readOnly ? (wiz.noCopy ? '' : '<button type="button" class="btn btn-secondary" data-wiz="copy">Kopiraj kot nov osnutek</button>')
         : '<button type="button" class="btn btn-secondary" data-wiz="save">Shrani osnutek</button>'}
       ${!last ? '<button type="button" class="btn btn-primary" data-wiz="next">Naprej →</button>'
         : readOnly ? '' : `<button type="button" class="btn btn-success" data-wiz="confirm">${group ? `Potrdi ${fields.length} ${slPlural(fields.length, 'načrt', 'načrta', 'načrte', 'načrtov')}` : 'Potrdi načrt'}</button>`}
