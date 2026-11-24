@@ -2323,7 +2323,7 @@ function renderStepResult() {
   const totals = perField.map(({ f, segs }) => segs.map((s, i) => `<tr>${gerkCell(f, i)}<td class="fert-strong">${esc(s.sample_no)}</td>
       <td class="fert-num fert-col-sep">${fmtKg(s.p_fert_real_kg)}</td><td class="fert-num">${fmtKg(s.k_fert_real_kg)}</td><td class="fert-num">${fmtKg(s.lime_real_kg)}</td>
       <td class="fert-num fert-col-sep">${fmtKg(s.p_fert_map_kg)}</td><td class="fert-num">${fmtKg(s.k_fert_map_kg)}</td><td class="fert-num">${fmtKg(s.lime_map_kg)}</td></tr>`).join('')
-    + (group ? `<tr class="fert-subtotal-row"><td colspan="2">Skupaj ${esc(f.gerk_code)}</td>${totalCells(segs)}</tr>` : '')).join('');
+    + (group && !wiz.noCopy ? `<tr class="fert-subtotal-row"><td colspan="2">Skupaj ${esc(f.gerk_code)}</td>${totalCells(segs)}</tr>` : '')).join('');
   return `
     ${organicWarning}
     ${warnings ? `<div class="fert-notice fert-notice--warn"><strong>Opozorila</strong><ul class="fert-list">${warnings}</ul></div>` : ''}
