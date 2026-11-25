@@ -1381,7 +1381,44 @@ els.settingsBody.addEventListener('change', onSettingsEdit);
 // Drafts (osnutek) are editable; a confirmed plan (potrjeno) is read-only —
 // "Kopiraj kot nov osnutek" makes an editable copy.
 
-const STEPS = ['Polje', 'Segmenti in analize', 'Kultura in organska gnojila', 'Parametri izračuna', 'Rezultat', 'Zaključek'];
+// Steps are dynamic: one "Kultura"/"Parametri" pass per distinct culture
+// (wiz.groups), inserted between the shared Polje/Segmenti and the shared
+// Rezultat/Zaključek. `local` below keeps the original 0..5 semantics
+// (Polje=0, Segmenti=1, Kultura=2, Parametri=3, Rezultat=4, Zaključek=5) so
+// the per-step functions (stepProblem, renderStepCrop, renderStepParams)
+// don't need to know about the global, group-count-dependent step index.
+const BASE_STEPS = ['Polje', 'Segmenti in analize'];
+const TAIL_STEPS = ['Rezultat', 'Zaključek'];
+const FALLBACK_GROUP_STEPS = ['Kultura in organska gnojila', 'Parametri izračuna'];
+function groupStepLabel(g, local) {
+  const name = g.crop_name || cropById(g.crop_id)?.name;
+  const base = local === 2 ? 'Kultura in organska gnojila' : 'Parametri izračuna';
+  return name ? `${base} (${name})` : base;
+}
+function stepLabels() {
+  const groups = wiz?.groups ?? [];
+  const mid = groups.length ? groups.flatMap(g => [groupStepLabel(g, 2), groupStepLabel(g, 3)]) : FALLBACK_GROUP_STEPS;
+  return [...BASE_STEPS, ...mid, ...TAIL_STEPS];
+}
+// global step index → { local: original 0..5 step meaning, group: the
+// relevant wiz.groups entry, or null for a step shared by the whole wizard }
+function stepKindOf(step) {
+  const groups = wiz?.groups ?? [];
+  if (step === 0) return { local: 0, group: null };
+  if (step === 1) return { local: 1, group: null };
+  const span = Math.max(groups.length, 1) * 2;
+  if (step < 2 + span) {
+    const rel = step - 2;
+    return { local: rel % 2 === 0 ? 2 : 3, group: groups[Math.floor(rel / 2)] ?? null };
+  }
+  return { local: step === 2 + span ? 4 : 5, group: null };
+}
+function groupStepIndex(g, local) { return 2 + (wiz.groups.indexOf(g)) * 2 + (local === 3 ? 1 : 0); }
+function currentGroup() { return stepKindOf(wiz.step).group; }
+// merged view for functions that read shared fields (is_followup_year,
+// plan_date, batch_id, notes) alongside a group's own — safe only for
+// read-only use (calculatePlan/saveFieldPlan never mutate their `plan` arg)
+function effectivePlan(g) { return { ...wiz.plan, ...g }; }
 
 // Scalar parameters, in display order. `src: 'crop'` = default comes from the crop list.
 const PARAM_GROUPS = [
@@ -1410,9 +1447,15 @@ const DEFAULTED_KEYS = [...SETTINGS_KEYS, 'crop_p2o5_per_t', 'crop_k2o_per_t', .
 
 let defaults = null;      // Nastavitve tables, loaded once per page
 let plans = [];
-// wiz.plan = everything the selected fields share (date, crop, organics,
-// parameters, report); wiz.fields = one entry per field (GERK line), each
-// saved as its own fert_plan row. Several fields = a group (batch_id).
+// wiz.plan = what the whole selection shares regardless of culture (date,
+// status, batch_id, notes). wiz.fields = one entry per field (GERK line),
+// each saved as its own fert_plan row and carrying its own crop_id (picked
+// on the Polje step once 2+ fields are selected — Matej, 2026-11-25: "na 2
+// dodam kulturo pšenica, na preostale 4 pa ajdo"). wiz.groups = one entry
+// per distinct crop_id among wiz.fields (crop, yield, straw, organic,
+// lime, mapFactors, params, fertiliser choice, report_text) — same culture
+// stays one group/one parameter-entry pass; several fields = a batch
+// (batch_id) regardless of how many distinct cultures they end up using.
 let wiz = null;           // { plan, fields, removedIds, step, maxStep, readOnly, dirty, fieldSources, notice, customerQuery, viewCustomerId }
 
 function todayIso() {
@@ -1485,19 +1528,42 @@ function defaultFactors() { return defaults.factors.map(r => ({ nutrient: r.nutr
 function defaultLimeRow(row) { return defaults.lime.find(d => sameNum(d.ph_from, row.ph_from) && sameNum(d.ph_to, row.ph_to)); }
 function defaultFactorRow(row) { return defaults.factors.find(d => d.nutrient === row.nutrient && sameNum(d.class_from, row.class_from) && sameNum(d.class_to, row.class_to)); }
 
-function blankPlan() {
+// wiz.plan — shared by the whole batch regardless of how many cultures it ends up using
+function blankSharedPlan() {
+  return { status: 'osnutek', batch_id: null, plan_date: todayIso(), is_followup_year: false, notes: '', confirmed_at: null };
+}
+
+// one wiz.groups entry — everything that's specific to one culture
+function blankPlanGroup(cropId) {
   const s = defaults.settings;
-  const plan = {
-    status: 'osnutek', batch_id: null, plan_date: todayIso(), is_followup_year: false,
-    crop_id: null, crop_name: null, expected_yield_t_per_ha: null, straw_stays: true,
+  const group = {
+    crop_id: cropId ?? null, crop_name: cropId ? (cropById(cropId)?.name ?? null) : null, expected_yield_t_per_ha: null, straw_stays: true,
     p_fertilizer_id: s.default_p_fertilizer_id, k_fertilizer_id: s.default_k_fertilizer_id, lime_fertilizer_id: s.default_lime_fertilizer_id,
-    report_text: '', report_edited: false, notes: '', confirmed_at: null,
+    report_text: '', report_edited: false,
     params: { source_settings_id: s.id }, overridden: new Set(),
     lime: defaultLime(), mapFactors: defaultFactors(), organic: [],
     declarationChecked: false, declarationHint: '', declarationWarning: '',
+    fields: [],
   };
-  refreshDefaultedParams(plan);
-  return plan;
+  refreshDefaultedParams(group);
+  return group;
+}
+
+// groups wiz.fields by crop_id, reusing an existing group object (and
+// whatever the admin already typed into it) when one already matches —
+// only a brand-new crop_id gets a fresh blankPlanGroup()
+function syncGroups() {
+  const byCrop = new Map((wiz.groups ?? []).map(g => [g.crop_id ?? null, g]));
+  const order = [];
+  for (const f of wiz.fields) {
+    const cid = f.crop_id ?? null;
+    if (!order.includes(cid)) order.push(cid);
+  }
+  wiz.groups = order.map(cid => {
+    const g = byCrop.get(cid) ?? blankPlanGroup(cid);
+    g.fields = wiz.fields.filter(f => (f.crop_id ?? null) === cid);
+    return g;
+  });
 }
 
 // one selected field (GERK line); `id` = its fert_plan row once saved
@@ -1505,7 +1571,7 @@ function newField(src) {
   return {
     id: null, customer_id: src.customer_id, customer_name: src.customer_name ?? '', gerk_code: src.gerk_code,
     field_id: src.field_id ?? null, field_name: src.field_name ?? null, delovni_nalog_gerk_id: src.delovni_nalog_gerk_id,
-    segments: [], segmentsStale: true,
+    crop_id: src.crop_id ?? null, segments: [], segmentsStale: true,
   };
 }
 // Slovenian dual/plural: 1 polje, 2 polji, 3–4 polja, 5+ polj (same for accusative)
@@ -1660,7 +1726,7 @@ function clearPlanSelection() {
 // `preset` = customer + GERK line chosen up front (from Analize tal)
 async function startNewPlan(preset) {
   try { await loadDefaults(); } catch (err) { alert('Nastavitev ni bilo mogoče naložiti: ' + err.message); return; }
-  wiz = { plan: blankPlan(), fields: preset ? [newField(preset)] : [], removedIds: [], step: 0, maxStep: 0, readOnly: false, dirty: !!preset,
+  wiz = { plan: blankSharedPlan(), fields: preset ? [newField(preset)] : [], groups: [], removedIds: [], step: 0, maxStep: 0, readOnly: false, dirty: !!preset,
     fieldSources: null, notice: null, customerQuery: '', viewCustomerId: preset?.customer_id ?? null };
   showView('wizard');
   renderWizard();
@@ -1700,42 +1766,65 @@ async function openPlansCombined(ids) {
   openPlanGroup(group, { copy: false, forceReadOnly: true });
 }
 
-async function openPlanGroup(group, { copy, forceReadOnly }) {
-  const p = group[0];
-  const params = Array.isArray(p.fert_plan_parameters) ? p.fert_plan_parameters[0] : p.fert_plan_parameters;
-  const confirmed = group.some(g => g.status === 'potrjeno');
-  const fields = group.map(g => ({
+async function openPlanGroup(rows, { copy, forceReadOnly }) {
+  const p0 = rows[0];
+  const confirmed = rows.some(r => r.status === 'potrjeno');
+  const fields = rows.map(g => ({
     id: copy ? null : g.id, customer_id: g.customer_id, customer_name: customerName(g.customers),
     gerk_code: g.gerk_code, field_id: g.field_id, field_name: g.field_name, delovni_nalog_gerk_id: g.delovni_nalog_gerk_id,
+    crop_id: g.crop_id ?? null,
     segments: (g.fert_plan_segment ?? []).sort((a, b) => a.sort_order - b.sort_order).map(s => ({ ...s, lab: null })),
     segmentsStale: false,
   }));
-  const plan = {
-    status: copy ? 'osnutek' : confirmed ? 'potrjeno' : p.status, batch_id: copy ? null : p.batch_id ?? null,
-    plan_date: copy ? todayIso() : p.plan_date, is_followup_year: p.is_followup_year,
-    crop_id: p.crop_id, crop_name: p.crop_name, expected_yield_t_per_ha: p.expected_yield_t_per_ha, straw_stays: p.straw_stays ?? true,
-    p_fertilizer_id: p.p_fertilizer_id, k_fertilizer_id: p.k_fertilizer_id, lime_fertilizer_id: p.lime_fertilizer_id,
-    report_text: p.report_text ?? '', report_edited: !!p.report_text && p.report_text !== reportText((p.fert_plan_organic ?? []).sort((a, b) => a.sort_order - b.sort_order)),
-    notes: p.notes ?? '', confirmed_at: copy ? null : p.confirmed_at,
-    params: { ...(params ?? { source_settings_id: defaults.settings.id }) },
-    overridden: new Set(params?.overridden_fields ?? []),
-    lime: (p.fert_plan_lime_ph ?? []).sort((a, b) => (a.ph_from ?? -1) - (b.ph_from ?? -1))
-      .map(r => ({ ph_from: r.ph_from, ph_to: r.ph_to, kg_per_ha: r.kg_per_ha, is_overridden: r.is_overridden })),
-    mapFactors: (p.fert_plan_map_factor ?? []).sort((a, b) => b.nutrient.localeCompare(a.nutrient) || a.class_from - b.class_from)
-      .map(r => ({ nutrient: r.nutrient, class_from: r.class_from, class_to: r.class_to, factor: r.factor, is_overridden: r.is_overridden })),
-    organic: (p.fert_plan_organic ?? []).sort((a, b) => a.sort_order - b.sort_order)
-      .map(o => ({ organic_fertilizer_id: o.organic_fertilizer_id, name: o.name, unit: o.unit, amount: o.amount, p2o5_per_unit: o.p2o5_per_unit, k2o_per_unit: o.k2o_per_unit, is_overridden: o.is_overridden })),
-    declarationChecked: true, declarationHint: '', declarationWarning: '',
+
+  // one representative row per distinct crop_id → one wiz.groups entry;
+  // every already-saved batch used exactly one crop, so this reduces to
+  // today's single-group behavior unless a mixed-culture batch was made
+  const buildGroup = g => {
+    const params = Array.isArray(g.fert_plan_parameters) ? g.fert_plan_parameters[0] : g.fert_plan_parameters;
+    const grp = {
+      crop_id: g.crop_id ?? null, crop_name: g.crop_name, expected_yield_t_per_ha: g.expected_yield_t_per_ha, straw_stays: g.straw_stays ?? true,
+      p_fertilizer_id: g.p_fertilizer_id, k_fertilizer_id: g.k_fertilizer_id, lime_fertilizer_id: g.lime_fertilizer_id,
+      report_text: g.report_text ?? '', report_edited: !!g.report_text && g.report_text !== reportText((g.fert_plan_organic ?? []).sort((a, b) => a.sort_order - b.sort_order)),
+      params: { ...(params ?? { source_settings_id: defaults.settings.id }) },
+      overridden: new Set(params?.overridden_fields ?? []),
+      lime: (g.fert_plan_lime_ph ?? []).sort((a, b) => (a.ph_from ?? -1) - (b.ph_from ?? -1))
+        .map(r => ({ ph_from: r.ph_from, ph_to: r.ph_to, kg_per_ha: r.kg_per_ha, is_overridden: r.is_overridden })),
+      mapFactors: (g.fert_plan_map_factor ?? []).sort((a, b) => b.nutrient.localeCompare(a.nutrient) || a.class_from - b.class_from)
+        .map(r => ({ nutrient: r.nutrient, class_from: r.class_from, class_to: r.class_to, factor: r.factor, is_overridden: r.is_overridden })),
+      organic: (g.fert_plan_organic ?? []).sort((a, b) => a.sort_order - b.sort_order)
+        .map(o => ({ organic_fertilizer_id: o.organic_fertilizer_id, name: o.name, unit: o.unit, amount: o.amount, p2o5_per_unit: o.p2o5_per_unit, k2o_per_unit: o.k2o_per_unit, is_overridden: o.is_overridden })),
+      declarationChecked: true, declarationHint: '', declarationWarning: '',
+      fields: [],
+    };
+    if (!params) refreshDefaultedParams(grp);
+    if (!grp.lime.length) grp.lime = defaultLime();
+    if (!grp.mapFactors.length) grp.mapFactors = defaultFactors();
+    return grp;
   };
-  if (!params) refreshDefaultedParams(plan);
-  if (!plan.lime.length) plan.lime = defaultLime();
-  if (!plan.mapFactors.length) plan.mapFactors = defaultFactors();
+  const groupsByCrop = new Map();
+  const cropOrder = [];
+  for (const g of rows) {
+    const cid = g.crop_id ?? null;
+    if (!groupsByCrop.has(cid)) { groupsByCrop.set(cid, buildGroup(g)); cropOrder.push(cid); }
+  }
+  for (const f of fields) groupsByCrop.get(f.crop_id ?? null).fields.push(f);
+  const groups = cropOrder.map(cid => groupsByCrop.get(cid));
+
+  const plan = {
+    status: copy ? 'osnutek' : confirmed ? 'potrjeno' : p0.status, batch_id: copy ? null : p0.batch_id ?? null,
+    plan_date: copy ? todayIso() : p0.plan_date, is_followup_year: p0.is_followup_year,
+    notes: p0.notes ?? '', confirmed_at: copy ? null : p0.confirmed_at,
+  };
   const readOnly = forceReadOnly || plan.status === 'potrjeno';
   const copyText = fields.length > 1
     ? `Kopija skupinskega načrta (${nPolj(fields.length)}) — shrani jo kot nove osnutke (datum načrta je nastavljen na danes).`
     : 'Kopija načrta — shrani jo kot nov osnutek (datum načrta je nastavljen na danes).';
-  wiz = { plan, fields, removedIds: [], step: readOnly ? 4 : 0, maxStep: STEPS.length - 1, readOnly, dirty: copy, fieldSources: null, customerQuery: '',
+  wiz = { plan, fields, groups, removedIds: [], step: 0, maxStep: 0, readOnly, dirty: copy, fieldSources: null, customerQuery: '',
     viewCustomerId: fields[0]?.customer_id ?? null, notice: copy ? { kind: 'info', text: copyText } : null, noCopy: !!forceReadOnly };
+  const lastStep = stepLabels().length - 1;
+  wiz.maxStep = lastStep;
+  wiz.step = readOnly ? lastStep - 1 : 0; // Rezultat is always second-to-last
   showView('wizard');
   await prepareStep();
   renderWizard();
@@ -1906,11 +1995,11 @@ function overriddenFields(plan) {
 }
 
 async function savePlan({ confirmPlan = false } = {}) {
-  const { plan, fields } = wiz;
-  calculatePlan(plan, fields);
-  if (!plan.report_edited) plan.report_text = reportText(plan.organic);
+  const { plan, fields, groups } = wiz;
+  for (const g of groups) calculatePlan(effectivePlan(g), g.fields);
+  for (const g of groups) if (!g.report_edited) g.report_text = reportText(g.organic);
   const { data: { user } } = await supabase.auth.getUser();
-  // several fields = one group; the link stays even if it's later cut back to one
+  // several fields = one batch; the link stays even if it's later cut back to one
   if (fields.length > 1 && !plan.batch_id) plan.batch_id = crypto.randomUUID();
   const status = confirmPlan ? 'potrjeno' : 'osnutek';
   const confirmedAt = confirmPlan ? new Date().toISOString() : null;
@@ -1920,7 +2009,7 @@ async function savePlan({ confirmPlan = false } = {}) {
     if (error) throw error;
     wiz.removedIds = [];
   }
-  await Promise.all(fields.map(f => saveFieldPlan(plan, f, { user, status, confirmedAt })));
+  await Promise.all(groups.flatMap(g => g.fields.map(f => saveFieldPlan(effectivePlan(g), f, { user, status, confirmedAt }))));
   plan.status = status;
   plan.confirmed_at = confirmedAt;
   wiz.dirty = false;
@@ -2004,17 +2093,20 @@ async function saveAndNotify(opts, okText) {
 
 // ── wizard navigation ────────────────────────────────────────
 async function goToStep(target) {
-  const { plan, fields } = wiz;
+  const { plan } = wiz;
   wiz.notice = null;
   if (target > wiz.step && !wiz.readOnly) {
-    for (let s = wiz.step; s < target; s++) {
-      const problem = stepProblem(s, plan, fields);
-      if (problem) { wiz.notice = { kind: 'warn', text: problem }; renderWizard(); return; }
-    }
-    // the segments must exist before the first save that leaves step 1
+    // the segments must exist (and groups reflect the current field/crop
+    // picks) before validating/saving steps 2+, which are per-group
     if (wiz.step === 0) {
       try { await ensureSegments(); }
       catch (err) { wiz.notice = { kind: 'warn', text: 'Napaka pri nalaganju segmentov: ' + err.message }; renderWizard(); return; }
+      syncGroups();
+    }
+    for (let s = wiz.step; s < target; s++) {
+      const { local, group } = stepKindOf(s);
+      const problem = stepProblem(local, group ?? plan, group ? group.fields : wiz.fields);
+      if (problem) { wiz.notice = { kind: 'warn', text: problem }; renderWizard(); return; }
     }
     if (!(await saveAndNotify({}, 'Osnutek shranjen.'))) return;
   }
@@ -2027,13 +2119,13 @@ async function goToStep(target) {
 
 // load whatever the step needs before it renders
 async function prepareStep() {
-  const { plan } = wiz;
+  const { local, group } = stepKindOf(wiz.step);
   try {
-    if (wiz.step === 0 && !wiz.fieldSources && !wiz.readOnly) wiz.fieldSources = await loadFieldSources();
-    if (wiz.step === 1) await ensureSegments();
-    if (wiz.step === 2 && !plan.declarationChecked && !wiz.readOnly) await applyDeclaration(plan, wiz.fields);
-    if (wiz.step >= 4) calculatePlan(plan, wiz.fields);
-    if (wiz.step === 5 && !plan.report_edited) plan.report_text = reportText(plan.organic);
+    if (local === 0 && !wiz.fieldSources && !wiz.readOnly) wiz.fieldSources = await loadFieldSources();
+    if (local === 1) await ensureSegments();
+    if (local === 2 && group && !group.declarationChecked && !wiz.readOnly) await applyDeclaration(group, group.fields);
+    if (local >= 4) for (const g of wiz.groups) calculatePlan(effectivePlan(g), g.fields);
+    if (local === 5) for (const g of wiz.groups) if (!g.report_edited) g.report_text = reportText(g.organic);
   } catch (err) {
     wiz.notice = { kind: 'warn', text: 'Napaka pri nalaganju podatkov: ' + err.message };
   }
@@ -2051,18 +2143,32 @@ function renderWizard() {
   const statusBadge = plan.status === 'potrjeno'
     ? `<span class="fert-badge fert-badge--ok">Potrjeno${plan.confirmed_at ? ' ' + esc(fmtDate(plan.confirmed_at)) : ''}</span>`
     : `<span class="fert-badge fert-badge--warn">${saved ? (group ? 'Osnutki' : 'Osnutek') : 'Nov osnutek'}</span>`;
-  // the one thing to keep in mind with several fields (Matej, 2026-10-29)
-  const groupWarning = group ? `<div class="fert-notice fert-notice--warn"><strong>Skupinski načrt za ${nPolj(fields.length)} (${esc(fields.map(f => f.gerk_code).join(', '))}).</strong>
-      Vsa polja uporabijo isto kulturo, pričakovan pridelek, organska gnojila in parametre izračuna — izračun pa je za vsak segment posebej, vsako polje dobi svoj načrt.
-      Če se polja v čem od tega razlikujejo, naredi zanje ločen načrt.</div>` : '';
-  const stepper = STEPS.map((label, i) => {
+  // the one thing to keep in mind with several fields (Matej, 2026-10-29;
+  // extended 2026-11-25 for the mixed-culture case)
+  const groupWarning = !group ? '' : wiz.groups.length > 1
+    ? `<div class="fert-notice fert-notice--info"><strong>Skupinski načrt za ${nPolj(fields.length)} (${esc(fields.map(f => f.gerk_code).join(', '))}).</strong>
+        Razdeljen je v ${wiz.groups.length} skupine po kulturi: ${esc(wiz.groups.map(g => `${g.crop_name || cropById(g.crop_id)?.name || '—'} (${g.fields.length})`).join(', '))}.
+        Organska gnojila in parametri izračuna se vnašajo ločeno za vsako kulturo — izračun je za vsak segment posebej, vsako polje dobi svoj načrt.</div>`
+    : `<div class="fert-notice fert-notice--warn"><strong>Skupinski načrt za ${nPolj(fields.length)} (${esc(fields.map(f => f.gerk_code).join(', '))}).</strong>
+        Vsa polja uporabijo isto kulturo, pričakovan pridelek, organska gnojila in parametre izračuna — izračun pa je za vsak segment posebej, vsako polje dobi svoj načrt.
+        Če se polja v čem od tega razlikujejo, jim na seznamu polj dodeli različno kulturo.</div>`;
+  const labels = stepLabels();
+  const stepper = labels.map((label, i) => {
     const state = i === step ? 'current' : i <= wiz.maxStep ? 'done' : 'todo';
     return `<li><button type="button" class="fert-step fert-step--${state}" data-step="${i}" ${i > wiz.maxStep ? 'disabled' : ''} ${i === step ? 'aria-current="step"' : ''}>
       <span class="fert-step-num">${i + 1}</span><span class="fert-step-label">${label}</span></button></li>`;
   }).join('');
-  const body = [renderStepField, renderStepSegments, renderStepCrop, renderStepParams, renderStepResult, renderStepFinish][step]();
+  const body = (() => {
+    const { local, group: g } = stepKindOf(step);
+    if (local === 0) return renderStepField();
+    if (local === 1) return renderStepSegments();
+    if (local === 2) return renderStepCrop(g);
+    if (local === 3) return renderStepParams(g);
+    if (local === 4) return renderStepResult();
+    return renderStepFinish();
+  })();
   const notice = wiz.notice ? `<div class="fert-notice fert-notice--${wiz.notice.kind}">${esc(wiz.notice.text)}</div>` : '';
-  const last = step === STEPS.length - 1;
+  const last = step === labels.length - 1;
 
   els.views.wizard.innerHTML = `
     <div class="fert-wiz-head">
@@ -2105,14 +2211,29 @@ function renderStepField() {
   const customers = fieldSources.customers.filter(c => !q || c.name.toLowerCase().includes(q) || c.id === customerId);
   const selected = fieldSources.customers.find(c => c.id === customerId);
   const chosen = new Set(fields.map(f => f.delovni_nalog_gerk_id));
-  const lineRows = selected ? selected.lines.map(l => `
+  // 2+ fields: each gets its own culture right here (Matej, 2026-11-25) —
+  // left blank, a field just joins the "privzeto" group whose culture is
+  // picked on the next (shared) Kultura step, exactly like today
+  const multi = fields.length > 1;
+  const cropOptions = selectedId => `<option value="">— enaka kot ostala —</option>`
+    + defaults.crops.map(c => `<option value="${esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+  const lineRows = selected ? selected.lines.map(l => {
+    const f = fields.find(x => x.delovni_nalog_gerk_id === l.lineId);
+    return `
       <tr class="${chosen.has(l.lineId) ? 'fert-row--selected' : ''}">
         <td><input type="checkbox" value="${esc(l.lineId)}" data-line="${esc(l.lineId)}" ${chosen.has(l.lineId) ? 'checked' : ''} aria-label="Izberi GERK ${esc(l.gerk_code)}"></td>
         <td class="fert-strong">${esc(l.gerk_code)}</td><td>${esc(l.field_name ?? '—')}</td><td>${esc(l.order_no)}</td>
         <td class="fert-num">${l.sampleCount}</td>
         <td class="fert-num">${l.labCount ? `<span class="fert-badge fert-badge--ok">${l.labCount}</span>` : '<span class="fert-muted">0</span>'}</td>
-      </tr>`).join('') : '';
+        ${multi ? `<td>${f ? `<select class="field-input fert-input fert-input--sm" data-field-crop="${esc(l.lineId)}" aria-label="Kultura za GERK ${esc(l.gerk_code)}">${cropOptions(f.crop_id)}</select>` : '<span class="fert-muted">—</span>'}</td>` : ''}
+      </tr>`;
+  }).join('') : '';
   const allChosen = selected && selected.lines.length > 1 && selected.lines.every(l => chosen.has(l.lineId));
+  const cropGroups = new Map();
+  if (multi) for (const f of fields) { const cid = f.crop_id ?? null; if (!cropGroups.has(cid)) cropGroups.set(cid, 0); cropGroups.set(cid, cropGroups.get(cid) + 1); }
+  const groupPreview = multi && cropGroups.size > 1
+    ? `<p class="fert-hint">Skupine glede na kulturo: ${[...cropGroups.entries()].map(([cid, n]) => `${cid ? esc(cropById(cid)?.name ?? '?') : 'privzeto (izbereš v naslednjem koraku)'}: ${nPolj(n)}`).join(' · ')}.</p>`
+    : '';
   return `
     <div class="fert-card">
       <h3 class="fert-card-title">Stranka</h3>
@@ -2132,9 +2253,10 @@ function renderStepField() {
         <span class="fert-badge ${fields.length ? 'fert-badge--ok' : ''}">${fields.length ? `izbrano: ${nPolj(fields.length)}` : 'nič izbranega'}</span>
         ${selected.lines.length > 1 ? `<button type="button" class="btn btn-secondary btn-sm" data-wiz="${allChosen ? 'lines-none' : 'lines-all'}">${allChosen ? 'Odznači vse' : 'Izberi vse'}</button>` : ''}</div>
       <div class="reports-table-wrap"><table class="evidenca-table fert-table">
-        <thead><tr><th></th><th>GERK</th><th>Polje</th><th>Nalog</th><th class="fert-num">Segmenti</th><th class="fert-num">Z analizo</th></tr></thead>
+        <thead><tr><th></th><th>GERK</th><th>Polje</th><th>Nalog</th><th class="fert-num">Segmenti</th><th class="fert-num">Z analizo</th>${multi ? '<th>Kultura</th>' : ''}</tr></thead>
         <tbody>${lineRows}</tbody></table></div>
-      <p class="fert-hint">Izbereš lahko več polj naenkrat — vsa bodo uporabila isto kulturo, organska gnojila in parametre, vsako pa dobi svoj načrt.</p>
+      <p class="fert-hint">Izbereš lahko več polj naenkrat — vsako polje dobi svoj načrt. Pustiš lahko vsa z isto kulturo, ali nekaterim dodeliš drugo — vsaka kultura dobi svoj korak za organska gnojila in parametre.</p>
+      ${groupPreview}
     </div>` : ''}
     <div class="fert-card">
       <h3 class="fert-card-title">Načrt</h3>
@@ -2187,8 +2309,8 @@ function renderStepSegments() {
   return cards + '<p class="fert-hint">Segment brez analize ali površine se ne izračuna. Površino lahko popraviš samo za ta načrt.</p>';
 }
 
-function renderStepCrop() {
-  const { plan } = wiz;
+// `plan` here is the current culture's wiz.groups entry — one call per group
+function renderStepCrop(plan) {
   const crop = cropById(plan.crop_id);
   const yld = parseNum(plan.expected_yield_t_per_ha);
   const removal = crop && yld
@@ -2243,8 +2365,8 @@ function renderStepCrop() {
     </div>`;
 }
 
-function renderStepParams() {
-  const { plan } = wiz;
+// `plan` here is the current culture's wiz.groups entry — one call per group
+function renderStepParams(plan) {
   const input = f => {
     const changed = plan.overridden.has(f.key);
     const def = defaultParam(f.key, plan);
@@ -2294,61 +2416,83 @@ function renderStepParams() {
 }
 
 function renderStepResult() {
-  const { plan, fields } = wiz;
-  const group = fields.length > 1;
-  const perField = fields.map(f => ({ f, segs: f.segments.filter(s => s.included) }));
-  const allSegs = perField.flatMap(x => x.segs);
-  const pName = esc(plan.params.p_fertilizer_name ?? 'P gnojilo'), kName = esc(plan.params.k_fertilizer_name ?? 'K gnojilo'), lName = esc(plan.params.lime_fertilizer_name ?? 'Apno');
-  const warnings = perField.flatMap(({ f, segs }) => segs.filter(s => s.warning)
-    .map(s => `<li>${group ? `GERK ${esc(f.gerk_code)}, ` : ''}segment ${esc(s.sample_no)}: ${esc(s.warning)}</li>`)).join('');
-  const sum = (segs, key) => segs.reduce((t, s) => t + (s[key] ?? 0), 0);
-  const changedCount = plan.overridden.size + plan.lime.filter(r => r.is_overridden).length + plan.mapFactors.filter(r => r.is_overridden).length + plan.organic.filter(o => o.is_overridden).length;
-  const soilNote = plan.is_followup_year ? ' <span class="fert-muted">(+1 leto)</span>' : '';
+  const { fields, groups } = wiz;
+  const multiGroup = groups.length > 1;
   const r2 = (v, d) => v == null ? null : roundHalfUp(v, d);
-  // Easy to skip on step 3 and it changes everything (Zore: 75 m³ slurry
-  // covers the whole K need) — so say it out loud next to the result.
-  const noOrganic = !plan.organic.some(o => (parseNum(o.amount) ?? 0) > 0);
-  const organicWarning = noOrganic ? `<div class="fert-notice fert-notice--warn"><strong>Izračun ne vključuje organskih gnojil.</strong>
-      Če bo stranka gnojila z gnojem ali gnojevko, jih vpiši v koraku 3 — odštejejo se od potrebe po P₂O₅ in K₂O.
-      ${wiz.readOnly ? '' : '<button type="button" class="btn btn-secondary btn-sm" data-step="2">Dodaj organska gnojila</button>'}</div>` : '';
-  // several fields: a GERK column, a subtotal per field and one for all
-  const gerkCell = (f, i) => group ? `<td class="fert-muted">${i === 0 ? esc(f.gerk_code) : ''}</td>` : '';
-  const gerkHead = group ? '<th>GERK</th>' : '';
-  const perHa = perField.map(({ f, segs }) => segs.map((s, i) => `<tr>${gerkCell(f, i)}<td class="fert-strong">${esc(s.sample_no)}</td><td class="fert-num">${esc(numFmt.format(parseNum(s.area_ha) ?? 0))}</td>
-      <td class="fert-num">${esc(fmtNum(r2(s.used_ph_kcl, 2)))}</td><td class="fert-num">${esc(fmtNum(r2(s.used_p2o5, 1)))}</td><td class="fert-num">${esc(fmtNum(r2(s.used_k2o, 1)))}</td>
-      <td class="fert-num">${fmtKg(s.need_p2o5_kg_ha)}</td><td class="fert-num">${fmtKg(s.need_k2o_kg_ha)}</td>
-      <td class="fert-num">${fmtInt(s.p_fert_kg_ha)}</td><td class="fert-num">${fmtInt(s.k_fert_kg_ha)}</td><td class="fert-num">${fmtInt(s.lime_kg_ha)}</td></tr>`).join('')).join('');
+  const sum = (segs, key) => segs.reduce((t, s) => t + (s[key] ?? 0), 0);
   const totalCells = segs => `<td class="fert-num fert-col-sep">${fmtKg(sum(segs, 'p_fert_real_kg'))}</td><td class="fert-num">${fmtKg(sum(segs, 'k_fert_real_kg'))}</td><td class="fert-num">${fmtKg(sum(segs, 'lime_real_kg'))}</td>
       <td class="fert-num fert-col-sep">${fmtKg(sum(segs, 'p_fert_map_kg'))}</td><td class="fert-num">${fmtKg(sum(segs, 'k_fert_map_kg'))}</td><td class="fert-num">${fmtKg(sum(segs, 'lime_map_kg'))}</td>`;
-  const totals = perField.map(({ f, segs }) => segs.map((s, i) => `<tr>${gerkCell(f, i)}<td class="fert-strong">${esc(s.sample_no)}</td>
-      <td class="fert-num fert-col-sep">${fmtKg(s.p_fert_real_kg)}</td><td class="fert-num">${fmtKg(s.k_fert_real_kg)}</td><td class="fert-num">${fmtKg(s.lime_real_kg)}</td>
-      <td class="fert-num fert-col-sep">${fmtKg(s.p_fert_map_kg)}</td><td class="fert-num">${fmtKg(s.k_fert_map_kg)}</td><td class="fert-num">${fmtKg(s.lime_map_kg)}</td></tr>`).join('')
-    + (group && !wiz.noCopy ? `<tr class="fert-subtotal-row"><td colspan="2">Skupaj ${esc(f.gerk_code)}</td>${totalCells(segs)}</tr>` : '')).join('');
+  const soilNote = wiz.plan.is_followup_year ? ' <span class="fert-muted">(+1 leto)</span>' : '';
+  const warnings = fields.flatMap(f => f.segments.filter(s => s.included && s.warning)
+    .map(s => `<li>${fields.length > 1 ? `GERK ${esc(f.gerk_code)}, ` : ''}segment ${esc(s.sample_no)}: ${esc(s.warning)}</li>`)).join('');
+
+  // one mini result (same shape as today's single-group table) per culture
+  const renderGroup = (g, label) => {
+    const perField = g.fields.map(f => ({ f, segs: f.segments.filter(s => s.included) }));
+    const allSegs = perField.flatMap(x => x.segs);
+    const withinGroup = perField.length > 1;
+    const pName = esc(g.params.p_fertilizer_name ?? 'P gnojilo'), kName = esc(g.params.k_fertilizer_name ?? 'K gnojilo'), lName = esc(g.params.lime_fertilizer_name ?? 'Apno');
+    const changedCount = g.overridden.size + g.lime.filter(r => r.is_overridden).length + g.mapFactors.filter(r => r.is_overridden).length + g.organic.filter(o => o.is_overridden).length;
+    // Easy to skip and it changes everything (Zore: 75 m³ slurry covers the
+    // whole K need) — so say it out loud next to the result.
+    const noOrganic = !g.organic.some(o => (parseNum(o.amount) ?? 0) > 0);
+    const organicWarning = noOrganic ? `<div class="fert-notice fert-notice--warn"><strong>Izračun ne vključuje organskih gnojil${label ? ` (${esc(label)})` : ''}.</strong>
+        Če bo stranka gnojila z gnojem ali gnojevko, jih vpiši v koraku Kultura — odštejejo se od potrebe po P₂O₅ in K₂O.
+        ${wiz.readOnly ? '' : `<button type="button" class="btn btn-secondary btn-sm" data-step="${groupStepIndex(g, 2)}">Dodaj organska gnojila</button>`}</div>` : '';
+    const gerkCell = (f, i) => withinGroup ? `<td class="fert-muted">${i === 0 ? esc(f.gerk_code) : ''}</td>` : '';
+    const gerkHead = withinGroup ? '<th>GERK</th>' : '';
+    const perHa = perField.map(({ f, segs }) => segs.map((s, i) => `<tr>${gerkCell(f, i)}<td class="fert-strong">${esc(s.sample_no)}</td><td class="fert-num">${esc(numFmt.format(parseNum(s.area_ha) ?? 0))}</td>
+        <td class="fert-num">${esc(fmtNum(r2(s.used_ph_kcl, 2)))}</td><td class="fert-num">${esc(fmtNum(r2(s.used_p2o5, 1)))}</td><td class="fert-num">${esc(fmtNum(r2(s.used_k2o, 1)))}</td>
+        <td class="fert-num">${fmtKg(s.need_p2o5_kg_ha)}</td><td class="fert-num">${fmtKg(s.need_k2o_kg_ha)}</td>
+        <td class="fert-num">${fmtInt(s.p_fert_kg_ha)}</td><td class="fert-num">${fmtInt(s.k_fert_kg_ha)}</td><td class="fert-num">${fmtInt(s.lime_kg_ha)}</td></tr>`).join('')).join('');
+    const totals = perField.map(({ f, segs }) => segs.map((s, i) => `<tr>${gerkCell(f, i)}<td class="fert-strong">${esc(s.sample_no)}</td>
+        <td class="fert-num fert-col-sep">${fmtKg(s.p_fert_real_kg)}</td><td class="fert-num">${fmtKg(s.k_fert_real_kg)}</td><td class="fert-num">${fmtKg(s.lime_real_kg)}</td>
+        <td class="fert-num fert-col-sep">${fmtKg(s.p_fert_map_kg)}</td><td class="fert-num">${fmtKg(s.k_fert_map_kg)}</td><td class="fert-num">${fmtKg(s.lime_map_kg)}</td></tr>`).join('')
+      + (withinGroup && !wiz.noCopy ? `<tr class="fert-subtotal-row"><td colspan="2">Skupaj ${esc(f.gerk_code)}</td>${totalCells(segs)}</tr>` : '')).join('');
+    return `
+      ${organicWarning}
+      <p class="fert-hint">${label ? `<strong>${esc(label)}</strong> — ` : ''}${changedCount ? `${changedCount} ${changedCount === 1 ? 'vrednost je spremenjena' : 'vrednosti je spremenjenih'} glede na privzete nastavitve.` : 'Izračun uporablja privzete nastavitve.'}</p>
+      <div class="fert-card"><h3 class="fert-card-title">Na hektar (kg/ha)${label ? ` — ${esc(label)}` : ''}</h3>
+        <div class="reports-table-wrap"><table class="evidenca-table fert-table">
+          <thead><tr>${gerkHead}<th>Segment</th><th class="fert-num">ha</th><th class="fert-num">pH${soilNote}</th><th class="fert-num">P₂O₅${soilNote}</th><th class="fert-num">K₂O${soilNote}</th>
+            <th class="fert-num">Potreba P₂O₅</th><th class="fert-num">Potreba K₂O</th><th class="fert-num">${pName}</th><th class="fert-num">${kName}</th><th class="fert-num">${lName}</th></tr></thead>
+          <tbody>${perHa}</tbody></table></div></div>
+      <div class="fert-card"><h3 class="fert-card-title">Skupaj na segment (kg)${label ? ` — ${esc(label)}` : ''}</h3>
+        <div class="reports-table-wrap"><table class="evidenca-table fert-table">
+          <thead><tr>${gerkHead}<th></th><th colspan="3" class="fert-col-sep fert-center">Realno</th><th colspan="3" class="fert-col-sep fert-center">Mapa</th></tr>
+            <tr>${gerkHead ? '<th></th>' : ''}<th>Segment</th><th class="fert-num fert-col-sep">${pName}</th><th class="fert-num">${kName}</th><th class="fert-num">${lName}</th><th class="fert-num fert-col-sep">${pName}</th><th class="fert-num">${kName}</th><th class="fert-num">${lName}</th></tr></thead>
+          <tbody>${totals}</tbody>
+          <tfoot><tr class="fert-total-row"><td${withinGroup ? ' colspan="2"' : ''}>${withinGroup ? `Skupaj${label ? ' ' + esc(label) : ''} (${nPolj(perField.length)})` : 'Skupaj'}</td>${totalCells(allSegs)}</tr></tfoot>
+        </table></div></div>`;
+  };
+
+  const groupBlocks = groups.map(g => renderGroup(g, multiGroup ? (g.crop_name || cropById(g.crop_id)?.name || '—') : '')).join('');
+  const grandTotal = multiGroup ? `
+    <div class="fert-card"><h3 class="fert-card-title">Skupaj vse kulture</h3>
+      <div class="reports-table-wrap"><table class="evidenca-table fert-table">
+        <thead><tr><th></th><th colspan="3" class="fert-col-sep fert-center">Realno</th><th colspan="3" class="fert-col-sep fert-center">Mapa</th></tr></thead>
+        <tfoot><tr class="fert-total-row"><td>Skupaj vsa polja (${nPolj(fields.length)})</td>${totalCells(fields.flatMap(f => f.segments.filter(s => s.included)))}</tr></tfoot>
+      </table></div></div>` : '';
+
   return `
-    ${organicWarning}
     ${warnings ? `<div class="fert-notice fert-notice--warn"><strong>Opozorila</strong><ul class="fert-list">${warnings}</ul></div>` : ''}
-    <p class="fert-hint">${changedCount ? `${changedCount} ${changedCount === 1 ? 'vrednost je spremenjena' : 'vrednosti je spremenjenih'} glede na privzete nastavitve (korak 3–4).` : 'Izračun uporablja privzete nastavitve.'}</p>
-    <div class="fert-card"><h3 class="fert-card-title">Na hektar (kg/ha)</h3>
-      <div class="reports-table-wrap"><table class="evidenca-table fert-table">
-        <thead><tr>${gerkHead}<th>Segment</th><th class="fert-num">ha</th><th class="fert-num">pH${soilNote}</th><th class="fert-num">P₂O₅${soilNote}</th><th class="fert-num">K₂O${soilNote}</th>
-          <th class="fert-num">Potreba P₂O₅</th><th class="fert-num">Potreba K₂O</th><th class="fert-num">${pName}</th><th class="fert-num">${kName}</th><th class="fert-num">${lName}</th></tr></thead>
-        <tbody>${perHa}</tbody></table></div></div>
-    <div class="fert-card"><h3 class="fert-card-title">Skupaj na segment (kg)</h3>
-      <div class="reports-table-wrap"><table class="evidenca-table fert-table">
-        <thead><tr>${gerkHead}<th></th><th colspan="3" class="fert-col-sep fert-center">Realno</th><th colspan="3" class="fert-col-sep fert-center">Mapa</th></tr>
-          <tr>${gerkHead ? '<th></th>' : ''}<th>Segment</th><th class="fert-num fert-col-sep">${pName}</th><th class="fert-num">${kName}</th><th class="fert-num">${lName}</th><th class="fert-num fert-col-sep">${pName}</th><th class="fert-num">${kName}</th><th class="fert-num">${lName}</th></tr></thead>
-        <tbody>${totals}</tbody>
-        <tfoot><tr class="fert-total-row"><td${group ? ' colspan="2"' : ''}>${group ? `Skupaj vsa polja (${nPolj(fields.length)})` : 'Skupaj'}</td>${totalCells(allSegs)}</tr></tfoot>
-      </table></div></div>`;
+    ${groupBlocks}
+    ${grandTotal}`;
 }
 
 function renderStepFinish() {
-  const { plan } = wiz;
+  const { plan, groups } = wiz;
+  const multiGroup = groups.length > 1;
+  const reportBlocks = groups.map(g => {
+    const label = multiGroup ? (g.crop_name || cropById(g.crop_id)?.name || '—') : '';
+    const gid = esc(g.crop_id ?? '');
+    return `<label class="fert-field fert-field--full"><span class="field-label">Besedilo za poročilo${label ? ` — ${esc(label)}` : ''}${g.report_edited ? '' : ' (samodejno iz organskih gnojil)'}</span>
+      <textarea class="field-input fert-textarea" rows="3" data-wiz-input="report_text" data-report-group="${gid}">${esc(g.report_text)}</textarea></label>
+      ${g.report_edited && !wiz.readOnly ? `<div><button type="button" class="btn btn-secondary btn-sm" data-wiz="report-auto" data-report-group="${gid}">Samodejno besedilo</button></div>` : ''}`;
+  }).join('');
   return `<div class="fert-card">
     <h3 class="fert-card-title">Zaključek</h3>
-    <label class="fert-field fert-field--full"><span class="field-label">Besedilo za poročilo${plan.report_edited ? '' : ' (samodejno iz organskih gnojil)'}</span>
-      <textarea class="field-input fert-textarea" rows="3" data-wiz-input="report_text">${esc(plan.report_text)}</textarea></label>
-    ${plan.report_edited && !wiz.readOnly ? '<div><button type="button" class="btn btn-secondary btn-sm" data-wiz="report-auto">Samodejno besedilo</button></div>' : ''}
+    ${reportBlocks}
     <label class="fert-field fert-field--full"><span class="field-label">Opombe (interno)</span>
       <textarea class="field-input fert-textarea" rows="2" data-wiz-input="notes">${esc(plan.notes)}</textarea></label>
     ${wiz.readOnly ? '' : '<p class="fert-hint">Potrjenega načrta ni več mogoče spreminjati — za spremembe naredi kopijo.</p>'}
@@ -2368,7 +2512,7 @@ function setLineChosen(customer, line, on) {
     const [gone] = wiz.fields.splice(i, 1);
     if (gone.id) wiz.removedIds.push(gone.id); // its saved plan is deleted on the next save
   } else return;
-  wiz.plan.declarationChecked = false; // re-check the declarations of the new set
+  for (const g of wiz.groups ?? []) g.declarationChecked = false; // re-check the declarations of the new set
   wiz.maxStep = 0;                     // the later steps need the new segments first
   markDirty();
 }
@@ -2376,6 +2520,7 @@ function setLineChosen(customer, line, on) {
 els.views.wizard.addEventListener('click', async event => {
   if (!wiz) return;
   const { plan } = wiz;
+  const group = currentGroup();
   const t = event.target;
   const action = t.closest('[data-wiz]')?.dataset.wiz;
   const stepBtn = t.closest('[data-step]');
@@ -2396,8 +2541,9 @@ els.views.wizard.addEventListener('click', async event => {
     return;
   }
   if (action === 'confirm') {
-    for (let s = 0; s < STEPS.length - 1; s++) {
-      const problem = stepProblem(s, plan, wiz.fields);
+    for (let s = 0; s < stepLabels().length - 1; s++) {
+      const { local, group: g } = stepKindOf(s);
+      const problem = stepProblem(local, g ?? plan, g ? g.fields : wiz.fields);
       if (problem) { wiz.notice = { kind: 'warn', text: `Korak ${s + 1}: ${problem}` }; return renderWizard(); }
     }
     const n = wiz.fields.length;
@@ -2417,36 +2563,40 @@ els.views.wizard.addEventListener('click', async event => {
     return renderWizard();
   }
   if (action === 'reset-all') {
-    plan.overridden.clear();
-    plan.lime = defaultLime();
-    plan.mapFactors = defaultFactors();
-    for (const o of plan.organic) { const d = organicById(o.organic_fertilizer_id); if (d) Object.assign(o, { p2o5_per_unit: d.p2o5_per_unit, k2o_per_unit: d.k2o_per_unit, is_overridden: false }); }
-    refreshDefaultedParams(plan); markDirty(); return renderWizard();
+    group.overridden.clear();
+    group.lime = defaultLime();
+    group.mapFactors = defaultFactors();
+    for (const o of group.organic) { const d = organicById(o.organic_fertilizer_id); if (d) Object.assign(o, { p2o5_per_unit: d.p2o5_per_unit, k2o_per_unit: d.k2o_per_unit, is_overridden: false }); }
+    refreshDefaultedParams(group); markDirty(); return renderWizard();
   }
-  if (action === 'report-auto') { plan.report_edited = false; plan.report_text = reportText(plan.organic); markDirty(); return renderWizard(); }
+  if (action === 'report-auto') {
+    const gid = t.closest('[data-wiz]')?.dataset.reportGroup ?? '';
+    const g = wiz.groups.find(x => String(x.crop_id ?? '') === gid) ?? group;
+    g.report_edited = false; g.report_text = reportText(g.organic); markDirty(); return renderWizard();
+  }
 
   const toggle = t.closest('[data-wiz-toggle]');
   if (toggle) {
     if (toggle.dataset.wizToggle === 'followup') plan.is_followup_year = toggle.dataset.value === '1';
-    if (toggle.dataset.wizToggle === 'straw') { plan.straw_stays = toggle.dataset.value === '1'; refreshDefaultedParams(plan); }
+    if (toggle.dataset.wizToggle === 'straw') { group.straw_stays = toggle.dataset.value === '1'; refreshDefaultedParams(group); }
     markDirty(); return renderWizard();
   }
   const paramReset = t.closest('[data-param-reset]');
-  if (paramReset) { plan.overridden.delete(paramReset.dataset.paramReset); refreshDefaultedParams(plan); markDirty(); return renderWizard(); }
+  if (paramReset) { group.overridden.delete(paramReset.dataset.paramReset); refreshDefaultedParams(group); markDirty(); return renderWizard(); }
   const orgReset = t.closest('[data-org-reset]');
   if (orgReset) {
-    const o = plan.organic[Number(orgReset.dataset.orgReset)];
+    const o = group.organic[Number(orgReset.dataset.orgReset)];
     const d = organicById(o?.organic_fertilizer_id);
     if (d) Object.assign(o, { p2o5_per_unit: d.p2o5_per_unit, k2o_per_unit: d.k2o_per_unit, is_overridden: false });
     markDirty(); return renderWizard();
   }
   if (t.closest('[data-org-add]')) {
     const d = defaults.organics[0];
-    if (d) plan.organic.push({ organic_fertilizer_id: d.id, name: d.name, unit: d.unit, amount: null, p2o5_per_unit: d.p2o5_per_unit, k2o_per_unit: d.k2o_per_unit, is_overridden: false });
+    if (d) group.organic.push({ organic_fertilizer_id: d.id, name: d.name, unit: d.unit, amount: null, p2o5_per_unit: d.p2o5_per_unit, k2o_per_unit: d.k2o_per_unit, is_overridden: false });
     markDirty(); return renderWizard();
   }
   const orgRemove = t.closest('[data-org-remove]');
-  if (orgRemove) { plan.organic.splice(Number(orgRemove.dataset.orgRemove), 1); markDirty(); return renderWizard(); }
+  if (orgRemove) { group.organic.splice(Number(orgRemove.dataset.orgRemove), 1); markDirty(); return renderWizard(); }
 });
 
 // ── Kultura: type-to-search picker (Matej, 2026-10-29) ───────
@@ -2475,7 +2625,7 @@ function openCropList(input, query) {
   cropComboActive = Math.min(cropComboActive, Math.max(cropComboItems.length - 1, 0));
   list.innerHTML = cropComboItems.length
     ? cropComboItems.map((c, i) => `<li id="fertCropOpt${i}" role="option" aria-selected="${i === cropComboActive}"
-        class="fert-combo-opt${i === cropComboActive ? ' fert-combo-opt--active' : ''}${c.id === wiz.plan.crop_id ? ' fert-combo-opt--current' : ''}"
+        class="fert-combo-opt${i === cropComboActive ? ' fert-combo-opt--active' : ''}${c.id === currentGroup()?.crop_id ? ' fert-combo-opt--current' : ''}"
         data-crop-pick="${esc(c.id)}">${esc(cropLabel(c))}</li>`).join('')
     : '<li class="fert-combo-empty">Ni kulture s tem imenom.</li>';
   list.hidden = false;
@@ -2491,24 +2641,24 @@ function closeCropList(input) {
   if (list) list.hidden = true;
   input.setAttribute('aria-expanded', 'false');
   input.removeAttribute('aria-activedescendant');
-  const crop = cropById(wiz?.plan.crop_id);
+  const crop = cropById(currentGroup()?.crop_id);
   input.value = crop ? cropLabel(crop) : ''; // typed text that wasn't picked doesn't stick
 }
 
 function selectCrop(id) {
-  const { plan } = wiz;
-  plan.crop_id = id || null;
-  plan.crop_name = cropById(plan.crop_id)?.name ?? null;
-  const defYield = cropById(plan.crop_id)?.default_yield_t_per_ha;
-  if (parseNum(plan.expected_yield_t_per_ha) == null && defYield != null) plan.expected_yield_t_per_ha = defYield;
-  refreshDefaultedParams(plan); markDirty(); renderWizard();
+  const group = currentGroup();
+  group.crop_id = id || null;
+  group.crop_name = cropById(group.crop_id)?.name ?? null;
+  const defYield = cropById(group.crop_id)?.default_yield_t_per_ha;
+  if (parseNum(group.expected_yield_t_per_ha) == null && defYield != null) group.expected_yield_t_per_ha = defYield;
+  refreshDefaultedParams(group); markDirty(); renderWizard();
 }
 
 els.views.wizard.addEventListener('focusin', event => {
   const t = event.target;
   if (!wiz || wiz.readOnly || !t.matches('[data-crop-combo]')) return;
   // whole list on focus, current crop highlighted; text selected so typing replaces it
-  cropComboActive = Math.max(0, defaults.crops.findIndex(c => c.id === wiz.plan.crop_id));
+  cropComboActive = Math.max(0, defaults.crops.findIndex(c => c.id === currentGroup()?.crop_id));
   openCropList(t, '');
   t.select();
 });
@@ -2548,6 +2698,7 @@ els.views.wizard.addEventListener('keydown', event => {
 els.views.wizard.addEventListener('input', event => {
   if (!wiz || wiz.readOnly) return;
   const { plan } = wiz;
+  const group = currentGroup();
   const t = event.target;
   if (t.matches('[data-crop-combo]')) { cropComboActive = 0; return openCropList(t, t.value); }
   if (t.dataset.wizInput === 'customer-query') {
@@ -2559,34 +2710,37 @@ els.views.wizard.addEventListener('input', event => {
     again?.setSelectionRange(pos, pos);
     return;
   }
-  if (t.dataset.wizInput === 'expected_yield_t_per_ha') { plan.expected_yield_t_per_ha = t.value; markDirty(); return; }
-  if (t.dataset.wizInput === 'report_text') { plan.report_text = t.value; plan.report_edited = true; markDirty(); return; }
+  if (t.dataset.wizInput === 'expected_yield_t_per_ha') { group.expected_yield_t_per_ha = t.value; markDirty(); return; }
+  if (t.dataset.wizInput === 'report_text') {
+    const g = wiz.groups.find(x => String(x.crop_id ?? '') === (t.dataset.reportGroup ?? '')) ?? group;
+    g.report_text = t.value; g.report_edited = true; markDirty(); return;
+  }
   if (t.dataset.wizInput === 'notes') { plan.notes = t.value; markDirty(); return; }
   if (t.dataset.param) {
     const key = t.dataset.param;
-    plan.params[key] = t.value;
-    const changed = !sameNum(parseNum(t.value), parseNum(defaultParam(key, plan)));
-    if (changed) plan.overridden.add(key); else plan.overridden.delete(key);
+    group.params[key] = t.value;
+    const changed = !sameNum(parseNum(t.value), parseNum(defaultParam(key, group)));
+    if (changed) group.overridden.add(key); else group.overridden.delete(key);
     t.closest('.fert-param')?.classList.toggle('fert-param--changed', changed);
     markDirty(); return;
   }
   if (t.dataset.seg != null && t.dataset.segField === 'area_ha') { wiz.fields[Number(t.dataset.field)].segments[Number(t.dataset.seg)].area_ha = t.value; markDirty(); return; }
   if (t.dataset.org != null && t.dataset.orgField !== 'organic_fertilizer_id') {
-    const o = plan.organic[Number(t.dataset.org)];
+    const o = group.organic[Number(t.dataset.org)];
     o[t.dataset.orgField] = t.value;
     const d = organicById(o.organic_fertilizer_id);
     o.is_overridden = !!d && (!sameNum(parseNum(o.p2o5_per_unit), d.p2o5_per_unit) || !sameNum(parseNum(o.k2o_per_unit), d.k2o_per_unit));
     markDirty(); return;
   }
   if (t.dataset.lime != null) {
-    const r = plan.lime[Number(t.dataset.lime)];
+    const r = group.lime[Number(t.dataset.lime)];
     r.kg_per_ha = t.value;
     r.is_overridden = !sameNum(parseNum(t.value), defaultLimeRow(r)?.kg_per_ha);
     t.closest('.fert-tile')?.classList.toggle('fert-param--changed', r.is_overridden);
     markDirty(); return;
   }
   if (t.dataset.factor != null) {
-    const r = plan.mapFactors[Number(t.dataset.factor)];
+    const r = group.mapFactors[Number(t.dataset.factor)];
     r.factor = t.value;
     r.is_overridden = !sameNum(parseNum(t.value), defaultFactorRow(r)?.factor);
     t.closest('.fert-tile')?.classList.toggle('fert-param--changed', r.is_overridden);
@@ -2597,6 +2751,7 @@ els.views.wizard.addEventListener('input', event => {
 els.views.wizard.addEventListener('change', event => {
   if (!wiz || wiz.readOnly) return;
   const { plan } = wiz;
+  const group = currentGroup();
   const t = event.target;
   if (t.dataset.wizInput === 'customer') {
     // one customer per run — another customer starts the selection over
@@ -2605,7 +2760,7 @@ els.views.wizard.addEventListener('change', event => {
     if (t.value !== wiz.fields[0]?.customer_id) {
       for (const f of wiz.fields) if (f.id) wiz.removedIds.push(f.id);
       wiz.fields = [];
-      plan.declarationChecked = false;
+      wiz.groups = [];
       wiz.maxStep = 0;
     }
     wiz.viewCustomerId = t.value || null;
@@ -2618,6 +2773,11 @@ els.views.wizard.addEventListener('change', event => {
     setLineChosen(c, line, t.checked);
     return renderWizard();
   }
+  if (t.dataset.fieldCrop) {
+    const f = wiz.fields.find(x => x.delovni_nalog_gerk_id === t.dataset.fieldCrop);
+    if (f) { f.crop_id = t.value || null; wiz.maxStep = 0; markDirty(); }
+    return renderWizard();
+  }
   if (t.dataset.wizInput === 'plan_date') { plan.plan_date = t.value; markDirty(); return; }
   if (t.dataset.wizInput === 'expected_yield_t_per_ha') return renderWizard(); // refresh "Odvzem kulture"
   if (t.dataset.seg != null) {
@@ -2625,7 +2785,7 @@ els.views.wizard.addEventListener('change', event => {
     markDirty(); return renderWizard();
   }
   if (t.dataset.org != null && t.dataset.orgField === 'organic_fertilizer_id') {
-    const o = plan.organic[Number(t.dataset.org)];
+    const o = group.organic[Number(t.dataset.org)];
     const d = organicById(t.value);
     if (d) Object.assign(o, { organic_fertilizer_id: d.id, name: d.name, unit: d.unit, p2o5_per_unit: d.p2o5_per_unit, k2o_per_unit: d.k2o_per_unit, is_overridden: false });
     markDirty(); return renderWizard();
@@ -2633,8 +2793,8 @@ els.views.wizard.addEventListener('change', event => {
   if (t.dataset.org != null) { markDirty(); return renderWizard(); } // refresh the row's "= … kg/ha" and the marker
   if (t.dataset.fertSlot) {
     const slot = t.dataset.fertSlot;
-    plan[`${slot}_fertilizer_id`] = t.value;
-    plan.overridden.delete(`${slot}_fertilizer_content`); // a new fertilizer starts from its own content
-    refreshDefaultedParams(plan); markDirty(); return renderWizard();
+    group[`${slot}_fertilizer_id`] = t.value;
+    group.overridden.delete(`${slot}_fertilizer_content`); // a new fertilizer starts from its own content
+    refreshDefaultedParams(group); markDirty(); return renderWizard();
   }
 });
