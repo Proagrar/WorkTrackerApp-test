@@ -2234,15 +2234,14 @@ function renderStepField() {
   // group discovered only later on the Kultura step — picking one here
   // writes the real crop_id onto every currently-blank field at once
   const defaultCropPicker = multi && blankCount
-    ? `<label class="fert-field fert-field--wide"><span class="field-label">Preostala polja (${blankCount}) — izberi kulturo</span>
-        <select class="field-input fert-input" data-default-crop-apply>
-          <option value="">— izberi kulturo —</option>
-          ${defaults.crops.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}
-        </select></label>`
+    ? `<select class="field-input fert-input fert-input--sm" data-default-crop-apply aria-label="Izberi kulturo za preostala polja">
+        <option value="">Kultura za preostala polja (${blankCount})</option>
+        ${defaults.crops.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}
+      </select>`
     : '';
   const groupPreview = multi && cropGroups.size > 1
-    ? `<p class="fert-hint">Skupine glede na kulturo: ${[...cropGroups.entries()].map(([cid, n]) => `${cid ? esc(cropById(cid)?.name ?? '?') : 'privzeto'}: ${nPolj(n)}`).join(' · ')}.</p>${defaultCropPicker}`
-    : defaultCropPicker;
+    ? `<p class="fert-hint">Skupine glede na kulturo: ${[...cropGroups.entries()].map(([cid, n]) => `${cid ? esc(cropById(cid)?.name ?? '?') : 'privzeto'}: ${nPolj(n)}`).join(' · ')}.</p>`
+    : '';
   return `
     <div class="fert-card">
       <h3 class="fert-card-title">Stranka</h3>
@@ -2260,7 +2259,8 @@ function renderStepField() {
     ${selected ? `<div class="fert-card">
       <div class="fert-card-head"><h3 class="fert-card-title">Polja (GERK)</h3>
         <span class="fert-badge ${fields.length ? 'fert-badge--ok' : ''}">${fields.length ? `izbrano: ${nPolj(fields.length)}` : 'nič izbranega'}</span>
-        ${selected.lines.length > 1 ? `<button type="button" class="btn btn-secondary btn-sm" data-wiz="${allChosen ? 'lines-none' : 'lines-all'}">${allChosen ? 'Odznači vse' : 'Izberi vse'}</button>` : ''}</div>
+        ${selected.lines.length > 1 ? `<button type="button" class="btn btn-secondary btn-sm" data-wiz="${allChosen ? 'lines-none' : 'lines-all'}">${allChosen ? 'Odznači vse' : 'Izberi vse'}</button>` : ''}
+        ${defaultCropPicker}</div>
       <div class="reports-table-wrap"><table class="evidenca-table fert-table">
         <thead><tr><th></th><th>GERK</th><th>Polje</th><th>Nalog</th><th class="fert-num">Segmenti</th><th class="fert-num">Z analizo</th>${multi ? '<th>Kultura</th>' : ''}</tr></thead>
         <tbody>${lineRows}</tbody></table></div>
