@@ -33,6 +33,7 @@ const els = {
   planStatus: document.getElementById('fertPlanStatus'),
   planRows: document.getElementById('fertPlanRows'),
   planSelectionBar: document.getElementById('fertPlanSelectionBar'),
+  fieldSelectionBar: document.getElementById('fertFieldSelectionBar'),
   importOpenBtn: document.getElementById('fertImportOpenBtn'),
   importBackBtn: document.getElementById('fertImportBackBtn'),
   importFiles: document.getElementById('fertImportFiles'),
@@ -134,6 +135,7 @@ function showView(view) {
   for (const [name, el] of Object.entries(els.views)) el.hidden = name !== view;
   els.importOpenBtn.hidden = view !== 'lab';
   els.newPlanBtn.hidden = view !== 'plans';
+  if (view !== 'wizard') els.fieldSelectionBar.classList.remove('wlg-selection-bar--visible');
   if (view === 'lab') {
     if (!labLoaded) loadLabResults();
     else loadLabPlans().then(renderLabResults); // a plan may have been made or confirmed meanwhile
@@ -1720,6 +1722,45 @@ function clearPlanSelection() {
   updatePlanSelectAllState(planSelectableIds());
 }
 
+// Čarovnik, korak Polje: floating bar for bulk-setting the crop on every
+// currently checked GERK at once (Matej, 2026-11-25) — replaces the v4.147
+// inline header select. Shown once 2+ GERK-i are checked (with just one,
+// the crop is still picked on the next, shared Kultura step as before).
+function buildFieldSelectionBar() {
+  els.fieldSelectionBar.setAttribute('role', 'toolbar');
+  els.fieldSelectionBar.setAttribute('aria-label', 'Skupinska dejanja za izbrane GERK-e');
+  els.fieldSelectionBar.innerHTML = `
+    <span class="wlg-sel-summary"></span>
+    <button type="button" class="wlg-sel-close" data-action="fert-field-sel-close" aria-label="Odznači vse" title="Odznači vse">${SEL_ICON_CLOSE}</button>
+    <span class="wlg-sel-sep" aria-hidden="true"></span>
+    <div class="wlg-sel-actions">
+      <select id="fertFieldBulkCrop" class="field-input sled-bulk-select" aria-label="Nastavi kulturo za izbrane GERK-e">
+        <option value="__placeholder__" selected disabled>Nastavi kulturo…</option>
+        ${defaults.crops.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}
+      </select>
+    </div>`;
+  els.fieldSelectionBar.querySelector('[data-action="fert-field-sel-close"]').addEventListener('click', () => {
+    const c = wiz.fieldSources?.customers.find(x => x.id === (wiz.fields[0]?.customer_id ?? wiz.viewCustomerId));
+    for (const l of c?.lines ?? []) setLineChosen(c, l, false);
+    renderWizard();
+  });
+  els.fieldSelectionBar.querySelector('#fertFieldBulkCrop').addEventListener('change', e => {
+    const v = e.target.value;
+    if (v === '__placeholder__') return;
+    for (const f of wiz.fields) f.crop_id = v;
+    markDirty();
+    renderWizard();
+  });
+}
+function updateFieldSelectionBar() {
+  const n = wiz.fields.length;
+  els.fieldSelectionBar.classList.toggle('wlg-selection-bar--visible', n > 1);
+  if (n <= 1) return;
+  buildFieldSelectionBar(); // rebuilt each time — crop list may have changed
+  const summaryEl = els.fieldSelectionBar.querySelector('.wlg-sel-summary');
+  if (summaryEl) summaryEl.textContent = `izbranih: ${nPolj(n)}`;
+}
+
 // `preset` = customer + GERK line chosen up front (from Analize tal)
 async function startNewPlan(preset) {
   try { await loadDefaults(); } catch (err) { alert('Nastavitev ni bilo mogoče naložiti: ' + err.message); return; }
@@ -2157,6 +2198,7 @@ function renderWizard() {
   }).join('');
   const body = (() => {
     const { local, group: g } = stepKindOf(step);
+    if (local !== 0) els.fieldSelectionBar.classList.remove('wlg-selection-bar--visible');
     if (local === 0) return renderStepField();
     if (local === 1) return renderStepSegments();
     if (local === 2) return renderStepCrop(g);
@@ -2228,20 +2270,12 @@ function renderStepField() {
   const allChosen = selected && selected.lines.length > 1 && selected.lines.every(l => chosen.has(l.lineId));
   const cropGroups = new Map();
   if (multi) for (const f of fields) { const cid = f.crop_id ?? null; if (!cropGroups.has(cid)) cropGroups.set(cid, 0); cropGroups.set(cid, cropGroups.get(cid) + 1); }
-  const blankCount = cropGroups.get(null) ?? 0;
-  // let the admin resolve the culture for every still-unassigned field right
-  // here (Matej, 2026-11-25) instead of leaving it to a separate shared
-  // group discovered only later on the Kultura step — picking one here
-  // writes the real crop_id onto every currently-blank field at once
-  const defaultCropPicker = multi && blankCount
-    ? `<select class="field-input fert-input fert-input--sm" data-default-crop-apply aria-label="Izberi kulturo za preostala polja">
-        <option value="">Kultura za preostala polja (${blankCount})</option>
-        ${defaults.crops.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}
-      </select>`
-    : '';
   const groupPreview = multi && cropGroups.size > 1
     ? `<p class="fert-hint">Skupine glede na kulturo: ${[...cropGroups.entries()].map(([cid, n]) => `${cid ? esc(cropById(cid)?.name ?? '?') : 'privzeto'}: ${nPolj(n)}`).join(' · ')}.</p>`
     : '';
+  // bulk crop assignment for the checked GERK-i is the floating action bar
+  // (Matej, 2026-11-25), not a header/row control — see updateFieldSelectionBar()
+  updateFieldSelectionBar();
   return `
     <div class="fert-card">
       <h3 class="fert-card-title">Stranka</h3>
@@ -2259,8 +2293,7 @@ function renderStepField() {
     ${selected ? `<div class="fert-card">
       <div class="fert-card-head"><h3 class="fert-card-title">Polja (GERK)</h3>
         <span class="fert-badge ${fields.length ? 'fert-badge--ok' : ''}">${fields.length ? `izbrano: ${nPolj(fields.length)}` : 'nič izbranega'}</span>
-        ${selected.lines.length > 1 ? `<button type="button" class="btn btn-secondary btn-sm" data-wiz="${allChosen ? 'lines-none' : 'lines-all'}">${allChosen ? 'Odznači vse' : 'Izberi vse'}</button>` : ''}
-        ${defaultCropPicker}</div>
+        ${selected.lines.length > 1 ? `<button type="button" class="btn btn-secondary btn-sm" data-wiz="${allChosen ? 'lines-none' : 'lines-all'}">${allChosen ? 'Odznači vse' : 'Izberi vse'}</button>` : ''}</div>
       <div class="reports-table-wrap"><table class="evidenca-table fert-table">
         <thead><tr><th></th><th>GERK</th><th>Polje</th><th>Nalog</th><th class="fert-num">Segmenti</th><th class="fert-num">Z analizo</th>${multi ? '<th>Kultura</th>' : ''}</tr></thead>
         <tbody>${lineRows}</tbody></table></div>
