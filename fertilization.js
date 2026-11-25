@@ -1628,7 +1628,6 @@ function renderPlans() {
       <td>${badge}</td>
       <td class="fert-row-actions">
         <button type="button" class="btn btn-secondary btn-sm" data-plan-open="${esc(p.id)}">Odpri</button>
-        <button type="button" class="btn btn-secondary btn-sm" data-plan-copy="${esc(p.id)}">Kopiraj</button>
         <button type="button" class="btn btn-secondary btn-sm fert-danger-text" data-plan-delete="${esc(p.id)}">Izbriši</button>
       </td>
     </tr>`;
@@ -1641,10 +1640,8 @@ els.planStatus.addEventListener('change', renderPlans);
 els.planRows.addEventListener('click', async event => {
   if (event.target.closest('.fert-plan-select-cb')) return;
   const open = event.target.closest('[data-plan-open]');
-  const copy = event.target.closest('[data-plan-copy]');
   const del = event.target.closest('[data-plan-delete]');
   if (open) return openPlan(open.dataset.planOpen, { copy: false });
-  if (copy) return openPlan(copy.dataset.planCopy, { copy: true });
   if (del) {
     const p = plans.find(x => x.id === del.dataset.planDelete);
     if (!p || !confirm(`Izbrišem načrt ${customerName(p.customers)} · ${p.gerk_code} (${fmtDate(p.plan_date)})?`)) return;
@@ -2231,9 +2228,21 @@ function renderStepField() {
   const allChosen = selected && selected.lines.length > 1 && selected.lines.every(l => chosen.has(l.lineId));
   const cropGroups = new Map();
   if (multi) for (const f of fields) { const cid = f.crop_id ?? null; if (!cropGroups.has(cid)) cropGroups.set(cid, 0); cropGroups.set(cid, cropGroups.get(cid) + 1); }
-  const groupPreview = multi && cropGroups.size > 1
-    ? `<p class="fert-hint">Skupine glede na kulturo: ${[...cropGroups.entries()].map(([cid, n]) => `${cid ? esc(cropById(cid)?.name ?? '?') : 'privzeto (izbereš v naslednjem koraku)'}: ${nPolj(n)}`).join(' · ')}.</p>`
+  const blankCount = cropGroups.get(null) ?? 0;
+  // let the admin resolve the culture for every still-unassigned field right
+  // here (Matej, 2026-11-25) instead of leaving it to a separate shared
+  // group discovered only later on the Kultura step — picking one here
+  // writes the real crop_id onto every currently-blank field at once
+  const defaultCropPicker = multi && blankCount
+    ? `<label class="fert-field fert-field--wide"><span class="field-label">Preostala polja (${blankCount}) — izberi kulturo</span>
+        <select class="field-input fert-input" data-default-crop-apply>
+          <option value="">— izberi kulturo —</option>
+          ${defaults.crops.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}
+        </select></label>`
     : '';
+  const groupPreview = multi && cropGroups.size > 1
+    ? `<p class="fert-hint">Skupine glede na kulturo: ${[...cropGroups.entries()].map(([cid, n]) => `${cid ? esc(cropById(cid)?.name ?? '?') : 'privzeto'}: ${nPolj(n)}`).join(' · ')}.</p>${defaultCropPicker}`
+    : defaultCropPicker;
   return `
     <div class="fert-card">
       <h3 class="fert-card-title">Stranka</h3>
@@ -2776,6 +2785,10 @@ els.views.wizard.addEventListener('change', event => {
   if (t.dataset.fieldCrop) {
     const f = wiz.fields.find(x => x.delovni_nalog_gerk_id === t.dataset.fieldCrop);
     if (f) { f.crop_id = t.value || null; wiz.maxStep = 0; markDirty(); }
+    return renderWizard();
+  }
+  if (t.dataset.defaultCropApply !== undefined) {
+    if (t.value) { for (const f of wiz.fields) if (!f.crop_id) f.crop_id = t.value; wiz.maxStep = 0; markDirty(); }
     return renderWizard();
   }
   if (t.dataset.wizInput === 'plan_date') { plan.plan_date = t.value; markDirty(); return; }
