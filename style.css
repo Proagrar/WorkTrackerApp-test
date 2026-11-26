@@ -2883,15 +2883,33 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   /* Gnojilni načrt's tables (plans, lab results with 12 columns, settings)
      need the whole screen; the other tabs keep the 1100px column
      (Matej, 2026-10-30). Sledenje naročilom joined this 2026-11-11 — both
-     its views (Naročila, Segmenti) are wide tables too. */
-  .app-main:has(#panelGnojilni:not([hidden])), .app-main:has(#panelSledenje:not([hidden])) { max-width: none; }
+     its views (Naročila, Segmenti) are wide tables too. Kartica kmeta
+     joined 2026-11-26 (Matej: "izkoristi širino ekrana") — its map/detail
+     column is otherwise capped by the 1100px column for no reason. */
+  .app-main:has(#panelGnojilni:not([hidden])),
+  .app-main:has(#panelSledenje:not([hidden])),
+  .app-main:has(#panelKartica:not([hidden])) { max-width: none; }
   /* …but the tab buttons stay exactly where the 1100px column puts them on
      every other tab (Matej, 2026-10-30). The bar itself stays full width so
      its sticky background still covers content scrolling under it. */
   .app-main:has(#panelGnojilni:not([hidden])) .tab-bar,
-  .app-main:has(#panelSledenje:not([hidden])) .tab-bar {
+  .app-main:has(#panelSledenje:not([hidden])) .tab-bar,
+  .app-main:has(#panelKartica:not([hidden])) .tab-bar {
     padding-left: max(16px, calc((100% - 1100px) / 2 + 16px));
     padding-right: max(16px, calc((100% - 1100px) / 2 + 16px));
+  }
+  /* Kartica kmeta (Matej, 2026-11-26: "vse na enem ekranu, brez
+     scrollanja") — lock the shell to exactly the viewport height left
+     under the header+tab-bar (same calc() as .planning-shell) and let
+     only its own columns' internal lists scroll; row doesn't wrap, so
+     all three columns stay side by side using the full width. Mobile
+     (outside this breakpoint) keeps the natural wrap+page-scroll
+     fallback — three full-height columns can't physically fit on a
+     phone screen regardless of CSS. */
+  .app-main:has(#panelKartica:not([hidden])) .kartica-shell {
+    flex-wrap: nowrap;
+    height: calc(100dvh - var(--header-h) - 58px);
+    overflow: hidden;
   }
 
   .tab-bar { justify-content: flex-start; }
@@ -3848,7 +3866,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   flex-wrap: wrap;
   gap: var(--space-8);
   padding: var(--space-8) var(--space-9);
-  align-items: flex-start;
+  align-items: stretch;
 }
 .kartica-col {
   background: var(--surface);
@@ -3857,9 +3875,9 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
-.kartica-col--customers { flex: 1 1 260px; max-width: 300px; min-width: 240px; }
-.kartica-col--fields     { flex: 1 1 320px; max-width: 380px; min-width: 280px; display: flex; flex-direction: column; }
-.kartica-col--detail     { flex: 999 1 560px; min-width: 0; background: none; border: none; box-shadow: none; display: flex; flex-direction: column; gap: var(--space-8); }
+.kartica-col--customers { flex: 1 1 260px; max-width: 300px; min-width: 240px; display: flex; flex-direction: column; min-height: 0; }
+.kartica-col--fields     { flex: 1 1 320px; max-width: 380px; min-width: 280px; display: flex; flex-direction: column; min-height: 0; }
+.kartica-col--detail     { flex: 999 1 560px; min-width: 0; min-height: 0; background: none; border: none; box-shadow: none; display: flex; flex-direction: column; gap: var(--space-8); }
 
 .kartica-col-head { padding: var(--space-6) var(--space-7) var(--space-4); border-bottom: 1px solid var(--border-light); }
 .kartica-eyebrow { margin: 0; font-size: .6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
@@ -3868,7 +3886,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .kartica-search { padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--border-light); }
 .kartica-search input { width: 100%; height: 36px; padding: 0 var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: .875rem; font-family: var(--font); }
 
-.kartica-customer-list { max-height: 640px; overflow-y: auto; padding: var(--space-3); }
+.kartica-customer-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--space-3); }
 .kartica-customer-row {
   width: 100%; display: flex; align-items: center; gap: var(--space-5);
   padding: var(--space-4) var(--space-5); border: none; border-radius: var(--radius-sm);
@@ -3889,7 +3907,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .kartica-fields-head { display: block; }
 .kartica-customer-title { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary); }
 
-.kartica-field-list { padding: var(--space-5); overflow-y: auto; flex: 1 1 auto; }
+.kartica-field-list { padding: var(--space-5); overflow-y: auto; flex: 1 1 auto; min-height: 0; }
 .kartica-field-row {
   width: 100%; display: block; text-align: left; cursor: pointer; font-family: var(--font);
   border: 1px solid var(--border-light); background: var(--background);
@@ -3906,9 +3924,9 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .kartica-boundary-badge--meja      { background: var(--blue-50);    color: var(--blue-800); }
 .kartica-boundary-badge--brez      { background: var(--error-bg);   color: var(--error); }
 
-.kartica-map { height: 360px; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+.kartica-map { flex: 1 1 320px; min-height: 220px; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
 
-.kartica-detail { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-8); }
+.kartica-detail { flex: 0 1 auto; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-8); }
 .kartica-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-5); flex-wrap: wrap; }
 .kartica-detail-title { margin: 0; font-size: 1.125rem; font-weight: 700; color: var(--text-primary); }
 .kartica-detail-ha { font-size: 1.375rem; font-weight: 700; color: var(--blue-800); }
