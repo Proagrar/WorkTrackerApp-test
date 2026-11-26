@@ -1,19 +1,20 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
-// Kartica kmeta (admin-only tab) — per-customer dashboard: their
-// GERKs/fields, a 3-state "cona vzorčenja / samo uradna meja / brez meje"
-// badge (get_customer_field_geometry RPC — same zone-wins-over-boundary
-// priority the GERK SHP export already uses), a real Leaflet map of that
-// geometry, an on-demand OneSoil lookup via the onesoil-check Edge
-// Function, and a per-customer analytics block (recommendations, soil
-// values, service history) built from data already in the schema
-// (lab_soil_result, fert_settings/fert_lime_ph, delovni_nalogi*) — see
-// project_kartica_kmeta_dashboard memory for what's real vs. placeholder
-// and why. Own client/state, same reasoning as fertilization.js/
-// planning.js: app.js is already huge and only needs to show/hide
-// #panelKartica.
+// Kartica kmeta (admin-only tab) — admin tool for ONE farmer: edit their
+// basic contact data (reuses app.js's existing "Uredi stranko" modal via
+// a window.* bridge, see below) and manage (add/edit/delete) their
+// GERKs/fields in a dense, Excel-like table. Not an analytics dashboard —
+// Matej, 2026-11-26: "osredotoči se na urejanje... prisotnost podatkov,
+// statusi, in podobno", table "kompakten, kot tabela v Excelu". See
+// project_kartica_kmeta_dashboard memory for how this evolved from the
+// earlier read-only dashboard pass. Own client/state, same reasoning as
+// fertilization.js/planning.js: app.js is already huge and only needs to
+// show/hide #panelKartica.
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const CUSTOMER_COLS = 'id, naziv, company_name, contact_name, email, phone, '
+  + 'address_street, address_post_code, address_city, vat_number, region, country';
 
 const els = {
   tab: document.getElementById('tabKartica'),
@@ -21,10 +22,12 @@ const els = {
   search: document.getElementById('karticaSearch'),
   filterHasOrder: document.getElementById('karticaFilterHasOrder'),
   customerList: document.getElementById('karticaCustomerList'),
-  fieldsHead: document.getElementById('karticaFieldsHead'),
-  fieldList: document.getElementById('karticaFieldList'),
+  customerInfo: document.getElementById('karticaCustomerInfo'),
   mapEl: document.getElementById('karticaMap'),
-  detail: document.getElementById('karticaDetail'),
+  fieldsToolbar: document.getElementById('karticaFieldsToolbar'),
+  fieldForm: document.getElementById('karticaFieldForm'),
+  fieldTableBody: document.getElementById('karticaFieldTableBody'),
+  extra: document.getElementById('karticaExtra'),
 };
 
 function esc(value) {
@@ -32,7 +35,6 @@ function esc(value) {
 }
 const numFmt = new Intl.NumberFormat('sl-SI', { maximumFractionDigits: 2 });
 function fmtHa(v) { return numFmt.format(Number(v) || 0); }
-function fmtNum(v) { return v == null ? '—' : numFmt.format(Number(v)); }
 function fmtDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -47,33 +49,21 @@ function initials(name) {
 const STATUS_LABEL = { cona: 'Cona vzorčenja', samo_meja: 'Samo uradna meja', brez_meje: 'Brez meje' };
 const STATUS_CLASS = { cona: 'kartica-boundary-badge--cona', samo_meja: 'kartica-boundary-badge--meja', brez_meje: 'kartica-boundary-badge--brez' };
 const BOUNDARY_COLOR = { cona: '#16A34A', samo_meja: '#1C4592', brez_meje: '#DC2626' };
-
-const NUTRIENT_LABEL = { nizko: 'Nizko', optimalno: 'Optimalno', visoko: 'Visoko' };
-const NUTRIENT_CLASS = { nizko: 'kartica-nutrient--nizko', optimalno: 'kartica-nutrient--optimalno', visoko: 'kartica-nutrient--visoko' };
-
 // Same status values/labels as the work-order list (migration_work_orders.sql
 // chk_status) — reuses the existing .wo-status-badge pill, same colors.
 const WO_STATUS_CLASS = { 'Plan': 'wo-status--plan', 'V delu': 'wo-status--delo', 'Izvedeno': 'wo-status--izvedeno', 'Izdan Račun': 'wo-status--racun' };
-const COMPLETED_STATUSES = ['Izvedeno', 'Izdan Račun'];
-const UPCOMING_STATUSES = ['Plan', 'V delu'];
-// A simple, named threshold — not hidden magic. Adjust here if "overdue"
-// should mean something else; nothing else depends on this value.
+// A simple, named threshold for the "Lab. analiza" column's overdue tag —
+// not hidden magic. Adjust here if "overdue" should mean something else.
 const STALE_ANALYSIS_YEARS = 2;
 
 let loaded = false;
-let customers = [];                 // [{id, naziv, company_name, region, country}]
+let customers = [];                 // [{id, naziv, company_name, contact_name, email, phone, address_*, vat_number, region, country}]
 let fieldsByCustomer = new Map();   // customer_id -> [{id, cadastre_id, name, area_ha, onesoil_field_uuid, onesoil_checked_at}]
 let boundaryCache = new Map();      // customer_id -> Map(field_id -> {status, geojson})
 let declCache = new Map();          // customer_id -> Map(field_id -> field_declarations row)
 let analyticsCache = new Map();     // customer_id -> { orders, fieldAnalytics: Map(field_id -> {latest, history}), documents }
 let onesoilChecking = new Set();    // field_id currently mid-check (transient UI state only)
 let customersWithOrder = new Set(); // customer_id with at least one (non-deleted) delovni_nalog
-
-// Global, fetched once — the same thresholds Izračun gnojila already uses
-// (fert_settings/fert_lime_ph), reused here to classify a lab result
-// instead of re-deriving fertilizer need from it.
-let fertThresholds = null; // {target_p2o5, target_k2o, p_low_max, p_optimal_max, p_high_max, k_low_max, k_optimal_max, k_high_max}
-let limePhRows = [];       // [{ph_from, ph_to, kg_per_ha}], ordered by ph_from
 
 let selectedCustomerId = null;
 let selectedFieldId = null;
@@ -90,18 +80,10 @@ async function loadKartica() {
   loaded = true;
   els.customerList.innerHTML = `<div class="state-loading"><div class="spinner"></div></div>`;
 
-  const [
-    { data: custs, error: cErr },
-    { data: flds, error: fErr },
-    { data: orders, error: oErr },
-    { data: settings },
-    { data: lime },
-  ] = await Promise.all([
-    supabase.from('customers').select('id, naziv, company_name, region, country').is('deleted_at', null).order('naziv'),
+  const [{ data: custs, error: cErr }, { data: flds, error: fErr }, { data: orders, error: oErr }] = await Promise.all([
+    supabase.from('customers').select(CUSTOMER_COLS).is('deleted_at', null).order('naziv'),
     supabase.from('fields').select('id, customer_id, cadastre_id, name, area_ha, onesoil_field_uuid, onesoil_checked_at').is('deleted_at', null),
     supabase.from('delovni_nalogi').select('stranka_id').is('deleted_at', null),
-    supabase.from('fert_settings').select('target_p2o5, target_k2o, p_low_max, p_optimal_max, p_high_max, k_low_max, k_optimal_max, k_high_max').eq('is_active', true).maybeSingle(),
-    supabase.from('fert_lime_ph').select('ph_from, ph_to, kg_per_ha').order('ph_from'),
   ]);
   if (cErr || fErr || oErr) {
     els.customerList.innerHTML = `<p class="state-empty-inline">Napaka pri nalaganju.</p>`;
@@ -115,8 +97,6 @@ async function loadKartica() {
     fieldsByCustomer.get(f.customer_id).push(f);
   }
   customersWithOrder = new Set((orders ?? []).map(o => o.stranka_id).filter(Boolean));
-  fertThresholds = settings || null;
-  limePhRows = lime ?? [];
 
   renderCustomerList();
   const first = filteredCustomers()[0];
@@ -168,7 +148,46 @@ els.filterHasOrder.addEventListener('change', () => {
   renderCustomerList();
 });
 
-// ── Per-customer analytics (lab results, work orders, recommendations) ──
+// Reached from app.js's "Uredi stranko" modal after a successful save
+// (window.refreshKarticaCustomer?.(id) there) — re-fetch just this one
+// row rather than the whole customer list.
+window.refreshKarticaCustomer = async function (customerId) {
+  const { data } = await supabase.from('customers').select(CUSTOMER_COLS).eq('id', customerId).single();
+  if (!data) return;
+  const idx = customers.findIndex(c => c.id === customerId);
+  if (idx >= 0) customers[idx] = data; else customers.push(data);
+  customers.sort((a, b) => customerName(a).localeCompare(customerName(b)));
+  renderCustomerList();
+  if (selectedCustomerId === customerId) renderCustomerInfo();
+};
+
+// ── Upper-left quarter: customer info + edit ─────────────────
+function renderCustomerInfo() {
+  const customer = customers.find(c => c.id === selectedCustomerId);
+  if (!customer) { els.customerInfo.innerHTML = ''; return; }
+
+  const lines = [];
+  if (customer.contact_name) lines.push(customer.contact_name);
+  if (customer.phone) lines.push(`📞 ${customer.phone}`);
+  if (customer.email) lines.push(`✉ ${customer.email}`);
+  const addr = [customer.address_street, customer.address_post_code, customer.address_city].filter(Boolean).join(', ');
+  if (addr) lines.push(addr);
+  if (customer.vat_number) lines.push(`ID za DDV: ${customer.vat_number}`);
+  const regionLine = [customer.region, customer.country].filter(Boolean).join(', ');
+  if (regionLine) lines.push(regionLine);
+
+  els.customerInfo.innerHTML = `
+    <div class="kartica-customer-info-head">
+      <h2 class="kartica-customer-info-name">${esc(customerName(customer))}</h2>
+      <button type="button" class="btn btn-ghost btn-sm" data-action="edit-customer">✎ Uredi</button>
+    </div>
+    ${lines.length ? lines.map(l => `<p class="kartica-customer-info-row">${esc(l)}</p>`).join('') : `<p class="kartica-empty-note">Ni dodatnih podatkov.</p>`}`;
+
+  els.customerInfo.querySelector('[data-action="edit-customer"]')
+    ?.addEventListener('click', () => window.openEditCustomerModal?.(selectedCustomerId));
+}
+
+// ── Per-customer analytics (lab results, work orders, documents) ────
 // Fetched once per customer, cached — mirrors the chain fertilization.js
 // already reads for "Analize tal": delovni_nalogi → delovni_nalogi_gerki
 // (→ field_id) → delovni_nalogi_vzorci (sample) → lab_soil_result, plus
@@ -180,7 +199,7 @@ async function loadCustomerAnalytics(customerId) {
 
   const { data: orders } = await supabase
     .from('delovni_nalogi')
-    .select('id, stevilka, status, tip_storitve, ustvarjen, delovni_nalogi_planiranje(plan_date), '
+    .select('id, stevilka, status, tip_storitve, ustvarjen, '
       + 'delovni_nalogi_gerki(id, field_id, kolicina_ha, delovni_nalogi_vzorci(id, sample_no))')
     .eq('stranka_id', customerId)
     .is('deleted_at', null);
@@ -231,114 +250,29 @@ async function loadCustomerAnalytics(customerId) {
   return result;
 }
 
-function classifyNutrient(value, lowMax, optimalMax) {
-  if (value == null || lowMax == null || optimalMax == null) return null;
-  if (value <= lowMax) return 'nizko';
-  if (value <= optimalMax) return 'optimalno';
-  return 'visoko';
+function latestOrderForField(fieldId, analytics) {
+  if (!analytics) return null;
+  const matches = analytics.orders.filter(o => (o.delovni_nalogi_gerki ?? []).some(g => g.field_id === fieldId));
+  if (!matches.length) return null;
+  return [...matches].sort((a, b) => String(b.ustvarjen ?? '').localeCompare(String(a.ustvarjen ?? '')))[0];
 }
 
-// fert_lime_ph has no pH "optimal range" as such, only "how much lime does
-// this pH need" — kg_per_ha === 0 is the closest thing to "v redu".
-function limeRowFor(value) {
-  if (value == null || !limePhRows.length) return null;
-  return limePhRows.find(r => (r.ph_from == null || value >= r.ph_from) && (r.ph_to == null || value <= r.ph_to)) || null;
-}
-
-// Real recommendations only — pH/P2O5/K2O out of range (against the same
-// fert_settings/fert_lime_ph thresholds Izračun gnojila uses) and a stale-
-// or-missing analysis flag. No NDVI-anomaly rule: we have no NDVI data.
-function fieldRecommendations(fieldId, analytics) {
-  const recs = [];
-  const latest = analytics.fieldAnalytics.get(fieldId)?.latest;
-  if (!latest) {
-    recs.push({ severity: 'medium', text: 'Še ni analize tal za to polje — priporočamo vzorčenje.' });
-    return recs;
-  }
-  if (fertThresholds) {
-    if (classifyNutrient(latest.p2o5, fertThresholds.p_low_max, fertThresholds.p_optimal_max) === 'nizko') {
-      recs.push({ severity: 'high', text: `Nizka vsebnost P₂O₅ (${fmtNum(latest.p2o5)} mg/kg).` });
-    }
-    if (classifyNutrient(latest.k2o, fertThresholds.k_low_max, fertThresholds.k_optimal_max) === 'nizko') {
-      recs.push({ severity: 'high', text: `Nizka vsebnost K₂O (${fmtNum(latest.k2o)} mg/kg).` });
-    }
-  }
-  const limeRow = limeRowFor(latest.ph_kcl);
-  if (limeRow && Number(limeRow.kg_per_ha) > 0) {
-    recs.push({ severity: 'medium', text: `Nizek pH (${fmtNum(latest.ph_kcl)}) — priporočeno apnenje (~${fmtNum(limeRow.kg_per_ha)} kg/ha).` });
-  }
-  if (latest.analysis_date) {
-    const ageYears = (Date.now() - new Date(latest.analysis_date).getTime()) / (365.25 * 86400000);
-    if (ageYears > STALE_ANALYSIS_YEARS) {
-      recs.push({ severity: 'low', text: `Zadnja analiza tal je stara ${Math.floor(ageYears)}+ let — priporočamo ponovno vzorčenje.` });
-    }
-  }
-  return recs;
-}
-
-function upcomingActivities(analytics) {
-  return analytics.orders
-    .filter(o => UPCOMING_STATUSES.includes(o.status))
-    .map(o => ({ stevilka: o.stevilka, status: o.status, tip: o.tip_storitve, planDate: o.delovni_nalogi_planiranje?.[0]?.plan_date || null }))
-    .sort((a, b) => (a.planDate || '9999-99-99').localeCompare(b.planDate || '9999-99-99'));
-}
-
-function servicesTimeline(analytics) {
-  return [...analytics.orders]
-    .sort((a, b) => String(b.ustvarjen ?? '').localeCompare(String(a.ustvarjen ?? '')))
-    .map(o => ({ stevilka: o.stevilka, tip: o.tip_storitve, status: o.status, date: o.ustvarjen }));
-}
-
-// Farm-level stats for the selected customer — all real, derived from
-// data already fetched (no separate aggregate query).
-function customerStats(customerId, analytics) {
-  const fields = fieldsByCustomer.get(customerId) || [];
-  const totalHa = fields.reduce((s, f) => s + (Number(f.area_ha) || 0), 0);
-  const boundaryMap = boundaryCache.get(customerId) || new Map();
-
-  const completedFieldIds = new Set();
-  for (const o of analytics.orders) {
-    if (!COMPLETED_STATUSES.includes(o.status)) continue;
-    for (const g of (o.delovni_nalogi_gerki ?? [])) if (g.field_id) completedFieldIds.add(g.field_id);
-  }
-
-  let analyzedHa = 0, coverageServiceHa = 0, coneHa = 0, attentionCount = 0;
-  for (const f of fields) {
-    const ha = Number(f.area_ha) || 0;
-    if (analytics.fieldAnalytics.has(f.id)) analyzedHa += ha;
-    if (completedFieldIds.has(f.id)) coverageServiceHa += ha;
-    if (boundaryMap.get(f.id)?.status === 'cona') coneHa += ha;
-    if (fieldRecommendations(f.id, analytics).length) attentionCount++;
-  }
-
-  return {
-    totalHa,
-    analyzedPct: totalHa ? Math.round((analyzedHa / totalHa) * 100) : 0,
-    conePct: totalHa ? Math.round((coneHa / totalHa) * 100) : 0,
-    serviceCoveragePct: totalHa ? Math.round((coverageServiceHa / totalHa) * 100) : 0,
-    completedCount: analytics.orders.filter(o => COMPLETED_STATUSES.includes(o.status)).length,
-    attentionCount,
-  };
-}
-
-// ── Column 2/3: selected customer ────────────────────────────
+// ── Column 2: selected customer ──────────────────────────────
 async function selectCustomer(customerId) {
   selectedCustomerId = customerId;
   selectedFieldId = null;
   renderCustomerList();
+  renderCustomerInfo();
+  closeFieldForm();
 
   const fields = fieldsByCustomer.get(customerId) || [];
-  const customer = customers.find(c => c.id === customerId);
-  const totalHa = fields.reduce((s, f) => s + (Number(f.area_ha) || 0), 0);
-  els.fieldsHead.innerHTML = `
-    <h2 class="kartica-customer-title">${esc(customerName(customer))}</h2>
-    <p class="kartica-subtext">${fields.length} GERK-ov${fields.length ? ' · ' + fmtHa(totalHa) + ' ha skupaj' : ''}</p>`;
-  els.fieldList.innerHTML = `<div class="state-loading"><div class="spinner"></div></div>`;
-  els.detail.innerHTML = '';
+  els.fieldTableBody.innerHTML = `<tr><td colspan="9"><div class="state-loading"><div class="spinner"></div></div></td></tr>`;
+  els.extra.innerHTML = '';
   mapLayer?.clearLayers();
 
   if (!fields.length) {
-    els.fieldList.innerHTML = `<p class="state-empty-inline">Ta stranka nima evidentiranih polj.</p>`;
+    renderFieldTable();
+    renderExtra();
     return;
   }
 
@@ -348,7 +282,7 @@ async function selectCustomer(customerId) {
   const [geomResult, declResult] = await Promise.all([
     needsBoundary ? supabase.rpc('get_customer_field_geometry', { p_customer_id: customerId }) : Promise.resolve({ data: null }),
     needsDecl ? supabase.from('field_declarations').select('*').eq('customer_id', customerId).eq('year', year) : Promise.resolve({ data: null }),
-    loadCustomerAnalytics(customerId), // caches itself; result read back via analyticsCache in render
+    loadCustomerAnalytics(customerId), // caches itself; read back via analyticsCache
   ]);
 
   if (needsBoundary) {
@@ -366,40 +300,233 @@ async function selectCustomer(customerId) {
   // was loading — don't render stale data over their newer selection.
   if (selectedCustomerId !== customerId) return;
 
-  renderFieldList();
+  renderFieldTable();
   renderMap();
+  renderExtra();
   selectField(fields[0].id);
 }
 
-function renderFieldList() {
+// ── Dense GERK table (the main content) ──────────────────────
+function renderFieldTable() {
   const fields = fieldsByCustomer.get(selectedCustomerId) || [];
+  const totalHa = fields.reduce((s, f) => s + (Number(f.area_ha) || 0), 0);
+  els.fieldsToolbar.innerHTML = `
+    <h2>${fields.length} GERK-ov · ${fmtHa(totalHa)} ha</h2>
+    <button type="button" class="btn btn-secondary btn-sm" data-action="add-field">+ Dodaj GERK</button>`;
+  els.fieldsToolbar.querySelector('[data-action="add-field"]').addEventListener('click', () => openFieldForm(null));
+
+  if (!fields.length) {
+    els.fieldTableBody.innerHTML = `<tr><td colspan="9" class="kartica-empty-note">Ta stranka nima evidentiranih polj.</td></tr>`;
+    return;
+  }
+
   const statusMap = boundaryCache.get(selectedCustomerId) || new Map();
-  els.fieldList.innerHTML = fields.map(f => {
+  const declMap = declCache.get(selectedCustomerId) || new Map();
+  const analytics = analyticsCache.get(selectedCustomerId);
+
+  els.fieldTableBody.innerHTML = fields.map(f => {
     const st = statusMap.get(f.id)?.status || 'brez_meje';
-    const selected = f.id === selectedFieldId;
+    const crop = declMap.get(f.id)?.crop_current || '—';
+    const latest = analytics?.fieldAnalytics.get(f.id)?.latest;
+
+    let labHtml = '—';
+    if (latest?.analysis_date) {
+      const ageYears = (Date.now() - new Date(latest.analysis_date).getTime()) / (365.25 * 86400000);
+      const staleTag = ageYears > STALE_ANALYSIS_YEARS
+        ? ` <span class="kartica-boundary-badge kartica-boundary-badge--brez" title="Starejša od ${STALE_ANALYSIS_YEARS} let">zastarela</span>`
+        : '';
+      labHtml = `✓ ${fmtDate(latest.analysis_date)}${staleTag}`;
+    }
+
+    const lastOrder = latestOrderForField(f.id, analytics);
+    const orderHtml = lastOrder
+      ? `<span class="wo-status-badge ${WO_STATUS_CLASS[lastOrder.status] || ''}">${esc(lastOrder.status)}</span>`
+      : '—';
+
+    let oneSoilHtml;
+    if (onesoilChecking.has(f.id)) {
+      oneSoilHtml = `<span class="kartica-onesoil-pill kartica-onesoil-pill--checking">…</span>`;
+    } else if (f.onesoil_field_uuid) {
+      oneSoilHtml = `<span class="kartica-onesoil-pill kartica-onesoil-pill--found">✓</span>`;
+    } else if (f.onesoil_checked_at) {
+      oneSoilHtml = `<span class="kartica-onesoil-pill kartica-onesoil-pill--not-found">✗</span> <button type="button" class="kartica-table-btn" data-action="onesoil-check" data-field-id="${esc(f.id)}" title="Preveri znova">↻</button>`;
+    } else {
+      oneSoilHtml = `<button type="button" class="kartica-table-btn" data-action="onesoil-check" data-field-id="${esc(f.id)}" title="Preveri v OneSoil">? Preveri</button>`;
+    }
+
+    const active = f.id === selectedFieldId;
     return `
-      <button type="button" class="kartica-field-row${selected ? ' kartica-field-row--active' : ''}" data-field-id="${esc(f.id)}">
-        <span class="kartica-field-top">
-          <span class="kartica-field-code">${esc(f.cadastre_id || '—')}</span>
-          <span class="kartica-field-ha">${fmtHa(f.area_ha)} ha</span>
-        </span>
-        <span class="kartica-field-name">${esc(f.name || '')}</span>
-        <span class="kartica-boundary-badge ${STATUS_CLASS[st]}">${STATUS_LABEL[st]}</span>
-      </button>`;
+      <tr data-field-id="${esc(f.id)}"${active ? ' style="background:var(--blue-50)"' : ''}>
+        <td>${esc(f.cadastre_id || '—')}</td>
+        <td>${esc(f.name || '—')}</td>
+        <td class="kartica-num">${fmtHa(f.area_ha)}</td>
+        <td>${esc(crop)}</td>
+        <td><span class="kartica-boundary-badge ${STATUS_CLASS[st]}">${STATUS_LABEL[st]}</span></td>
+        <td>${labHtml}</td>
+        <td>${orderHtml}</td>
+        <td>${oneSoilHtml}</td>
+        <td class="kartica-actions">
+          <button type="button" class="kartica-table-btn" data-action="edit-field" data-field-id="${esc(f.id)}" title="Uredi">✎</button>
+          <button type="button" class="kartica-table-btn kartica-table-btn--danger" data-action="delete-field" data-field-id="${esc(f.id)}" title="Izbriši">🗑</button>
+        </td>
+      </tr>`;
   }).join('');
-  els.fieldList.querySelectorAll('[data-field-id]').forEach(btn => {
-    btn.addEventListener('click', () => selectField(btn.dataset.fieldId));
+
+  els.fieldTableBody.querySelectorAll('tr[data-field-id]').forEach(tr => {
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return; // action buttons handle their own click
+      selectField(tr.dataset.fieldId);
+    });
+  });
+  els.fieldTableBody.querySelectorAll('[data-action="edit-field"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openFieldForm(fields.find(f => f.id === btn.dataset.fieldId));
+    });
+  });
+  els.fieldTableBody.querySelectorAll('[data-action="delete-field"]').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); deleteField(btn.dataset.fieldId); });
+  });
+  els.fieldTableBody.querySelectorAll('[data-action="onesoil-check"]').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); checkOneSoil(btn.dataset.fieldId); });
   });
 }
 
 function selectField(fieldId) {
   selectedFieldId = fieldId;
-  renderFieldList();
   highlightFieldOnMap(fieldId);
-  renderDetail();
+  renderFieldTable();
 }
 
-// ── Map (column 3) ───────────────────────────────────────────
+// ── Add / edit / delete a field ───────────────────────────────
+function openFieldForm(field) {
+  els.fieldForm.hidden = false;
+  els.fieldForm.innerHTML = `
+    <form class="kartica-field-form" id="karticaFieldFormEl">
+      <div class="field">
+        <label class="field-label">GERK koda</label>
+        <input class="field-input" name="cadastre_id" required value="${esc(field?.cadastre_id || '')}">
+      </div>
+      <div class="field">
+        <label class="field-label">Ime</label>
+        <input class="field-input" name="name" required value="${esc(field?.name || '')}">
+      </div>
+      <div class="field">
+        <label class="field-label">Ha</label>
+        <input class="field-input" name="area_ha" type="number" step="0.01" min="0" value="${field?.area_ha ?? ''}">
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">${field ? 'Shrani' : 'Dodaj'}</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-action="cancel-field-form">Prekliči</button>
+      <span class="kartica-empty-note" id="karticaFieldFormError" hidden></span>
+    </form>`;
+  els.fieldForm.querySelector('[data-action="cancel-field-form"]').addEventListener('click', closeFieldForm);
+  els.fieldForm.querySelector('form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveField(field?.id || null, new FormData(e.target));
+  });
+  els.fieldForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeFieldForm() {
+  els.fieldForm.hidden = true;
+  els.fieldForm.innerHTML = '';
+}
+
+async function saveField(fieldId, formData) {
+  const errorEl = document.getElementById('karticaFieldFormError');
+  const cadastreId = String(formData.get('cadastre_id') || '').trim();
+  const name = String(formData.get('name') || '').trim();
+  const areaHaRaw = formData.get('area_ha');
+  const areaHa = areaHaRaw ? Number(areaHaRaw) : null;
+  if (!cadastreId || !name) {
+    errorEl.hidden = false;
+    errorEl.textContent = 'GERK koda in ime sta obvezna.';
+    return;
+  }
+
+  const { error } = await supabase.rpc('admin_upsert_field', {
+    p_field_id: fieldId,
+    p_customer_id: selectedCustomerId,
+    p_cadastre_id: cadastreId,
+    p_name: name,
+    p_area_ha: areaHa,
+  });
+  if (error) {
+    errorEl.hidden = false;
+    errorEl.textContent = error.message;
+    return;
+  }
+  closeFieldForm();
+  await refreshCustomerFields(selectedCustomerId);
+}
+
+async function deleteField(fieldId) {
+  const field = (fieldsByCustomer.get(selectedCustomerId) || []).find(f => f.id === fieldId);
+  if (!confirm(`Izbrišem GERK ${field?.cadastre_id || ''}${field?.name ? ' — ' + field.name : ''}?`)) return;
+  const { error } = await supabase.rpc('admin_delete_field', { p_field_id: fieldId });
+  if (error) { alert('Napaka pri brisanju: ' + error.message); return; }
+  await refreshCustomerFields(selectedCustomerId);
+}
+
+// Re-fetches this customer's fields + their boundary/geometry + analytics
+// after an add/edit/delete — the cached Maps are keyed by customer, not
+// by field, so they're simplest to just drop and rebuild for this one
+// customer rather than patch in place.
+async function refreshCustomerFields(customerId) {
+  const { data: flds } = await supabase.from('fields')
+    .select('id, customer_id, cadastre_id, name, area_ha, onesoil_field_uuid, onesoil_checked_at')
+    .eq('customer_id', customerId).is('deleted_at', null);
+  fieldsByCustomer.set(customerId, flds ?? []);
+  boundaryCache.delete(customerId);
+  analyticsCache.delete(customerId);
+
+  const { data: geom } = await supabase.rpc('get_customer_field_geometry', { p_customer_id: customerId });
+  const m = new Map();
+  for (const row of (geom ?? [])) m.set(row.field_id, { status: row.status, geojson: row.geojson });
+  boundaryCache.set(customerId, m);
+  await loadCustomerAnalytics(customerId);
+
+  if (selectedCustomerId !== customerId) return;
+  if (!(fieldsByCustomer.get(customerId) || []).some(f => f.id === selectedFieldId)) selectedFieldId = null;
+  renderCustomerList(); // GERK count/ha per customer row may have changed
+  renderFieldTable();
+  renderMap();
+  renderExtra();
+}
+
+// ── Collapsed "Pretekle storitve in dokumenti" ───────────────
+function renderExtra() {
+  const analytics = analyticsCache.get(selectedCustomerId);
+  if (!analytics) { els.extra.innerHTML = ''; return; }
+
+  const timeline = [...analytics.orders].sort((a, b) => String(b.ustvarjen ?? '').localeCompare(String(a.ustvarjen ?? '')));
+
+  els.extra.innerHTML = `
+    <div class="kartica-extra-grid">
+      <div>
+        <p class="kartica-section-title">Pretekle storitve</p>
+        ${timeline.length ? `
+          <table class="kartica-timeline-table">
+            <thead><tr><th>Nalog</th><th>Storitev</th><th>Status</th><th>Datum</th></tr></thead>
+            <tbody>${timeline.map(t => `
+              <tr>
+                <td>${esc(t.stevilka)}</td>
+                <td>${esc(t.tip_storitve || '—')}</td>
+                <td><span class="wo-status-badge ${WO_STATUS_CLASS[t.status] || ''}">${esc(t.status)}</span></td>
+                <td>${t.ustvarjen ? fmtDate(t.ustvarjen) : '—'}</td>
+              </tr>`).join('')}</tbody>
+          </table>` : `<p class="kartica-empty-note">Ni delovnih nalogov za to stranko.</p>`}
+      </div>
+      <div>
+        <p class="kartica-section-title">Dokumenti</p>
+        ${analytics.documents.length ? `<div class="kartica-doc-list">${analytics.documents.map(d => `
+          <div class="kartica-doc-row"><span>${esc(d.file_name)}</span><span>${d.imported_at ? fmtDate(d.imported_at) : ''}</span></div>`).join('')}</div>`
+          : `<p class="kartica-empty-note">Ni uvoženih dokumentov.</p>`}
+      </div>
+    </div>`;
+}
+
+// ── Map (top-right quarter) ───────────────────────────────────
 function ensureMap() {
   if (map) return map;
   map = L.map(els.mapEl, { zoomControl: true });
@@ -440,20 +567,20 @@ function renderMap() {
 }
 
 // Pans/zooms the map to one field's own geometry — the point of clicking a
-// GERK in the list (Matej, 2026-11-26). Falls back to the whole customer's
-// extent (no field selected, or the selected one has no geometry) and
-// finally to a Slovenia-wide view (customer has no geometry at all).
+// GERK row (Matej, 2026-11-26). Falls back to the whole customer's extent
+// (no field selected, or the selected one has no geometry) and finally to
+// a Slovenia-wide view (customer has no geometry at all).
 function focusFieldOnMap(fieldId) {
   if (!map) return;
   const layer = fieldLayers.get(fieldId);
   if (layer) {
-    map.fitBounds(layer.getBounds(), { padding: [60, 60], maxZoom: 17 });
+    map.fitBounds(layer.getBounds(), { padding: [40, 40], maxZoom: 17 });
     return;
   }
   if (fieldLayers.size) {
     let combined = null;
     for (const l of fieldLayers.values()) combined = combined ? combined.extend(l.getBounds()) : l.getBounds();
-    map.fitBounds(combined, { padding: [30, 30], maxZoom: 16 });
+    map.fitBounds(combined, { padding: [20, 20], maxZoom: 16 });
   } else {
     map.setView([46.15, 14.99], 8); // Slovenia-wide fallback — no geometry at all
   }
@@ -468,191 +595,10 @@ function highlightFieldOnMap(fieldId) {
   focusFieldOnMap(fieldId);
 }
 
-// ── Detail panel tile helpers ────────────────────────────────
-function nutrientTile(label, value, unit, lowMax, optimalMax, highMax) {
-  const cls = classifyNutrient(value, lowMax, optimalMax);
-  const badge = cls ? `<span class="kartica-nutrient-badge ${NUTRIENT_CLASS[cls]}">${NUTRIENT_LABEL[cls]}</span>` : '';
-  let bar = '';
-  if (value != null && lowMax != null && optimalMax != null && highMax != null) {
-    const scale = Math.max(highMax * 1.15, value * 1.1, 1);
-    const lowPct = Math.min(100, (lowMax / scale) * 100);
-    const optPct = Math.max(0, Math.min(100 - lowPct, (optimalMax / scale) * 100 - lowPct));
-    const highPct = Math.max(0, 100 - lowPct - optPct);
-    const markerPct = Math.min(100, Math.max(0, (value / scale) * 100));
-    bar = `
-      <div class="kartica-nutrient-bar">
-        <span class="kartica-nutrient-bar-seg" style="width:${lowPct}%; background:var(--error-bg)"></span>
-        <span class="kartica-nutrient-bar-seg" style="width:${optPct}%; background:var(--success-bg)"></span>
-        <span class="kartica-nutrient-bar-seg" style="width:${highPct}%; background:var(--warning-bg)"></span>
-        <span class="kartica-nutrient-bar-marker" style="left:${markerPct}%"></span>
-      </div>`;
-  }
-  return `
-    <div class="kartica-nutrient-tile">
-      <p class="kartica-detail-tile-label">${esc(label)}</p>
-      <p class="kartica-nutrient-value">${value != null ? fmtNum(value) + (unit ? ' ' + unit : '') : '—'}</p>
-      ${badge}${bar}
-    </div>`;
-}
-
-function phTile(value) {
-  const row = limeRowFor(value);
-  let badge = '', note = '';
-  if (row) {
-    const ok = Number(row.kg_per_ha) <= 0;
-    badge = `<span class="kartica-nutrient-badge ${ok ? 'kartica-nutrient--optimalno' : 'kartica-nutrient--nizko'}">${ok ? 'V redu' : 'Potrebno apnenje'}</span>`;
-    if (!ok) note = `<p class="kartica-detail-tile-label" style="margin-top:4px">~${fmtNum(row.kg_per_ha)} kg/ha CaCO₃</p>`;
-  }
-  return `
-    <div class="kartica-nutrient-tile">
-      <p class="kartica-detail-tile-label">pH (KCl)</p>
-      <p class="kartica-nutrient-value">${value != null ? fmtNum(value) : '—'}</p>
-      ${badge}${note}
-    </div>`;
-}
-
-function plainTile(label, value, unit) {
-  return `
-    <div class="kartica-nutrient-tile">
-      <p class="kartica-detail-tile-label">${esc(label)}</p>
-      <p class="kartica-nutrient-value">${value != null ? fmtNum(value) + (unit ? ' ' + unit : '') : '—'}</p>
-    </div>`;
-}
-
-function placeholderTile(label, reason) {
-  return `<div class="kartica-placeholder"><strong>${esc(label)}</strong><span>${esc(reason)}</span></div>`;
-}
-
-// ── Detail panel (customer analytics + selected field) ───────
-function renderDetail() {
-  const fields = fieldsByCustomer.get(selectedCustomerId) || [];
-  const field = fields.find(f => f.id === selectedFieldId);
-  const analytics = analyticsCache.get(selectedCustomerId);
-  if (!field || !analytics) { els.detail.innerHTML = ''; return; }
-
-  const customer = customers.find(c => c.id === selectedCustomerId);
-  const stats = customerStats(selectedCustomerId, analytics);
-
-  const st = (boundaryCache.get(selectedCustomerId) || new Map()).get(field.id)?.status || 'brez_meje';
-  const decl = (declCache.get(selectedCustomerId) || new Map()).get(field.id);
-  const crop = decl?.crop_current || 'ni deklaracije';
-  const latest = analytics.fieldAnalytics.get(field.id)?.latest || null;
-
-  let oneSoilHtml;
-  if (onesoilChecking.has(field.id)) {
-    oneSoilHtml = `<span class="kartica-onesoil-pill kartica-onesoil-pill--checking">Preverjam…</span>`;
-  } else if (field.onesoil_field_uuid) {
-    oneSoilHtml = `<span class="kartica-onesoil-pill kartica-onesoil-pill--found">✓ Najdeno v OneSoil</span>`;
-  } else if (field.onesoil_checked_at) {
-    oneSoilHtml = `
-      <span class="kartica-onesoil-pill kartica-onesoil-pill--not-found">Ni najdeno v OneSoil</span>
-      <button type="button" class="btn btn-ghost btn-sm" data-action="onesoil-check" data-field-id="${esc(field.id)}">Preveri znova</button>`;
-  } else {
-    oneSoilHtml = `
-      <span class="kartica-onesoil-pill kartica-onesoil-pill--unknown">Ni preverjeno</span>
-      <button type="button" class="btn btn-ghost btn-sm" data-action="onesoil-check" data-field-id="${esc(field.id)}">Preveri zdaj</button>`;
-  }
-
-  const recs = [];
-  for (const f of fields) recs.push(...fieldRecommendations(f.id, analytics).map(r => ({ ...r, field: f })));
-  const sevOrder = { high: 0, medium: 1, low: 2 };
-  recs.sort((a, b) => sevOrder[a.severity] - sevOrder[b.severity]);
-
-  const upcoming = upcomingActivities(analytics);
-  const timeline = servicesTimeline(analytics);
-
-  els.detail.innerHTML = `
-    <div class="kartica-section">
-      <p class="kartica-section-title">Pregled stranke — ${esc(customerName(customer))}</p>
-      <div class="kartica-stat-row">
-        <div class="kartica-stat-tile"><p class="kartica-stat-value">${fmtHa(stats.totalHa)} ha</p><p class="kartica-stat-label">Skupna površina</p></div>
-        <div class="kartica-stat-tile"><p class="kartica-stat-value">${stats.analyzedPct}%</p><p class="kartica-stat-label">Analizirano tal</p></div>
-        <div class="kartica-stat-tile"><p class="kartica-stat-value">${stats.conePct}%</p><p class="kartica-stat-label">Precizno kmetijstvo (cona)</p></div>
-        <div class="kartica-stat-tile"><p class="kartica-stat-value">${stats.completedCount}</p><p class="kartica-stat-label">Zaključene storitve</p></div>
-        <div class="kartica-stat-tile"><p class="kartica-stat-value">${stats.attentionCount}</p><p class="kartica-stat-label">Zahteva pozornost</p></div>
-      </div>
-    </div>
-
-    <div class="kartica-section">
-      <p class="kartica-section-title">Priporočila${recs.length ? ` (${recs.length})` : ''}</p>
-      ${recs.length ? `<div class="kartica-rec-list">${recs.map(r => `
-        <div class="kartica-rec kartica-rec--${r.severity}">
-          <span class="kartica-rec-sev"></span>
-          <span class="kartica-rec-text"><strong>${esc(r.field.cadastre_id || r.field.name || '')}</strong> — ${esc(r.text)}</span>
-          <span class="kartica-rec-action" title="Potreben delovni tok za naročanje storitev, ki ga še nimamo">Kontaktiraj agronoma</span>
-        </div>`).join('')}</div>` : `<p class="kartica-empty-note">Ni zaznanih priporočil.</p>`}
-    </div>
-
-    <div class="kartica-section">
-      <p class="kartica-section-title">Prihajajoče aktivnosti</p>
-      ${upcoming.length ? `<div class="kartica-doc-list">${upcoming.map(u => `
-        <div class="kartica-doc-row"><span>${esc(u.stevilka)} — ${esc(u.tip || '—')}</span><span>${u.planDate ? fmtDate(u.planDate) : 'odprto'}</span></div>`).join('')}</div>`
-        : `<p class="kartica-empty-note">Ni odprtih delovnih nalogov.</p>`}
-    </div>
-
-    <div class="kartica-section">
-      <p class="kartica-section-title">Izbran GERK</p>
-      <div class="kartica-detail-head">
-        <div>
-          <h3 class="kartica-detail-title">${esc(field.cadastre_id || '—')} — ${esc(field.name || '')}</h3>
-          <p class="kartica-subtext">Kultura (deklaracija): ${esc(crop)}</p>
-        </div>
-        <span class="kartica-detail-ha">${fmtHa(field.area_ha)} ha</span>
-      </div>
-      <div class="kartica-detail-grid">
-        <div class="kartica-detail-tile">
-          <p class="kartica-detail-tile-label">Meja / SHP</p>
-          <span class="kartica-boundary-badge ${STATUS_CLASS[st]}">${STATUS_LABEL[st]}</span>
-        </div>
-        <div class="kartica-detail-tile">
-          <p class="kartica-detail-tile-label">OneSoil</p>
-          <div class="kartica-onesoil-row">${oneSoilHtml}</div>
-        </div>
-        ${fertThresholds
-          ? nutrientTile('P₂O₅', latest?.p2o5, 'mg/kg', fertThresholds.p_low_max, fertThresholds.p_optimal_max, fertThresholds.p_high_max)
-          : placeholderTile('P₂O₅', 'Ni nastavljenih mejnih vrednosti')}
-        ${fertThresholds
-          ? nutrientTile('K₂O', latest?.k2o, 'mg/kg', fertThresholds.k_low_max, fertThresholds.k_optimal_max, fertThresholds.k_high_max)
-          : placeholderTile('K₂O', 'Ni nastavljenih mejnih vrednosti')}
-        ${phTile(latest?.ph_kcl)}
-        ${plainTile('Organska snov', latest?.humus_pct, '%')}
-        ${placeholderTile('NDVI', 'Potrebna povezava z OneSoil')}
-        ${placeholderTile('Produktivnost', 'Potrebna povezava z OneSoil')}
-        ${placeholderTile('Sestava tal', 'Te analize še ne izvajamo')}
-        ${placeholderTile('Dejanski pridelek', 'Podatkov o pridelku še ne zbiramo')}
-      </div>
-      <p class="kartica-empty-note">${latest?.analysis_date ? `Zadnja analiza: ${fmtDate(latest.analysis_date)}` : 'Ni analize tal za to polje.'}</p>
-    </div>
-
-    <div class="kartica-section">
-      <p class="kartica-section-title">Pretekle storitve</p>
-      ${timeline.length ? `
-        <table class="kartica-timeline-table">
-          <thead><tr><th>Nalog</th><th>Storitev</th><th>Status</th><th>Datum</th></tr></thead>
-          <tbody>${timeline.map(t => `
-            <tr>
-              <td>${esc(t.stevilka)}</td>
-              <td>${esc(t.tip || '—')}</td>
-              <td><span class="wo-status-badge ${WO_STATUS_CLASS[t.status] || ''}">${esc(t.status)}</span></td>
-              <td>${t.date ? fmtDate(t.date) : '—'}</td>
-            </tr>`).join('')}</tbody>
-        </table>` : `<p class="kartica-empty-note">Ni delovnih nalogov za to stranko.</p>`}
-    </div>
-
-    <div class="kartica-section">
-      <p class="kartica-section-title">Dokumenti</p>
-      ${analytics.documents.length ? `<div class="kartica-doc-list">${analytics.documents.map(d => `
-        <div class="kartica-doc-row"><span>${esc(d.file_name)}</span><span>${d.imported_at ? fmtDate(d.imported_at) : ''}</span></div>`).join('')}</div>`
-        : `<p class="kartica-empty-note">Ni uvoženih dokumentov.</p>`}
-    </div>`;
-
-  els.detail.querySelector('[data-action="onesoil-check"]')
-    ?.addEventListener('click', (e) => checkOneSoil(e.currentTarget.dataset.fieldId));
-}
-
+// ── OneSoil on-demand check ───────────────────────────────────
 async function checkOneSoil(fieldId) {
   onesoilChecking.add(fieldId);
-  renderDetail();
+  renderFieldTable();
   try {
     const { data, error } = await supabase.functions.invoke('onesoil-check', { body: { field_id: fieldId } });
     if (error) throw error;
@@ -666,7 +612,7 @@ async function checkOneSoil(fieldId) {
     alert('Napaka pri preverjanju OneSoil: ' + (e.message || e));
   } finally {
     onesoilChecking.delete(fieldId);
-    renderDetail();
+    renderFieldTable();
   }
 }
 

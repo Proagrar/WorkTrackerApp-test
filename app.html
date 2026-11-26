@@ -216,11 +216,14 @@
       </section>
     </div>
 
-    <!-- ── Tab: Kartica kmeta (admin-only) — per-customer dashboard: their
-         GERKs/fields, segmentation/SHP status, a real map and an on-demand
-         OneSoil check. All behavior lives in kartica-kmeta.js; app.js's
-         switchTab() only shows/hides #panelKartica, same split as
-         Planiranje/planning.js and Gnojilni/fertilization.js. -->
+    <!-- ── Tab: Kartica kmeta (admin-only) — admin tool for one farmer:
+         edit their basic data, add/edit/delete their GERKs/fields, in a
+         dense Excel-like table (presence of data/statuses, not an
+         analytics dashboard — Matej, 2026-11-26). All behavior lives in
+         kartica-kmeta.js; app.js's switchTab() only shows/hides
+         #panelKartica, same split as Planiranje/planning.js and
+         Gnojilni/fertilization.js. See project_kartica_kmeta_dashboard
+         memory for how this evolved. -->
     <div id="panelKartica" class="tab-panel" hidden>
       <section class="kartica-shell" aria-label="Kartica kmeta">
         <aside class="kartica-col kartica-col--customers">
@@ -238,14 +241,46 @@
           <div id="karticaCustomerList" class="kartica-customer-list"></div>
         </aside>
 
-        <section class="kartica-col kartica-col--fields">
-          <div id="karticaFieldsHead" class="kartica-col-head kartica-fields-head"></div>
-          <div id="karticaFieldList" class="kartica-field-list"></div>
-        </section>
+        <section class="kartica-col kartica-col--main">
+          <div class="kartica-quad-row">
+            <!-- Upper-left quarter (Matej, 2026-11-26): editing the
+                 farmer's own basic data — reuses the existing "Uredi
+                 stranko" modal (window.openEditCustomerModal, app.js)
+                 rather than a second, duplicate edit form. -->
+            <div class="kartica-quad kartica-quad--customer">
+              <div id="karticaCustomerInfo"></div>
+            </div>
+            <div class="kartica-quad kartica-quad--map">
+              <div id="karticaMap" class="kartica-map"></div>
+            </div>
+          </div>
 
-        <section class="kartica-col kartica-col--detail">
-          <div id="karticaMap" class="kartica-map"></div>
-          <div id="karticaDetail" class="kartica-detail"></div>
+          <div class="kartica-fields-scroll">
+            <div id="karticaFieldsToolbar" class="kartica-fields-toolbar"></div>
+            <div id="karticaFieldForm" hidden></div>
+            <div class="kartica-table-wrap">
+              <table class="kartica-field-table">
+                <thead>
+                  <tr>
+                    <th>GERK</th>
+                    <th>Ime</th>
+                    <th class="kartica-num">Ha</th>
+                    <th>Kultura</th>
+                    <th>Meja</th>
+                    <th>Lab. analiza</th>
+                    <th>Zadnji nalog</th>
+                    <th>OneSoil</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="karticaFieldTableBody"></tbody>
+              </table>
+            </div>
+            <details class="kartica-extra">
+              <summary>Pretekle storitve in dokumenti</summary>
+              <div id="karticaExtra"></div>
+            </details>
+          </div>
         </section>
       </section>
     </div>
@@ -826,6 +861,15 @@
                rendered height changed slightly. -->
           <div class="wo-map-top-left-controls">
             <button type="button" id="woMapLayersBtn" class="wo-map-layers-btn wo-map-layers-btn--detail" aria-pressed="false" title="Prikaži/skrij ceste in imena krajev">🛣 Ceste/imena</button>
+            <!-- Stacked here (Matej, 2026-11-26: "vsi trije gumbi naj bodo
+                 en pod drugim") instead of its own absolute position — that
+                 position (top:13px;left:58px) sat directly beside Ceste/
+                 imena at the same height and overlapped it. Shrinks the
+                 GERK list to a compact code+segment reference (desktop) or
+                 hides it + grows the map to fill the rest of the screen
+                 (phone) — see renderCompactGerkList() and
+                 updateMapExpandState() in app.js. -->
+            <button type="button" id="woMapExpandBtn" class="wo-map-expand-btn">⛶ Razširi</button>
             <!-- Set by highlightGerkOnWoMap() when a GERK row is clicked —
                  just a name label, so it's clear which GERK is highlighted
                  while panning/zooming, not an interactive control. Moved
@@ -843,14 +887,6 @@
               Skrij izvedene
             </label>
           </div>
-          <!-- Own absolute position (not stacked in the controls column
-               above) so it can sit in the map's bottom-right corner on
-               phone, clear of Leaflet's zoom control — see base/mobile
-               CSS. Shrinks the GERK list to a compact code+segment
-               reference (desktop) or hides it + grows the map to fill
-               the rest of the screen (phone) — see renderCompactGerkList()
-               and updateMapExpandState() in app.js. -->
-          <button type="button" id="woMapExpandBtn" class="wo-map-expand-btn">⛶ Razširi</button>
           <!-- Fades out on its own after a successful "Poberi vzorec" —
                see showCaptureToast() in app.js. -->
           <div id="woCaptureToast" class="wo-capture-toast" aria-live="polite"></div>

@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.152';
+const APP_VERSION = 'v4.154';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -7225,6 +7225,11 @@ async function openEditCustomerModal(customerId) {
   editCustNotes.value       = data.notes || '';
   editCustMinimaxId.value   = data.minimax_customer_id ?? '';
 }
+// Reached from Kartica kmeta too (kartica-kmeta.js), same cross-module
+// bridge pattern as window.openWorkOrderDetailById — that module edits a
+// customer's basic data by opening this exact modal rather than
+// duplicating its 14 fields and save/validation logic.
+window.openEditCustomerModal = openEditCustomerModal;
 
 function closeEditCustomerModal() {
   hideModalAnimated(editCustomerModal);
@@ -7282,6 +7287,10 @@ editCustomerForm.addEventListener('submit', async (e) => {
     closeEditCustomerModal();
     renderDeclCustomerList();
     if (declCustomerId === savedId) openDeclDetail(savedId);
+    // Kartica kmeta keeps its own copy of this row — let it refresh if it
+    // defined this (only once that tab has actually loaded), same
+    // optional-bridge pattern as shipping.js's sledenjeRefreshOrders.
+    window.refreshKarticaCustomer?.(savedId);
   } catch (err) {
     editCustomerErrorEl.textContent = err.message || 'Napaka pri shranjevanju stranke.';
     editCustomerErrorEl.hidden = false;

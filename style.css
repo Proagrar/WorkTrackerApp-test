@@ -2204,9 +2204,11 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 }
 
 .wo-map-expand-btn {
-  position: absolute;
-  top: 13px;
-  left: 58px;
+  /* Plain flex child of .wo-map-top-left-controls (position left unset →
+     static) — same reasoning as .wo-map-layers-btn--detail below. Used to
+     have its own absolute position (top:13px;left:58px) directly beside
+     Ceste/imena at the same height, which overlapped it (Matej,
+     2026-11-26). */
   z-index: 1000;
   padding: 5px 10px;
   border: none;
@@ -2774,10 +2776,6 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
      "zgornji rob zemljevida mora biti pod nivojem kamere"). */
   .wo-modal--map-expanded .wo-detail-layout { padding-top: env(safe-area-inset-top); }
   .wo-map-top-left-controls { top: 10px; left: 8px; }
-  /* Razširi moves to the map's bottom-right corner on phone (Matej,
-     2026-11-10) — out of the way of Ceste/imena and Leaflet's zoom
-     control, which otherwise share the top-left corner. */
-  .wo-map-expand-btn { top: auto; left: auto; bottom: 10px; right: 10px; }
   /* The Leaflet/Esri attribution strip along the bottom edge — not
      worth the vertical space it eats on a phone-width map. */
   #woDetailMap .leaflet-control-attribution { display: none; }
@@ -3858,9 +3856,13 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .reports-data-table th.reports-col--base { color: var(--blue-800); box-shadow: inset 0 -2px 0 var(--blue-800); }
 
 /* ── Kartica kmeta ──────────────────────────────────────────── */
-/* 3-column workbench: customers → their fields → map/detail. Side
-   columns stack on narrow screens (same flex-wrap row + flex:999 on the
-   main column pattern used for other full-page tabs' side menus). */
+/* Admin tool for one farmer (Matej, 2026-11-26: "namenjeno administraciji
+   posameznega kmeta" — not an analytics dashboard, see
+   project_kartica_kmeta_dashboard memory for the full history). Customer
+   list → one main column: a top quad row (customer info+edit / map) above
+   a dense, Excel-like GERK table. Side columns stack on narrow screens
+   (same flex-wrap row + flex:999 on the main column pattern used for
+   other full-page tabs' side menus). */
 .kartica-shell {
   display: flex;
   flex-wrap: wrap;
@@ -3876,8 +3878,7 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   overflow: hidden;
 }
 .kartica-col--customers { flex: 1 1 260px; max-width: 300px; min-width: 240px; display: flex; flex-direction: column; min-height: 0; }
-.kartica-col--fields     { flex: 1 1 320px; max-width: 380px; min-width: 280px; display: flex; flex-direction: column; min-height: 0; }
-.kartica-col--detail     { flex: 999 1 560px; min-width: 0; min-height: 0; background: none; border: none; box-shadow: none; display: flex; flex-direction: column; gap: var(--space-8); }
+.kartica-col--main      { flex: 999 1 560px; min-width: 0; min-height: 0; background: none; border: none; box-shadow: none; display: flex; flex-direction: column; }
 
 .kartica-col-head { padding: var(--space-6) var(--space-7) var(--space-4); border-bottom: 1px solid var(--border-light); }
 .kartica-eyebrow { margin: 0; font-size: .6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
@@ -3907,87 +3908,76 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .kartica-customer-name { display: block; font-size: .8438rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kartica-customer-meta { display: block; font-size: .75rem; color: var(--text-secondary); }
 
-.kartica-fields-head { display: block; }
-.kartica-customer-title { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary); }
-
-.kartica-field-list { padding: var(--space-5); overflow-y: auto; flex: 1 1 auto; min-height: 0; }
-.kartica-field-row {
-  width: 100%; display: block; text-align: left; cursor: pointer; font-family: var(--font);
-  border: 1px solid var(--border-light); background: var(--background);
-  border-radius: var(--radius-sm); padding: var(--space-5) var(--space-6); margin-bottom: var(--space-4);
+/* Top quad row: customer info (+ edit) on the left, map on the right —
+   "zgornja leva četrtina naj bo namenjena urejanju osnovnih podatkov
+   kmeta" (Matej, 2026-11-26). Fixed height so both quads stretch evenly;
+   the field table below gets the rest of the column's height. */
+.kartica-quad-row { display: flex; gap: var(--space-6); flex: 0 0 auto; height: 230px; }
+.kartica-quad {
+  flex: 1 1 0; min-width: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm); overflow: hidden;
 }
-.kartica-field-row--active { border-color: var(--blue-700); background: var(--blue-50); }
-.kartica-field-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
-.kartica-field-code { font-size: .8438rem; font-weight: 700; color: var(--text-primary); }
-.kartica-field-ha { font-size: .8125rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
-.kartica-field-name { display: block; font-size: .75rem; color: var(--text-secondary); margin: 2px 0 var(--space-4); }
+.kartica-quad--customer { padding: var(--space-6) var(--space-7); overflow-y: auto; }
+.kartica-quad--map { padding: 0; }
+
+.kartica-customer-info-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-5); }
+.kartica-customer-info-name { margin: 0; font-size: 1.0625rem; font-weight: 700; color: var(--text-primary); }
+.kartica-customer-info-row { margin: 0 0 4px; font-size: .8125rem; color: var(--text-secondary); }
+.kartica-customer-info-row strong { color: var(--text-primary); font-weight: 600; }
+
+.kartica-map { width: 100%; height: 100%; }
 
 .kartica-boundary-badge { display: inline-flex; align-items: center; font-size: .6875rem; font-weight: 600; padding: 3px 8px; border-radius: 20px; white-space: nowrap; }
-.kartica-boundary-badge--cona      { background: var(--success-bg); color: var(--success); }
-.kartica-boundary-badge--meja      { background: var(--blue-50);    color: var(--blue-800); }
-.kartica-boundary-badge--brez      { background: var(--error-bg);   color: var(--error); }
+.kartica-boundary-badge--cona { background: var(--success-bg); color: var(--success); }
+.kartica-boundary-badge--meja { background: var(--blue-50);    color: var(--blue-800); }
+.kartica-boundary-badge--brez { background: var(--error-bg);   color: var(--error); }
 
-.kartica-map { flex: 1 1 320px; min-height: 220px; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
-
-.kartica-detail { flex: 0 1 auto; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-8); }
-.kartica-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-5); flex-wrap: wrap; }
-.kartica-detail-title { margin: 0; font-size: 1.125rem; font-weight: 700; color: var(--text-primary); }
-.kartica-detail-ha { font-size: 1.375rem; font-weight: 700; color: var(--blue-800); }
-.kartica-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-6); margin-top: var(--space-8); }
-.kartica-detail-tile { border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: var(--space-5) var(--space-6); background: var(--background); }
-.kartica-detail-tile-label { margin: 0 0 var(--space-3); font-size: .75rem; font-weight: 600; color: var(--text-secondary); }
-.kartica-onesoil-row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
-.kartica-onesoil-pill { display: inline-flex; align-items: center; font-size: .75rem; font-weight: 600; padding: 3px 9px; border-radius: 20px; }
+.kartica-onesoil-pill { display: inline-flex; align-items: center; font-size: .6875rem; font-weight: 600; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
 .kartica-onesoil-pill--unknown  { background: var(--border-light); color: var(--text-secondary); }
 .kartica-onesoil-pill--checking { background: var(--border-light); color: var(--text-secondary); }
 .kartica-onesoil-pill--found    { background: var(--success-bg); color: var(--success); }
 .kartica-onesoil-pill--not-found{ background: var(--warning-bg); color: var(--warning); }
 
-/* Dashboard expansion (2026-11-26): customer-level stats, recommendations,
-   upcoming activities, per-field nutrient tiles, services timeline,
-   documents — all inside the same scrolling #karticaDetail panel, grouped
-   into labeled sections. See project_kartica_kmeta_dashboard memory for
-   which of these are real vs. honest placeholders. */
-.kartica-section { margin-top: var(--space-9); }
-.kartica-section:first-child { margin-top: 0; }
-.kartica-section-title { margin: 0 0 var(--space-5); font-size: .8125rem; font-weight: 700; color: var(--text-primary); }
-.kartica-empty-note { margin: 0; font-size: .8125rem; color: var(--text-secondary); }
+.kartica-empty-note { margin: 0; font-size: .8125rem; color: var(--text-secondary); padding: var(--space-4) 0; }
+.kartica-section-title { margin: 0 0 var(--space-4); font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--text-muted); }
 
-.kartica-stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-5); }
-.kartica-stat-tile { border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: var(--space-5) var(--space-6); background: var(--background); }
-.kartica-stat-value { margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--text-primary); }
-.kartica-stat-label { margin: 2px 0 0; font-size: .6875rem; color: var(--text-secondary); }
+/* Toolbar + dense Excel-like GERK table — the main content (Matej,
+   2026-11-26: "Seznam mora biti kompakten, kot tabela v Excelu"). One
+   scroll region holds the toolbar, table and the collapsed extra section
+   together, below the fixed-height quad row above. */
+.kartica-fields-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-top: var(--space-7); display: flex; flex-direction: column; gap: var(--space-6); }
+.kartica-fields-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); flex-wrap: wrap; }
+.kartica-fields-toolbar h2 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary); }
 
-.kartica-rec-list { display: flex; flex-direction: column; gap: var(--space-4); }
-.kartica-rec { display: flex; align-items: center; gap: var(--space-5); padding: var(--space-5) var(--space-6); border-radius: var(--radius-sm); border: 1px solid var(--border-light); background: var(--surface); }
-.kartica-rec-sev { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 999px; }
-.kartica-rec--high .kartica-rec-sev   { background: var(--error); }
-.kartica-rec--medium .kartica-rec-sev { background: var(--warning); }
-.kartica-rec--low .kartica-rec-sev    { background: var(--text-muted); }
-.kartica-rec-text { flex: 1 1 auto; font-size: .8125rem; color: var(--text-primary); }
-.kartica-rec-action { flex: 0 0 auto; font-size: .6875rem; color: var(--text-muted); background: var(--background); border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: 4px 10px; cursor: help; }
+.kartica-field-form { display: flex; flex-wrap: wrap; gap: var(--space-5); align-items: flex-end; padding: var(--space-6); border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--background); }
+.kartica-field-form .field { min-width: 120px; }
+.kartica-field-form .field-input { height: 34px; }
+
+.kartica-table-wrap { overflow-x: auto; border: 1px solid var(--border-light); border-radius: var(--radius-md); }
+.kartica-field-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: .8125rem; }
+.kartica-field-table th {
+  position: sticky; top: 0; z-index: 1;
+  text-align: left; font-size: .6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--text-muted); background: var(--surface); padding: 6px 8px; border-bottom: 1px solid var(--border-light);
+}
+.kartica-field-table td { padding: 5px 8px; border-bottom: 1px solid var(--border-light); white-space: nowrap; color: var(--text-primary); }
+.kartica-field-table tbody tr:hover { background: var(--background); }
+.kartica-field-table td.kartica-num, .kartica-field-table th.kartica-num { text-align: right; font-variant-numeric: tabular-nums; }
+.kartica-field-table td.kartica-actions { text-align: right; }
+.kartica-table-btn { background: none; border: none; cursor: pointer; padding: 2px 5px; font-size: .875rem; color: var(--text-secondary); line-height: 1; }
+.kartica-table-btn:hover { color: var(--text-primary); }
+.kartica-table-btn--danger:hover { color: var(--error); }
 
 .kartica-doc-list { display: flex; flex-direction: column; gap: var(--space-3); }
 .kartica-doc-row { display: flex; justify-content: space-between; gap: var(--space-5); font-size: .8125rem; color: var(--text-primary); }
 
-/* Per-field nutrient tiles — same grid cell as the existing Meja/OneSoil
-   tiles (.kartica-detail-grid already defined above), just a richer tile
-   variant with a classification badge + optional range bar. */
-.kartica-nutrient-tile { border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: var(--space-5) var(--space-6); background: var(--background); }
-.kartica-nutrient-value { margin: 0; font-size: 1.0625rem; font-weight: 700; color: var(--text-primary); }
-.kartica-nutrient-badge { display: inline-block; margin-top: 4px; font-size: .6875rem; font-weight: 700; padding: 2px 7px; border-radius: 20px; }
-.kartica-nutrient--nizko     { background: var(--error-bg);   color: var(--error); }
-.kartica-nutrient--optimalno { background: var(--success-bg); color: var(--success); }
-.kartica-nutrient--visoko    { background: var(--warning-bg); color: var(--warning); }
-.kartica-nutrient-bar { position: relative; height: 6px; border-radius: 999px; overflow: hidden; display: flex; margin-top: var(--space-5); }
-.kartica-nutrient-bar-seg { height: 100%; }
-.kartica-nutrient-bar-marker { position: absolute; top: -2px; width: 2px; height: 10px; background: var(--text-primary); transform: translateX(-1px); }
-
-/* Honest "we don't have this yet" tile — same grid cell size as a real
-   tile, visually muted/dashed so it never reads as a blank real value. */
-.kartica-placeholder { display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 100%; box-sizing: border-box; border: 1px dashed var(--border); border-radius: var(--radius-sm); background: var(--background); color: var(--text-muted); font-size: .6875rem; text-align: center; padding: var(--space-5) var(--space-6); }
-.kartica-placeholder strong { font-size: .75rem; color: var(--text-secondary); font-weight: 600; }
-
 .kartica-timeline-table { width: 100%; border-collapse: collapse; font-size: .8125rem; }
 .kartica-timeline-table th { text-align: left; font-size: .6875rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); padding: 4px 8px; border-bottom: 1px solid var(--border-light); }
 .kartica-timeline-table td { padding: 6px 8px; border-bottom: 1px solid var(--border-light); color: var(--text-primary); }
+
+.kartica-extra { border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: var(--space-5) var(--space-6); }
+.kartica-extra summary { cursor: pointer; font-size: .8125rem; font-weight: 600; color: var(--text-secondary); }
+.kartica-extra[open] summary { margin-bottom: var(--space-5); }
+.kartica-extra-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-7); }
+
