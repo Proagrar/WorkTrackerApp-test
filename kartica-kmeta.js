@@ -64,6 +64,7 @@ let declCache = new Map();          // customer_id -> Map(field_id -> field_decl
 let analyticsCache = new Map();     // customer_id -> { orders, fieldAnalytics: Map(field_id -> {latest, history}), documents }
 let onesoilChecking = new Set();    // field_id currently mid-check (transient UI state only)
 let customersWithOrder = new Set(); // customer_id with at least one (non-deleted) delovni_nalog
+let customerAreaTotals = new Map(); // customer_id -> real geometry-derived total ha (only for customersWithOrder — see loadKartica)
 
 let selectedCustomerId = null;
 let selectedFieldId = null;
@@ -101,6 +102,20 @@ async function loadKartica() {
   renderCustomerList();
   const first = filteredCustomers()[0];
   if (first) selectCustomer(first.id);
+
+  // fields.area_ha is often stale (same issue the GERK table fixed) — get
+  // the real, geometry-derived total for the customer list too, but only
+  // for customers with a work order (Matej, 2026-11-26: "ni treba
+  // preveriti vseh strank, samo tiste, ki imajo delovni nalog") — checking
+  // all ~400 would mean every customer's fields in one query. Runs after
+  // the first paint so it doesn't delay the list showing up.
+  if (customersWithOrder.size) {
+    const { data: totals } = await supabase.rpc('get_customers_field_area_totals', {
+      p_customer_ids: [...customersWithOrder],
+    });
+    for (const row of (totals ?? [])) customerAreaTotals.set(row.customer_id, row.total_area_ha);
+    renderCustomerList();
+  }
 }
 
 // ── Column 1: customers ──────────────────────────────────────
@@ -121,7 +136,7 @@ function renderCustomerList() {
   }
   els.customerList.innerHTML = list.map(c => {
     const flds = fieldsByCustomer.get(c.id) || [];
-    const totalHa = flds.reduce((s, f) => s + (Number(f.area_ha) || 0), 0);
+    const totalHa = customerAreaTotals.get(c.id) ?? flds.reduce((s, f) => s + (Number(f.area_ha) || 0), 0);
     const selected = c.id === selectedCustomerId;
     return `
       <button type="button" class="kartica-customer-row${selected ? ' kartica-customer-row--active' : ''}" data-customer-id="${esc(c.id)}">
@@ -488,8 +503,15 @@ async function refreshCustomerFields(customerId) {
 
   const { data: geom } = await supabase.rpc('get_customer_field_geometry', { p_customer_id: customerId });
   const m = new Map();
-  for (const row of (geom ?? [])) m.set(row.field_id, { status: row.status, geojson: row.geojson, areaHa: row.area_ha });
+  let geomTotal = 0;
+  for (const row of (geom ?? [])) {
+    m.set(row.field_id, { status: row.status, geojson: row.geojson, areaHa: row.area_ha });
+    geomTotal += Number(row.area_ha) || 0;
+  }
   boundaryCache.set(customerId, m);
+  // Keep the customer-list total in sync too, same real-area source,
+  // without a second RPC call (this customer's row already has it).
+  if (customersWithOrder.has(customerId)) customerAreaTotals.set(customerId, Math.round(geomTotal * 100) / 100);
   await loadCustomerAnalytics(customerId);
 
   if (selectedCustomerId !== customerId) return;
