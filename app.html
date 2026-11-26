@@ -56,7 +56,10 @@
       <button id="tabEvidenca" class="tab-btn" data-tab="evidenca">Evidenca dela</button>
       <!-- Admin-only, like the FAB — see updateFabVisibility() in app.js. -->
       <button id="tabPlaniranje" class="tab-btn" data-tab="planiranje" hidden>Planiranje</button>
-      <!-- Admin-only too — same gate as Planiranje (updateFabVisibility()). -->
+      <!-- Admin-only too — same gate as Planiranje (updateFabVisibility()).
+           Took Planiranje's spot in the bar (2026-11-26) — Planiranje itself
+           stays coded and hidden for possible later restoration. -->
+      <button id="tabKartica" class="tab-btn" data-tab="kartica" hidden>Kartica kmeta</button>
       <button id="tabGnojilni" class="tab-btn" data-tab="gnojilni" hidden>Izračun gnojila</button>
     </nav>
 
@@ -209,6 +212,36 @@
             </div>
           </div>
           <div id="calendarGrid" class="calendar-grid" role="grid"></div>
+        </section>
+      </section>
+    </div>
+
+    <!-- ── Tab: Kartica kmeta (admin-only) — per-customer dashboard: their
+         GERKs/fields, segmentation/SHP status, a real map and an on-demand
+         OneSoil check. All behavior lives in kartica-kmeta.js; app.js's
+         switchTab() only shows/hides #panelKartica, same split as
+         Planiranje/planning.js and Gnojilni/fertilization.js. -->
+    <div id="panelKartica" class="tab-panel" hidden>
+      <section class="kartica-shell" aria-label="Kartica kmeta">
+        <aside class="kartica-col kartica-col--customers">
+          <div class="kartica-col-head">
+            <p class="kartica-eyebrow">Kmetje</p>
+            <p id="karticaCustomerCount" class="kartica-subtext"></p>
+          </div>
+          <div class="kartica-search">
+            <input id="karticaSearch" type="search" placeholder="Išči kmeta po imenu…" aria-label="Išči kmeta">
+          </div>
+          <div id="karticaCustomerList" class="kartica-customer-list"></div>
+        </aside>
+
+        <section class="kartica-col kartica-col--fields">
+          <div id="karticaFieldsHead" class="kartica-col-head kartica-fields-head"></div>
+          <div id="karticaFieldList" class="kartica-field-list"></div>
+        </section>
+
+        <section class="kartica-col kartica-col--detail">
+          <div id="karticaMap" class="kartica-map"></div>
+          <div id="karticaDetail" class="kartica-detail"></div>
         </section>
       </section>
     </div>
@@ -1511,6 +1544,7 @@
   <script type="module" src="app.js"></script>
   <script type="module" src="planning.js"></script>
   <script type="module" src="fertilization.js"></script>
+  <script type="module" src="kartica-kmeta.js"></script>
   <script type="module" src="shipping.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

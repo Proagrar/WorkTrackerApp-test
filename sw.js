@@ -1,4 +1,4 @@
-const CACHE = 'worktracker-v4.148';
+const CACHE = 'worktracker-v4.149';
 const SHELL = [
   './index.html',
   './app.html',
@@ -9,6 +9,7 @@ const SHELL = [
   './planning.js',
   './fertilization.js',
   './fert-calc.js',
+  './kartica-kmeta.js',
   './shipping.js',
   './manifest.json',
   './icons/icon.svg',

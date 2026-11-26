@@ -3838,3 +3838,86 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .checkbox-field input { width: 16px; height: 16px; accent-color: var(--blue-800); }
 /* the ha column the rates currently use */
 .reports-data-table th.reports-col--base { color: var(--blue-800); box-shadow: inset 0 -2px 0 var(--blue-800); }
+
+/* ── Kartica kmeta ──────────────────────────────────────────── */
+/* 3-column workbench: customers → their fields → map/detail. Side
+   columns stack on narrow screens (same flex-wrap row + flex:999 on the
+   main column pattern used for other full-page tabs' side menus). */
+.kartica-shell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-9);
+  align-items: flex-start;
+}
+.kartica-col {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.kartica-col--customers { flex: 1 1 260px; max-width: 300px; min-width: 240px; }
+.kartica-col--fields     { flex: 1 1 320px; max-width: 380px; min-width: 280px; display: flex; flex-direction: column; }
+.kartica-col--detail     { flex: 999 1 560px; min-width: 0; background: none; border: none; box-shadow: none; display: flex; flex-direction: column; gap: var(--space-8); }
+
+.kartica-col-head { padding: var(--space-6) var(--space-7) var(--space-4); border-bottom: 1px solid var(--border-light); }
+.kartica-eyebrow { margin: 0; font-size: .6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.kartica-subtext { margin: 2px 0 0; font-size: .8125rem; color: var(--text-secondary); }
+
+.kartica-search { padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--border-light); }
+.kartica-search input { width: 100%; height: 36px; padding: 0 var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: .875rem; font-family: var(--font); }
+
+.kartica-customer-list { max-height: 640px; overflow-y: auto; padding: var(--space-3); }
+.kartica-customer-row {
+  width: 100%; display: flex; align-items: center; gap: var(--space-5);
+  padding: var(--space-4) var(--space-5); border: none; border-radius: var(--radius-sm);
+  background: transparent; cursor: pointer; text-align: left; font-family: var(--font);
+}
+.kartica-customer-row:hover { background: var(--background); }
+.kartica-customer-row--active { background: var(--blue-50); }
+.kartica-avatar {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .75rem; font-weight: 700; background: var(--border-light); color: var(--blue-800);
+}
+.kartica-customer-row--active .kartica-avatar { background: #fff; }
+.kartica-customer-text { flex: 1 1 auto; min-width: 0; }
+.kartica-customer-name { display: block; font-size: .8438rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kartica-customer-meta { display: block; font-size: .75rem; color: var(--text-secondary); }
+
+.kartica-fields-head { display: block; }
+.kartica-customer-title { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+
+.kartica-field-list { padding: var(--space-5); overflow-y: auto; flex: 1 1 auto; }
+.kartica-field-row {
+  width: 100%; display: block; text-align: left; cursor: pointer; font-family: var(--font);
+  border: 1px solid var(--border-light); background: var(--background);
+  border-radius: var(--radius-sm); padding: var(--space-5) var(--space-6); margin-bottom: var(--space-4);
+}
+.kartica-field-row--active { border-color: var(--blue-700); background: var(--blue-50); }
+.kartica-field-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
+.kartica-field-code { font-size: .8438rem; font-weight: 700; color: var(--text-primary); }
+.kartica-field-ha { font-size: .8125rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+.kartica-field-name { display: block; font-size: .75rem; color: var(--text-secondary); margin: 2px 0 var(--space-4); }
+
+.kartica-boundary-badge { display: inline-flex; align-items: center; font-size: .6875rem; font-weight: 600; padding: 3px 8px; border-radius: 20px; white-space: nowrap; }
+.kartica-boundary-badge--cona      { background: var(--success-bg); color: var(--success); }
+.kartica-boundary-badge--meja      { background: var(--blue-50);    color: var(--blue-800); }
+.kartica-boundary-badge--brez      { background: var(--error-bg);   color: var(--error); }
+
+.kartica-map { height: 360px; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+
+.kartica-detail { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-8); }
+.kartica-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-5); flex-wrap: wrap; }
+.kartica-detail-title { margin: 0; font-size: 1.125rem; font-weight: 700; color: var(--text-primary); }
+.kartica-detail-ha { font-size: 1.375rem; font-weight: 700; color: var(--blue-800); }
+.kartica-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-6); margin-top: var(--space-8); }
+.kartica-detail-tile { border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: var(--space-5) var(--space-6); background: var(--background); }
+.kartica-detail-tile-label { margin: 0 0 var(--space-3); font-size: .75rem; font-weight: 600; color: var(--text-secondary); }
+.kartica-onesoil-row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.kartica-onesoil-pill { display: inline-flex; align-items: center; font-size: .75rem; font-weight: 600; padding: 3px 9px; border-radius: 20px; }
+.kartica-onesoil-pill--unknown  { background: var(--border-light); color: var(--text-secondary); }
+.kartica-onesoil-pill--checking { background: var(--border-light); color: var(--text-secondary); }
+.kartica-onesoil-pill--found    { background: var(--success-bg); color: var(--success); }
+.kartica-onesoil-pill--not-found{ background: var(--warning-bg); color: var(--warning); }

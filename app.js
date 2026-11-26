@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.148';
+const APP_VERSION = 'v4.149';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -175,11 +175,13 @@ const tabBarEl        = document.querySelector('.tab-bar');
 const tabEvidenca     = document.getElementById('tabEvidenca');
 const tabNalogi       = document.getElementById('tabNalogi');
 const tabPlaniranje   = document.getElementById('tabPlaniranje');
+const tabKartica      = document.getElementById('tabKartica');
 const tabGnojilni     = document.getElementById('tabGnojilni');
 const tabSledenje     = document.getElementById('tabSledenje');
 const panelEvidenca   = document.getElementById('panelEvidenca');
 const panelNalogi     = document.getElementById('panelNalogi');
 const panelPlaniranje = document.getElementById('panelPlaniranje');
+const panelKartica    = document.getElementById('panelKartica');
 const panelGnojilni   = document.getElementById('panelGnojilni');
 const panelSledenje   = document.getElementById('panelSledenje');
 const workOrdersList = document.getElementById('workOrdersList');
@@ -5999,6 +6001,7 @@ function switchTab(tab) {
   tabEvidenca.classList.toggle('tab-btn--active', tab === 'evidenca');
   tabNalogi.classList.toggle('tab-btn--active', tab === 'nalogi');
   tabPlaniranje.classList.toggle('tab-btn--active', tab === 'planiranje');
+  tabKartica.classList.toggle('tab-btn--active', tab === 'kartica');
   tabGnojilni.classList.toggle('tab-btn--active', tab === 'gnojilni');
   tabSledenje.classList.toggle('tab-btn--active', tab === 'sledenje');
   // Poročila has no tab-bar button of its own (opened from the + menu) —
@@ -6007,6 +6010,7 @@ function switchTab(tab) {
   panelEvidenca.hidden   = tab !== 'evidenca';
   panelNalogi.hidden     = tab !== 'nalogi';
   panelPlaniranje.hidden = tab !== 'planiranje';
+  panelKartica.hidden    = tab !== 'kartica';
   panelGnojilni.hidden   = tab !== 'gnojilni';
   panelSledenje.hidden   = tab !== 'sledenje';
   panelReports.hidden    = tab !== 'reports';
@@ -6033,7 +6037,10 @@ function closeReportsView() {
 // toggle. See feedback_ask_admin_only memory.
 function updateFabVisibility() {
   addBtn.hidden = !isAdminView();
-  tabPlaniranje.hidden = !isAdminView();
+  // Planiranje tab hidden for now (2026-11-26) — replaced by "Kartica
+  // kmeta" below; code stays in place, see backlog.
+  tabPlaniranje.hidden = true;
+  tabKartica.hidden = !isAdminView();
   tabGnojilni.hidden = !isAdminView();
   tabSledenje.hidden = !isAdminView();
 }
@@ -6069,6 +6076,7 @@ adminViewToggle.addEventListener('change', () => {
 tabEvidenca.addEventListener('click',   () => switchTab('evidenca'));
 tabNalogi.addEventListener('click',     () => switchTab('nalogi'));
 tabPlaniranje.addEventListener('click', () => switchTab('planiranje'));
+tabKartica.addEventListener('click',    () => switchTab('kartica'));
 tabGnojilni.addEventListener('click',   () => switchTab('gnojilni'));
 tabSledenje.addEventListener('click',   () => switchTab('sledenje'));
 
