@@ -21,6 +21,7 @@ const els = {
   customerCount: document.getElementById('karticaCustomerCount'),
   search: document.getElementById('karticaSearch'),
   filterHasOrder: document.getElementById('karticaFilterHasOrder'),
+  addCustomerBtn: document.getElementById('karticaAddCustomerBtn'),
   customerList: document.getElementById('karticaCustomerList'),
   customerInfo: document.getElementById('karticaCustomerInfo'),
   mapEl: document.getElementById('karticaMap'),
@@ -163,18 +164,38 @@ els.filterHasOrder.addEventListener('change', () => {
   renderCustomerList();
 });
 
+function upsertCustomerLocal(data) {
+  const idx = customers.findIndex(c => c.id === data.id);
+  if (idx >= 0) customers[idx] = data; else customers.push(data);
+  customers.sort((a, b) => customerName(a).localeCompare(customerName(b)));
+}
+
 // Reached from app.js's "Uredi stranko" modal after a successful save
 // (window.refreshKarticaCustomer?.(id) there) — re-fetch just this one
 // row rather than the whole customer list.
 window.refreshKarticaCustomer = async function (customerId) {
   const { data } = await supabase.from('customers').select(CUSTOMER_COLS).eq('id', customerId).single();
   if (!data) return;
-  const idx = customers.findIndex(c => c.id === customerId);
-  if (idx >= 0) customers[idx] = data; else customers.push(data);
-  customers.sort((a, b) => customerName(a).localeCompare(customerName(b)));
+  upsertCustomerLocal(data);
   renderCustomerList();
   if (selectedCustomerId === customerId) renderCustomerInfo();
 };
+
+// Reached from app.js's "Dodaj stranko" modal (window.openAddCustomerModal
+// bridge, triggered by our own "+ Dodaj stranko" button below) after a
+// successful insert — this customer has no fields/orders yet, so it won't
+// show up under the "Z delovnim nalogom" filter; select it directly rather
+// than make the admin find and un-filter it themselves.
+window.selectKarticaCustomer = async function (customerId) {
+  if (!customers.some(c => c.id === customerId)) {
+    const { data } = await supabase.from('customers').select(CUSTOMER_COLS).eq('id', customerId).single();
+    if (data) upsertCustomerLocal(data);
+  }
+  if (!fieldsByCustomer.has(customerId)) fieldsByCustomer.set(customerId, []);
+  await selectCustomer(customerId);
+};
+
+els.addCustomerBtn?.addEventListener('click', () => window.openAddCustomerModal?.('kartica'));
 
 // ── Upper-left quarter: customer info + edit ─────────────────
 function renderCustomerInfo() {

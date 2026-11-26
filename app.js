@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // Bump alongside sw.js's CACHE constant on every push to GitHub.
-const APP_VERSION = 'v4.158';
+const APP_VERSION = 'v4.159';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -5818,6 +5818,10 @@ function openAddCustomerModal(context, prefillNaziv = '') {
   document.body.style.overflow = 'hidden';
   newCustomerNazivInput.focus();
 }
+// Reached from Kartica kmeta too (kartica-kmeta.js), same bridge as
+// window.openEditCustomerModal — its "+ Dodaj stranko" button opens this
+// exact modal with context 'kartica' instead of a second add-customer form.
+window.openAddCustomerModal = openAddCustomerModal;
 
 function closeAddCustomerModal() {
   hideModalAnimated(addCustomerModal);
@@ -5914,6 +5918,11 @@ addCustomerForm.addEventListener('submit', async (e) => {
       assignCustomerToWorkOrder(newCustomer);
     } else if (addCustomerContext === 'decl') {
       renderDeclCustomerList();
+    } else if (addCustomerContext === 'kartica') {
+      // Kartica kmeta's own tab (window bridge, same pattern as
+      // window.refreshKarticaCustomer) — select the new customer there
+      // right away, same as this modal's other contexts do.
+      window.selectKarticaCustomer?.(newCustomer.id);
     }
   } catch (err) {
     addCustomerErrorEl.textContent = err.message || 'Napaka pri dodajanju stranke.';

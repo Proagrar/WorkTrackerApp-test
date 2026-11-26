@@ -3881,6 +3881,8 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .kartica-col--main      { flex: 999 1 560px; min-width: 0; min-height: 0; background: none; border: none; box-shadow: none; display: flex; flex-direction: column; }
 
 .kartica-col-head { padding: var(--space-6) var(--space-7) var(--space-4); border-bottom: 1px solid var(--border-light); }
+.kartica-col-head--customers { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.kartica-col-head--customers .btn { flex: 0 0 auto; white-space: nowrap; }
 .kartica-eyebrow { margin: 0; font-size: .6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
 .kartica-subtext { margin: 2px 0 0; font-size: .8125rem; color: var(--text-secondary); }
 
