@@ -3886,6 +3886,9 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .kartica-search { padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--border-light); }
 .kartica-search input { width: 100%; height: 36px; padding: 0 var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: .875rem; font-family: var(--font); }
 
+.kartica-filter { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-6); border-bottom: 1px solid var(--border-light); font-size: .8125rem; color: var(--text-secondary); cursor: pointer; }
+.kartica-filter input { width: 16px; height: 16px; accent-color: var(--blue-800); }
+
 .kartica-customer-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--space-3); }
 .kartica-customer-row {
   width: 100%; display: flex; align-items: center; gap: var(--space-5);
@@ -3939,3 +3942,52 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
 .kartica-onesoil-pill--checking { background: var(--border-light); color: var(--text-secondary); }
 .kartica-onesoil-pill--found    { background: var(--success-bg); color: var(--success); }
 .kartica-onesoil-pill--not-found{ background: var(--warning-bg); color: var(--warning); }
+
+/* Dashboard expansion (2026-11-26): customer-level stats, recommendations,
+   upcoming activities, per-field nutrient tiles, services timeline,
+   documents — all inside the same scrolling #karticaDetail panel, grouped
+   into labeled sections. See project_kartica_kmeta_dashboard memory for
+   which of these are real vs. honest placeholders. */
+.kartica-section { margin-top: var(--space-9); }
+.kartica-section:first-child { margin-top: 0; }
+.kartica-section-title { margin: 0 0 var(--space-5); font-size: .8125rem; font-weight: 700; color: var(--text-primary); }
+.kartica-empty-note { margin: 0; font-size: .8125rem; color: var(--text-secondary); }
+
+.kartica-stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-5); }
+.kartica-stat-tile { border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: var(--space-5) var(--space-6); background: var(--background); }
+.kartica-stat-value { margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--text-primary); }
+.kartica-stat-label { margin: 2px 0 0; font-size: .6875rem; color: var(--text-secondary); }
+
+.kartica-rec-list { display: flex; flex-direction: column; gap: var(--space-4); }
+.kartica-rec { display: flex; align-items: center; gap: var(--space-5); padding: var(--space-5) var(--space-6); border-radius: var(--radius-sm); border: 1px solid var(--border-light); background: var(--surface); }
+.kartica-rec-sev { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 999px; }
+.kartica-rec--high .kartica-rec-sev   { background: var(--error); }
+.kartica-rec--medium .kartica-rec-sev { background: var(--warning); }
+.kartica-rec--low .kartica-rec-sev    { background: var(--text-muted); }
+.kartica-rec-text { flex: 1 1 auto; font-size: .8125rem; color: var(--text-primary); }
+.kartica-rec-action { flex: 0 0 auto; font-size: .6875rem; color: var(--text-muted); background: var(--background); border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: 4px 10px; cursor: help; }
+
+.kartica-doc-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.kartica-doc-row { display: flex; justify-content: space-between; gap: var(--space-5); font-size: .8125rem; color: var(--text-primary); }
+
+/* Per-field nutrient tiles — same grid cell as the existing Meja/OneSoil
+   tiles (.kartica-detail-grid already defined above), just a richer tile
+   variant with a classification badge + optional range bar. */
+.kartica-nutrient-tile { border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: var(--space-5) var(--space-6); background: var(--background); }
+.kartica-nutrient-value { margin: 0; font-size: 1.0625rem; font-weight: 700; color: var(--text-primary); }
+.kartica-nutrient-badge { display: inline-block; margin-top: 4px; font-size: .6875rem; font-weight: 700; padding: 2px 7px; border-radius: 20px; }
+.kartica-nutrient--nizko     { background: var(--error-bg);   color: var(--error); }
+.kartica-nutrient--optimalno { background: var(--success-bg); color: var(--success); }
+.kartica-nutrient--visoko    { background: var(--warning-bg); color: var(--warning); }
+.kartica-nutrient-bar { position: relative; height: 6px; border-radius: 999px; overflow: hidden; display: flex; margin-top: var(--space-5); }
+.kartica-nutrient-bar-seg { height: 100%; }
+.kartica-nutrient-bar-marker { position: absolute; top: -2px; width: 2px; height: 10px; background: var(--text-primary); transform: translateX(-1px); }
+
+/* Honest "we don't have this yet" tile — same grid cell size as a real
+   tile, visually muted/dashed so it never reads as a blank real value. */
+.kartica-placeholder { display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 100%; box-sizing: border-box; border: 1px dashed var(--border); border-radius: var(--radius-sm); background: var(--background); color: var(--text-muted); font-size: .6875rem; text-align: center; padding: var(--space-5) var(--space-6); }
+.kartica-placeholder strong { font-size: .75rem; color: var(--text-secondary); font-weight: 600; }
+
+.kartica-timeline-table { width: 100%; border-collapse: collapse; font-size: .8125rem; }
+.kartica-timeline-table th { text-align: left; font-size: .6875rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); padding: 4px 8px; border-bottom: 1px solid var(--border-light); }
+.kartica-timeline-table td { padding: 6px 8px; border-bottom: 1px solid var(--border-light); color: var(--text-primary); }
