@@ -3919,7 +3919,13 @@ button.wlg-segmentation-icon:hover { background: var(--error-bg); }
   box-shadow: var(--shadow-sm); overflow: hidden;
 }
 .kartica-quad--customer { padding: var(--space-6) var(--space-7); overflow-y: auto; }
-.kartica-quad--map { padding: 0; }
+/* Leaflet's own stylesheet puts its controls/panes at z-index 400-1000;
+   without a stacking context of its own here, those values compare
+   directly against page-level z-indexes (e.g. .modal-backdrop's 200) and
+   paint the map over the "Uredi stranko" modal (Matej, 2026-11-26).
+   position+z-index here caps everything inside to this box's own place
+   in the stacking order instead. */
+.kartica-quad--map { padding: 0; position: relative; z-index: 0; }
 
 .kartica-customer-info-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-5); }
 .kartica-customer-info-name { margin: 0; font-size: 1.0625rem; font-weight: 700; color: var(--text-primary); }

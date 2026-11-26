@@ -287,7 +287,7 @@ async function selectCustomer(customerId) {
 
   if (needsBoundary) {
     const m = new Map();
-    for (const row of (geomResult.data ?? [])) m.set(row.field_id, { status: row.status, geojson: row.geojson });
+    for (const row of (geomResult.data ?? [])) m.set(row.field_id, { status: row.status, geojson: row.geojson, areaHa: row.area_ha });
     boundaryCache.set(customerId, m);
   }
   if (needsDecl) {
@@ -309,7 +309,14 @@ async function selectCustomer(customerId) {
 // ── Dense GERK table (the main content) ──────────────────────
 function renderFieldTable() {
   const fields = fieldsByCustomer.get(selectedCustomerId) || [];
-  const totalHa = fields.reduce((s, f) => s + (Number(f.area_ha) || 0), 0);
+  const statusMap = boundaryCache.get(selectedCustomerId) || new Map();
+  // fields.area_ha is often stale/unset (Matej, 2026-11-26: showed 0 while
+  // the matching work order correctly showed 5.09 ha) — prefer the real
+  // area computed from the same resolved geometry the boundary badge/map
+  // already use (get_customer_field_geometry's area_ha), falling back to
+  // fields.area_ha only when there's no geometry at all ('brez_meje').
+  const resolvedHa = (f) => statusMap.get(f.id)?.areaHa ?? f.area_ha;
+  const totalHa = fields.reduce((s, f) => s + (Number(resolvedHa(f)) || 0), 0);
   els.fieldsToolbar.innerHTML = `
     <h2>${fields.length} GERK-ov · ${fmtHa(totalHa)} ha</h2>
     <button type="button" class="btn btn-secondary btn-sm" data-action="add-field">+ Dodaj GERK</button>`;
@@ -320,7 +327,6 @@ function renderFieldTable() {
     return;
   }
 
-  const statusMap = boundaryCache.get(selectedCustomerId) || new Map();
   const declMap = declCache.get(selectedCustomerId) || new Map();
   const analytics = analyticsCache.get(selectedCustomerId);
 
@@ -359,7 +365,7 @@ function renderFieldTable() {
       <tr data-field-id="${esc(f.id)}"${active ? ' style="background:var(--blue-50)"' : ''}>
         <td>${esc(f.cadastre_id || '—')}</td>
         <td>${esc(f.name || '—')}</td>
-        <td class="kartica-num">${fmtHa(f.area_ha)}</td>
+        <td class="kartica-num">${fmtHa(resolvedHa(f))}</td>
         <td>${esc(crop)}</td>
         <td><span class="kartica-boundary-badge ${STATUS_CLASS[st]}">${STATUS_LABEL[st]}</span></td>
         <td>${labHtml}</td>
@@ -482,7 +488,7 @@ async function refreshCustomerFields(customerId) {
 
   const { data: geom } = await supabase.rpc('get_customer_field_geometry', { p_customer_id: customerId });
   const m = new Map();
-  for (const row of (geom ?? [])) m.set(row.field_id, { status: row.status, geojson: row.geojson });
+  for (const row of (geom ?? [])) m.set(row.field_id, { status: row.status, geojson: row.geojson, areaHa: row.area_ha });
   boundaryCache.set(customerId, m);
   await loadCustomerAnalytics(customerId);
 
